@@ -1,103 +1,93 @@
-# Can-Chat [![Build Status](https://dev.azure.com/lganzzzo/lganzzzo/_apis/build/status/lganzzzo.canchat?branchName=master)](https://dev.azure.com/lganzzzo/lganzzzo/_build/latest?definitionId=24&branchName=master)
+```
+░█▀▀░█▀█░█▀█░█▀▀░█▀█░▀█▀░█▀▄░█▀▀░░░░█▀▄░█░█░█▀█░█▀▀░░░░█▀█░█▀▄░█▀▀
+░█░░░█░█░█░█░▀▀█░█▀▀░░█░░█▀▄░█▀▀░░░░█░█░░█░░█░█░█▀▀░░░░█░█░█▀▄░█░█
+░▀▀▀░▀▀▀░▀░▀░▀▀▀░▀░░░▀▀▀░▀░▀░▀▀▀░▀░░▀▀░░░▀░░▀░▀░▀▀▀░▀░░▀▀▀░▀░▀░▀▀▀
+        ephemeral • p2p • anonymous • synchronous
+```
 
-![Can-Chat](https://upload.wikimedia.org/wikipedia/commons/0/0a/Tr%C3%A5dtelefon-illustration.png)
+**Conspire** is a web-based sanctuary for radical exchange: ephemeral,
+anonymous, and synchronous. Jump into instant rooms where voices and files move
+peer-to-peer, leaving no footprints. Built by dyne.org to empower digital
+autonomy, it's freedom in the form of conversation.
 
-Feature-complete rooms-based chat for tens of thousands users. Client plus Server. Built with [Oat++ Web Framework](https://oatpp.io/).   
-`Single-Node` `In-Memory` `WebSocket` `TLS`.
-
+![BConspira](https://secrets.dyne.org/static/img/secret_ladies.jpg)
 
 ## Quick Start
 
-- Run your own chat in Docker:
-   ```bash
-   docker run -p 8443:8443 -e EXTERNAL_ADDRESS=localhost -e EXTERNAL_PORT=8443 -it lganzzzo/canchat
-   ```
-- [Build from source](#build-from-source)
+Go to [conspire.dyne.org](https://conspire.dyne.org) and bring your friends.
 
-## Chat
+## How it works (assuming your browser hasn't betrayed you yet)
 
-### Rooms
+Conspire is built on the principle that chatrooms should be as fleeting and
+commitment-free as your average internet hot take. You join with a URL, which
+is randomly generated, because nothing says “security” like hoping no one else
+guesses your 40-character alphanumeric spaghetti.
 
-All communication happens in chat-rooms.  
-Each room has a unique URL.  
-Anyone who has room-URL can join the room.
-Generating random long enough room-URL gives privacy to participants. Be sure to share room-URL with wanted participants only. 
+Anyone with the room’s URL can join. This includes your friends, colleagues,
+and possibly your neighbor’s cat if it learns to copy-paste. Share wisely.
 
-Rooms are automatically created when the first participant joins the room, and
-are automatically deleted when the last participant leaves the room.
+Rooms self-assemble the moment someone enters, like magic.  They vanish when
+the last person leaves: no ghosts, no receipts, no archive. If you’re feeling
+abandoned, the room probably feels the same way.
 
-Chat-history is available for newly joined participants.
-History is rounded when the number of messages in the room exceeds the `maxRoomHistoryMessages` config parameter.
-History is deleted and no-longer-available once the room is deleted.
+Chat history politely exists for newcomers, until a configurable number of
+messages accumulate, at which point it gets “rounded,” i.e., possibly
+lobotomized. Once the room dies, the history follows: no funeral, no backup.
 
-### File Sharing
-
-Users can share multiple files at once.
-
-Files are streamed directly from the host-peer machine. 
-Nothing is uploaded to the server nor stored in any 3d-party place.
-
-Once host-peer cancels file-sharing, files are no longer available.  
-If host-peer exits the room, all of his file-sharing is canceled.
+### File Sharing (the not-so-cloud way)
 
 
-## Build And Run
+You can share multiple files, streamed straight from your device like it’s 2002
+and BitTorrent had a soul. No uploads to shadowy servers. No mysterious third
+parties. Just you, your files, and the terrifying fragility of your internet
+connection.
 
-### Build From Source
+Once the host peer hits cancel or rage-quits the room, all their shared files
+evaporate. If they exit entirely, it’s like they were never generous at all.
 
-#### Pre-Requirements
+### FAQ (Frequently Avoided Questions)
 
-- Install `LibreSSL` version `3.0.0` or later.
-- Install [oatpp](https://github.com/oatpp/oatpp) - Oat++ Web Framework (main module)
-- Install [oatpp-websocket](https://github.com/oatpp/oatpp-websocket) - Oat++ WebSocket extension module.
-- Install [oatpp-libressl](https://github.com/oatpp/oatpp-libressl) - Libressl adaptor for Oat++.
+**Q: Can anyone join my chatroom?**
 
-*To install oatpp modules you can use `utility/install-oatpp-modules.sh` script*
+A: Anyone with the URL can waltz right in. Yes, even your former coworker who
+still thinks faxing PDFs is peak productivity. Share wisely: or don’t, and enjoy
+the chaos.
 
-#### Build Chat Server
+**Q: Is the room permanent?**
 
-```bash
-$ cd <this-repo>/server/
-$ mkdir build/ && cd build/
-$ cmake ..
-$ make
-```
+A: About as permanent as your browser’s cache after you hit "clear." Rooms
+appear when someone joins and vanish when everyone leaves. It’s digital
+nihilism in action.
 
-Now run chat server
+**Q: Can I save my chat history?**
 
-```bash
-$ canchat-exe --host localhost --port 8443
-```
+A: Technically, yes: if you read really fast and use screenshots like it’s 1999.
+Otherwise, history is retained only until the room exceeds a certain number of
+messages. Then it’s gently euthanized by config.
 
-### Docker
+**Q: Where are the files stored?**
 
-```bash
-$ docker build -t canchat .
-$ docker run -p 8443:8443 -e EXTERNAL_ADDRESS=localhost -e EXTERNAL_PORT=8443 -it canchat
-```
-*Then goto https://localhost:8443/ in browser. (accept self-signed certificate)*
+A: On the host’s machine, like nature intended. No cloud, no creepy data
+hoarding. When the host bails or hits cancel, the files evaporate like polite
+intentions in a comment thread.
 
-Image parameters:
-- `-e EXTERNAL_ADDRESS` - Address to which the client is supposed to connect to.
-- `-e EXTERNAL_PORT` - Port at `EXTERNAL_ADDRESS` to which the client is supposed to connect to. *Chat server will also be running on this port*.
-- `-e TLS_FILE_PRIVATE_KEY` - Path to TLS private-key file.
-- `-e TLS_FILE_CERT_CHAIN` - Path to TLS certificate chain file.
+**Q: Can I upload cat memes?**
 
-## Repository Content
+A: You can stream _multiple_ cat memes directly from your machine. But once you
+exit the room, the dream dies: and so do the memes.
 
-```
-- front/                            # - Front-end sources are here
-- server/                           # - Server sources are here
-- cert/                             # - test TLS certificate is here
-- utility/
-    |
-    |- install-oatpp-modules.sh     # - useful script to install required oatpp modules
-```
+**Q: Is this service free?**
+
+A: Yes. But it may cost you your last shred of trust in centralized platforms.
+
+**Q: Is Conspire secure?**
+
+A: Anonymous, ephemeral, peer-to-peer? It’s like privacy grew up and started
+smoking clove cigarettes. That’s a yes.
 
 ## License
 
+Conspire is based on (can-chat)[https://github.com/lganzzzo/canchat] by Leonid
+Stryzhevskyi, it is written in C++ and built with Oat++ Web Framework.
+
 This project is released under `Apache License 2.0`.
-
----
-
-Enjoy!
