@@ -1,0 +1,22 @@
+name: conspire
+on:
+  push:
+    paths-ignore:
+      - '*.md'
+    branches:
+      - master
+  pull_request:
+    paths-ignore:
+      - '*.md'
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  publish_docker_image:
+    name: 🐳 Publish Docker image
+    uses: ForkbombEu/workflows/.github/workflows/publish-ghcr.yml@main
+    secrets: inherit
