@@ -17,8 +17,8 @@ RUN make -j `nproc`
 FROM alpine:latest AS runtime
 ENV EXTERNAL_ADDRESS="localhost"
 ENV EXTERNAL_PORT=8443
-ENV TLS_FILE_PRIVATE_KEY="/app/cert/test_key.pem"
-ENV TLS_FILE_CERT_CHAIN="/app/cert/test_cert.crt"
+ENV TLS_FILE_PRIVATE_KEY="/app/cert/privkey.pem"
+ENV TLS_FILE_CERT_CHAIN="/app/cert/fullchain.pem"
 ENV URL_STATS_PATH="admin/stats.json"
 FROM alpine:latest
 # Install only runtime dependencies needed
@@ -36,14 +36,9 @@ COPY --from=builder /chat/server/build/canchat-exe .
 COPY --from=builder /chat/front front
 # Generate self-signed certificates
 RUN mkdir -p cert
-RUN libressl req -x509 -nodes -days 365 -newkey rsa:4096 \
-    -keyout cert/private.key \
+RUN libressl req -x509 -nodes -days 365 -newkey rsa:2046 \
+    -keyout cert/privkey.pem \
     -out cert/test_cert.crt \
     -subj "/C=IT/ST=Italy/L=Rome/O=Dyne.org/CN=dyne.org" && \
-    cat cert/test_cert.crt cert/private.key \
-    > cert/test_key.pem && \
-    chmod 644 cert/test_cert.crt && \
-    chmod 600 cert/private.key && \
-    chmod 644 cert/test_key.pem
-
+    cat cert/test_cert.crt cert/privkey.pem > cert/fullchain.pem
 CMD ["./canchat-exe"]
