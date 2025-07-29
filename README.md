@@ -22,6 +22,7 @@ autonomy, it's freedom in the form of conversation.
 ![BConspira](https://secrets.dyne.org/static/img/secret_ladies.jpg)
 </div>
 
+---
 ## 🚀 Quick Start
 
 Go to [conspire.dyne.org](https://conspire.dyne.org) and bring your friends.
@@ -32,6 +33,7 @@ docker run -it -p8443:8443 ghcr.io/dyne/conspire:latest
 ```
 On your own server, mount the TLS certificate volume on `/app/cert`
 
+---
 ## 🛠️ How It Works (assuming your browser hasn't betrayed you yet)
 
 Conspire is built on the principle that chatrooms should be as fleeting and
@@ -115,6 +117,7 @@ Anonymous, ephemeral, peer-to-peer? It’s like privacy grew up and started
 smoking clove cigarettes. That’s a yes.
 </details>
 
+---
 ## 💼 License
 
 Conspire is based on [can-chat](https://github.com/lganzzzo/canchat) by Leonid
