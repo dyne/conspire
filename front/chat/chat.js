@@ -396,7 +396,10 @@ function createParticipantsList() {
         }
     }
 
-    list.innerHTML = allPeersElem.innerHTML;
+  list.innerHTML = "";
+  for (let child of allPeersElem.children) {
+    list.appendChild(child.cloneNode(true));
+  }
 }
 
 function updateParticipants() {
