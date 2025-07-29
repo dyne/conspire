@@ -22,7 +22,7 @@ ENV TLS_FILE_CERT_CHAIN="/app/cert/test_cert.crt"
 ENV URL_STATS_PATH="admin/stats.json"
 FROM alpine:latest
 # Install only runtime dependencies needed
-RUN apk add libressl-dev libressl ca-certificates bash
+RUN apk add libressl-dev libressl ca-certificates bash libstdc++ libgcc
 # Create a non-root user and group (e.g., "appuser")
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 # Optional: Set workdir and ownership
