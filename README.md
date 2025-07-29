@@ -2,7 +2,7 @@
 ░█▀▀░█▀█░█▀█░█▀▀░█▀█░▀█▀░█▀▄░█▀▀░░░░█▀▄░█░█░█▀█░█▀▀░░░░█▀█░█▀▄░█▀▀
 ░█░░░█░█░█░█░▀▀█░█▀▀░░█░░█▀▄░█▀▀░░░░█░█░░█░░█░█░█▀▀░░░░█░█░█▀▄░█░█
 ░▀▀▀░▀▀▀░▀░▀░▀▀▀░▀░░░▀▀▀░▀░▀░▀▀▀░▀░░▀▀░░░▀░░▀░▀░▀▀▀░▀░░▀▀▀░▀░▀░▀▀▀
-        ephemeral • p2p • anonymous • synchronous
+            ephemeral • p2p • anonymous • synchronous
 ```
 
 **Conspire** is a web-based sanctuary for radical exchange: ephemeral,
@@ -15,6 +15,12 @@ autonomy, it's freedom in the form of conversation.
 ## Quick Start
 
 Go to [conspire.dyne.org](https://conspire.dyne.org) and bring your friends.
+
+Run your own:
+```
+docker run -it -p8443:8443 ghcr.io/dyne/conspire:latest
+```
+On your own server, mount the TLS certificate volume on `/app/cert`
 
 ## How it works (assuming your browser hasn't betrayed you yet)
 
