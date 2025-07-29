@@ -1,12 +1,16 @@
 <div align="center">
 
-░█▀▀░█▀█░█▀█░█▀▀░█▀█░▀█▀░█▀▄░█▀▀░░░░█▀▄░█░█░█▀█░█▀▀░░░░█▀█░█▀▄░█▀▀
-░█░░░█░█░█░█░▀▀█░█▀▀░░█░░█▀▄░█▀▀░░░░█░█░░█░░█░█░█▀▀░░░░█░█░█▀▄░█░█
+```
+
+░█▀▀░█▀█░█▀█░█▀▀░█▀█░▀█▀░█▀▄░█▀▀░░░░█▀▄░█░█░█▀█░█▀▀░░░░█▀█░█▀▄░█▀▀  
+░█░░░█░█░█░█░▀▀█░█▀▀░░█░░█▀▄░█▀▀░░░░█░█░░█░░█░█░█▀▀░░░░█░█░█▀▄░█░█  
 ░▀▀▀░▀▀▀░▀░▀░▀▀▀░▀░░░▀▀▀░▀░▀░▀▀▀░▀░░▀▀░░░▀░░▀░▀░▀▀▀░▀░░▀▀▀░▀░▀░▀▀▀  
 ephemeral • p2p • anonymous • synchronous
+```
 
 **Conspire** is a web-based sanctuary for radical exchange: ephemeral,
 anonymous, and synchronous.
+
 </div>
 
 Jump into instant rooms where voices and files move
