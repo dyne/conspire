@@ -1,4 +1,4 @@
-# Dockerfile by jaromil
+# Dockerfile by jaromil & pna
 
 FROM alpine:latest AS builder
 RUN apk add bash clang cmake make git libressl-dev pkgconfig
@@ -15,14 +15,12 @@ RUN make -j `nproc`
 
 # Runtime stage
 FROM alpine:latest AS runtime
-ENV EXTERNAL_ADDRESS="localhost"
-ENV EXTERNAL_PORT=8443
-ENV TLS_FILE_PRIVATE_KEY="/app/cert/privkey.pem"
-ENV TLS_FILE_CERT_CHAIN="/app/cert/fullchain.pem"
+ENV EXTERNAL_ADDRESS="0.0.0.0"
+ENV EXTERNAL_PORT=3000
 ENV URL_STATS_PATH="admin/stats.json"
 FROM alpine:latest
 # Install only runtime dependencies needed
-RUN apk add libressl-dev libressl ca-certificates bash libstdc++ libgcc
+RUN apk add bash libstdc++ libgcc
 # Create a non-root user and group (e.g., "appuser")
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 # Optional: Set workdir and ownership
@@ -35,10 +33,5 @@ COPY --from=builder /chat/server/build/canchat-exe .
 # Copy frontend files
 COPY --from=builder /chat/front front
 # Generate self-signed certificates
-RUN mkdir -p cert
-RUN libressl req -x509 -nodes -days 365 -newkey rsa:2046 \
-    -keyout cert/privkey.pem \
-    -out cert/test_cert.crt \
-    -subj "/C=IT/ST=Italy/L=Rome/O=Dyne.org/CN=dyne.org" && \
-    cat cert/test_cert.crt cert/privkey.pem > cert/fullchain.pem
+EXPOSE 3000
 CMD ["./canchat-exe"]
