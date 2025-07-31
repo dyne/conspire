@@ -15,8 +15,10 @@ RUN make -j `nproc`
 
 # Runtime stage
 FROM alpine:latest AS runtime
-ENV EXTERNAL_ADDRESS="localhost"
-ENV EXTERNAL_PORT=8443
+ARG HOSTNAME="localhost"
+ENV EXTERNAL_ADDRESS=${HOSTNAME}
+ARG PORT=8443
+ENV EXTERNAL_PORT=${PORT}
 ENV TLS_FILE_PRIVATE_KEY="/app/cert/privkey.pem"
 ENV TLS_FILE_CERT_CHAIN="/app/cert/fullchain.pem"
 ENV URL_STATS_PATH="admin/stats.json"
