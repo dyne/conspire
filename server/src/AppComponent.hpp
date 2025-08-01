@@ -31,8 +31,6 @@
 #include "dto/Config.hpp"
 #include "utils/Statistics.hpp"
 
-#include "oatpp-openssl/server/ConnectionProvider.hpp"
-
 #include "oatpp/web/server/interceptor/RequestInterceptor.hpp"
 #include "oatpp/web/server/AsyncHttpConnectionHandler.hpp"
 #include "oatpp/web/server/HttpRouter.hpp"
@@ -95,7 +93,7 @@ public:
 
     const char* portText = std::getenv("EXTERNAL_PORT");
     if(!portText) {
-      portText = m_cmdArgs.getNamedArgumentValue("--port", "8443");
+      portText = m_cmdArgs.getNamedArgumentValue("--port", "8080");
     }
 
     bool success;
@@ -104,16 +102,6 @@ public:
       throw std::runtime_error("Invalid port!");
     }
     config->port = (v_uint16) port;
-
-    config->tlsPrivateKeyPath = std::getenv("TLS_FILE_PRIVATE_KEY");
-    if(!config->tlsPrivateKeyPath) {
-      config->tlsPrivateKeyPath = m_cmdArgs.getNamedArgumentValue("--tls-key", "" CERT_PEM_PATH);
-    }
-
-    config->tlsCertificateChainPath = std::getenv("TLS_FILE_CERT_CHAIN");
-    if(!config->tlsCertificateChainPath) {
-      config->tlsCertificateChainPath = m_cmdArgs.getNamedArgumentValue("--tls-chain", "" CERT_CRT_PATH);
-    }
 
     config->statisticsUrl = std::getenv("URL_STATS_PATH");
     if(!config->statisticsUrl) {
@@ -138,22 +126,7 @@ public:
 
     OATPP_COMPONENT(oatpp::Object<ConfigDto>, appConfig);
 
-    std::shared_ptr<oatpp::network::ServerConnectionProvider> result;
-
-    if(appConfig->useTLS) {
-
-      OATPP_LOGd("oatpp::openssl::Config", "key_path='{}'", appConfig->tlsPrivateKeyPath);
-      OATPP_LOGd("oatpp::openssl::Config", "chn_path='{}'", appConfig->tlsCertificateChainPath);
-
-      auto config = oatpp::openssl::Config::createDefaultServerConfigShared(
-              appConfig->tlsCertificateChainPath->c_str(),
-              appConfig->tlsPrivateKeyPath->c_str());
-      result = oatpp::openssl::server::ConnectionProvider::createShared(config, {"0.0.0.0", appConfig->port, oatpp::network::Address::IP_4});
-    } else {
-      result = oatpp::network::tcp::server::ConnectionProvider::createShared({"0.0.0.0", appConfig->port, oatpp::network::Address::IP_4});
-    }
-
-    return result;
+    return oatpp::network::tcp::server::ConnectionProvider::createShared({"0.0.0.0", appConfig->port, oatpp::network::Address::IP_4});
 
   }());
 

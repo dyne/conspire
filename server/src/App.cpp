@@ -74,11 +74,7 @@ void run(const oatpp::base::CommandLineArguments& args) {
 
   OATPP_COMPONENT(oatpp::Object<ConfigDto>, appConfig);
 
-  if(appConfig->useTLS) {
-    OATPP_LOGi("canchat", "clients are expected to connect at https://{}:{}/", appConfig->host, appConfig->port);
-  } else {
-    OATPP_LOGi("canchat", "clients are expected to connect at http://{}:{}/", appConfig->host, appConfig->port);
-  }
+  OATPP_LOGi("canchat", "clients are expected to connect at http://{}:{}/", appConfig->host, appConfig->port);
 
   OATPP_LOGi("canchat", "canonical base URL={}", appConfig->getCanonicalBaseUrl())
   OATPP_LOGi("canchat", "statistics URL={}", appConfig->getStatsUrl())

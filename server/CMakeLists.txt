@@ -6,6 +6,19 @@ project(${project_name})
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Add local dependencies path
+set(DEPS_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/../build/deps")
+if(EXISTS "${DEPS_PREFIX}")
+    list(PREPEND CMAKE_PREFIX_PATH "${DEPS_PREFIX}")
+    message(STATUS "Using local dependencies from: ${DEPS_PREFIX}")
+    # Add include directories explicitly
+    include_directories("${DEPS_PREFIX}/include")
+    include_directories("${DEPS_PREFIX}/include/oatpp-1.4.0")
+    include_directories("${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp")
+    include_directories("${DEPS_PREFIX}/include/oatpp-websocket-1.4.0")
+    include_directories("${DEPS_PREFIX}/include/oatpp-websocket-1.4.0/oatpp-websocket")
+endif()
+
 include_directories(src)
 
 add_library(${project_name}-lib
@@ -34,9 +47,6 @@ add_library(${project_name}-lib
 
 find_package(oatpp              1.4.0 REQUIRED)
 find_package(oatpp-websocket    1.4.0 REQUIRED)
-find_package(oatpp-openssl      1.4.0 REQUIRED)
-
-find_package(OpenSSL 1.1 REQUIRED)
 
 target_link_libraries(${project_name}-lib
 
@@ -44,20 +54,26 @@ target_link_libraries(${project_name}-lib
         PUBLIC oatpp::oatpp
         PUBLIC oatpp::oatpp-test
         PUBLIC oatpp::oatpp-websocket
-        PUBLIC oatpp::oatpp-openssl
-
-        # OpenSSL libraries
-        PUBLIC OpenSSL::SSL
-        PUBLIC OpenSSL::Crypto
 
 )
+
+# Add target-specific include directories for local dependencies
+if(EXISTS "${DEPS_PREFIX}")
+    target_include_directories(${project_name}-lib PRIVATE
+        "${DEPS_PREFIX}/include"
+        "${DEPS_PREFIX}/include/oatpp-1.4.0"
+        "${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp"
+        "${DEPS_PREFIX}/include/oatpp-websocket-1.4.0"
+        "${DEPS_PREFIX}/include/oatpp-websocket-1.4.0/oatpp-websocket"
+    )
+endif()
 
 #################################################################
 ## define certificates path
 
 add_definitions(
-        -DCERT_PEM_PATH="cert/privkey.pem"
-        -DCERT_CRT_PATH="cert/fullchain.pem"
+        # -DCERT_PEM_PATH="cert/privkey.pem"
+        # -DCERT_CRT_PATH="cert/fullchain.pem"
         -DFRONT_PATH="front"
 )
 

@@ -43,17 +43,6 @@ public:
 
   DTO_FIELD(String, host);
   DTO_FIELD(UInt16, port);
-  DTO_FIELD(Boolean, useTLS) = true;
-
-  /**
-   * Path to TLS private key file.
-   */
-  DTO_FIELD(String, tlsPrivateKeyPath);
-
-  /**
-   * Path to TLS certificate chain file.
-   */
-  DTO_FIELD(String, tlsCertificateChainPath);
 
 
   /**
@@ -71,12 +60,7 @@ public:
 
   oatpp::String getHostString() {
     oatpp::data::stream::BufferOutputStream stream(256);
-    v_uint16 defPort;
-    if(useTLS) {
-      defPort = 443;
-    } else {
-      defPort = 80;
-    }
+    v_uint16 defPort = 80;
     stream << host;
     if(!port || defPort != port) {
       stream << ":" << port;
@@ -86,14 +70,9 @@ public:
 
   oatpp::String getCanonicalBaseUrl() {
     oatpp::data::stream::BufferOutputStream stream(256);
-    v_uint16 defPort;
-    if(useTLS) {
-      stream << "https://";
-      defPort = 443;
-    } else {
-      stream << "http://";
-      defPort = 80;
-    }
+    v_uint16 defPort = 80;
+
+    stream << "http://";
     stream << host;
     if(!port || defPort != port) {
       stream << ":" << port;
@@ -103,11 +82,7 @@ public:
 
   oatpp::String getWebsocketBaseUrl() {
     oatpp::data::stream::BufferOutputStream stream(256);
-    if(useTLS) {
-      stream << "wss://";
-    } else {
-      stream << "ws://";
-    }
+    stream << "ws://";
     stream << host << ":" << port;
     return stream.toString();
   }
