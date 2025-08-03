@@ -6,6 +6,16 @@ project(${project_name})
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Add local dependencies path
+set(DEPS_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/../build/deps")
+if(EXISTS "${DEPS_PREFIX}")
+    list(PREPEND CMAKE_PREFIX_PATH "${DEPS_PREFIX}")
+    message(STATUS "Using local dependencies from: ${DEPS_PREFIX}")
+    include_directories("${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp")
+    include_directories("${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp-openssl")
+    include_directories("${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp-websocket")
+endif()
+
 include_directories(src)
 
 add_library(${project_name}-lib
@@ -51,6 +61,15 @@ target_link_libraries(${project_name}-lib
         PUBLIC OpenSSL::Crypto
 
 )
+
+# Add target-specific include directories for local dependencies
+if(EXISTS "${DEPS_PREFIX}")
+    target_include_directories(${project_name}-lib PRIVATE
+    "${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp"
+    "${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp-openssl"
+    "${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp-websocket"
+    )
+endif()
 
 #################################################################
 ## define certificates path
