@@ -37,6 +37,22 @@
 
 void run(const oatpp::base::CommandLineArguments& args) {
 
+  // Print help and exit if '-h' or '--help' is present
+  if(args.hasArgument("-h") || args.hasArgument("--help")) {
+    std::cout << R"HELP(
+Conspire Chat Server
+Usage: canchat-exe [options]
+Options:
+  --host <address>         Bind address (default: localhost)
+  --port <port>            Port to listen on (default: 8080)
+  --tls-key <path>         Path to TLS private key file (default: "privkey.pem")
+  --tls-chain <path>       Path to TLS certificate chain file (default: "fullchain.pem")
+  --url-stats <path>       Statistics endpoint path (default: admin/stats.json)
+  -h, --help               Show this help message
+)HELP" << std::endl;
+    return;
+  }
+
   /* Register Components in scope of run() method */
   AppComponent components(args);
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-
+set(BUILD_SHARED_LIBS OFF)
 set(project_name canchat) ## rename your project here
 
 project(${project_name})
