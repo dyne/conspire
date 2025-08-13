@@ -27,11 +27,11 @@ autonomy, it's freedom in the form of conversation.
 
 Go to [conspire.dyne.org](https://conspire.dyne.org) and bring your friends.
 
-Run your own:
+Run locally on docker (demo only!):
 ```
-docker run -it -p8443:8443 ghcr.io/dyne/conspire:latest
+docker run -p8443:8443 ghcr.io/dyne/conspire:latest
 ```
-On your own server, mount the TLS certificate volume on `/app/cert`
+This is just for demonstration with invalid TLS certs: conspire doesn't runs inside a container as it needs websockets forwarding and has CORS safety controls in place, therefore it needs to be directly connected to the Internet with a port dedicated to it.
 
 ---
 ## 🛠️ How It Works (assuming your browser hasn't betrayed you yet)
