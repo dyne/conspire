@@ -1,0 +1,111 @@
+body {
+    margin: 40px auto;
+    max-width: 700px;
+    line-height: 1.6;
+    font-size: 18px;
+    color: #444;
+    background-color: white;
+    padding: 0 10px;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    text-rendering: optimizeLegibility;
+    /* Enables kerning and ligatures etc. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+
+#starter {
+    display: inline-grid;
+    text-align: center;
+    margin: 0 0 50px 0;
+}
+
+input {
+    font-size: 36px;
+    padding: 14px 20px;
+    margin: 0 0 20px 0;
+}
+
+input {
+    display: inline;
+    border: none;
+    outline: none;
+    padding: 9px 20px;
+    cursor: pointer;
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 3px;
+    background-color: #448AFF;
+    color: white;
+    text-transform: uppercase;
+}
+
+input:hover {
+    background-color: #2979FF;
+}
+
+input:active {
+    background-color: #2979FF;
+}
+
+.dark-mode {
+    background-color: black;
+    color: white;
+    accent-color: #58a6ff;
+
+    a:link {
+        color: #58a6ff;
+    }
+
+    a:visited {
+        color: #3f84e4;
+    }
+}
+
+h1,
+h2,
+h3 {
+    line-height: 1.2;
+}
+
+code,
+kbd,
+samp,
+pre {
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Consolas,
+        'Liberation Mono',
+        Menlo,
+        monospace;
+    /* 1 */
+    font-size: 1em;
+    /* 2 */
+}
+
+ul {
+    list-style-type: '';
+    margin: 0;
+    padding: 0;
+}
+
+li {
+    margin: 0;
+    padding: 0;
+    font-size: .9em;
+}
+
+img,
+embed,
+object,
+audio,
+video {
+    max-width: 100%;
+}
+
+summary {
+    font-size: .8em;
+    padding-bottom: 1em;
+}

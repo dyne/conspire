@@ -1,191 +1,100 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
-    <meta charset="UTF-8">
-    <title>Can-Chat</title>
-    <style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Denis "Jaromil" Roio - Inventor, Ph.D.</title>
+    <meta name="description" content="Web-based chat for radical exchange: ephemeral, anonymous, and synchronous." />
+    <meta name="keywords" content="web-chat, anonymous, file-sharing, commons" />
+    <meta charset="utf-8" />
 
-        body {
-            text-align: center;
-            font-family: Arial, Helvetica, sans-serif;
-        }
+    <!-- Open Graph for social networks -->
+    <meta property="og:title" content="Denis 'Jaromil' Roio - Dyne.org foundation" />
+    <meta property="og:description"
+        content="Jaromil is the ethical hacker at the origins of the Dyne.org foundation, he is widely respected within the free software community for supporting the development of free software and open culture." />
+    <meta property="og:type" content="" />
+    <meta property="og:image" content="https://jaromil.dyne.org/img/jaromil_2020_fb.jpg" />
+    <meta property="og:url" content="https://jaromil.dyne.org" />
+    <meta property="fb:admins" content="641586196" />
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:site" content="@Jaromil">
+    <meta name="twitter:title" content="Denis 'Jaromil' Roio - Dyne.org foundation">
+    <meta name="twitter:description"
+        content="Jaromil is the ethical hacker at the origins of the Dyne.org foundation, he is widely respected within the free software community for supporting the development of free software and open culture." />
+    <meta name="twitter:image" content="https://jaromil.dyne.org/img/jaromil_2020_tw.jpg">
+    <link rel="shortcut icon" href="img/favicon.ico">
+    <link rel="twitter" type="text/html" href="http://twitter.com/jaromil">
 
-        #container {
-            display: inline-block;
-            max-width: 600px;
-        }
-
-        #note {
-            text-align: left;
-        }
-
-        #note p {
-            color: #555555;
-            font-size: 0.85rem;
-        }
-
-        #starter {
-            display: inline-grid;
-            text-align: center;
-            margin: 0 0 50px 0
-        }
-
-        h1 {
-            font-size: 4rem;
-        }
-
-        .welcome {
-            padding: 0 0 20px 0;
-            font-size: 1.5rem;
-        }
-
-        h2{
-            margin: 40px 0 40px 0;
-        }
-
-        h3 {
-            font-size: medium;
-        }
-
-        input {
-            display: inline;
-            border: none;
-            outline: none;
-            padding: 9px 20px;
-            cursor: pointer;
-            margin: 0 0 10px 0;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 3px;
-            background-color: #448AFF;
-            color: white;
-            text-transform: uppercase;
-        }
-
-        input:hover {
-            background-color: #2979FF;
-        }
-
-        input:active {
-            background-color: #2979FF;
-        }
-
-        .info {
-            font-size: 0.85rem;
-            padding-bottom: 50px;
-        }
-
-        .iframe {
-            display: inline-block;
-            max-width: 130px;
-        }
-
-        @media (max-device-width : 560px) {
-
-            .iframe {
-                max-width: 200px;
-                -ms-zoom: 1.5;
-                -moz-transform: scale(1.5);
-                -moz-transform-origin: 0 0;
-                -o-transform: scale(1.5);
-                -o-transform-origin: 0 0;
-                -webkit-transform: scale(1.5);
-                -webkit-transform-origin: 0 0;
-            }
-
-            h1 {
-                font-size: 7rem;
-            }
-
-            .welcome {
-                padding: 0 0 20px 0;
-                font-size: 2rem;
-            }
-
-            h2{
-                margin: 40px 0 60px 0;
-                font-size: 3.8rem;
-            }
-
-            h3 {
-                font-size: medium;
-            }
-
-            input {
-                font-size: 36px;
-                padding: 14px 20px;
-                margin: 0 0 20px 0;
-            }
-
-            #container {
-                display: inline-block;
-                max-width: 700px;
-            }
-
-        }
-
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
+
+
 <body>
 
     <div id="container">
 
-        <h1>Can-Chat</h1>
+        <h1>Dyne.org / Conspire Chat</h1>
 
         <p class="welcome">
-            Welcome to Can-Chat - Anonymous, secret chat!
+            Web-based chat for radical exchange: ephemeral, anonymous, and synchronous.
         </p>
 
-        <h2>Join Room</h2>
-
+        <h2>🚪🏃 Choose a room</h2>
+        <p class="subtitle">
+            Join the public reception or create a private, ephemeral room. Rooms are anonymous and self-destruct when
+            empty — share private room URLs only with trusted participants. Create your own <code>/room/${NAME}</code> url or use the
+            buttons below:
+        </p>
         <div id="starter">
 
-            <input type="button" value="Public Lobby" onclick="startLobby();">
+            <input type="button" value="Public Reception" onclick="startLobby();">
             <input type="button" value="New Private Room" onclick="startPrivateRoom();">
-
         </div>
-
-        <p class="info">
-            <i>If you are the first time here, please read the short info below.</i>
-        </p>
-
         <div id="note">
+            <section aria-labelledby="rules-heading">
+                <h3 id="rules-heading">📜 Rules</h3>
 
-            <h3>Rooms</h3>
+                <p>
+                    Conspire is an ephemeral, URL-based chat. Each room is identified by a unique URL — anyone with that
+                    URL can join.
+                    Long random URLs are private rooms, share them only with trusted participants.
+                </p>
 
-            <p>
-                All communication happens in chat-rooms.
-                Each room has a unique URL.
-                Anyone who has room-URL can join the room. Generating random long enough room-URL gives privacy to participants.
-                Be sure to share room-URL with wanted participants only.
-            </p>
+                <ul>
+                    <li><strong>Ephemeral rooms:</strong> Rooms are created when the first participant joins and are
+                        deleted automatically when the last participant leaves. No room data survives after deletion.
+                    </li>
+                    <li><strong>Access control:</strong> Possession of the room URL grants access. Treat URLs like keys
+                        and avoid posting them publicly.</li>
+                    <li><strong>History limits:</strong> Chat history is available to newly joined participants but is
+                        limited to 100 previous messages and is removed when the room is deleted. No data is stored
+                        permanently on our server.</li>
+                </ul>
+            </section>
 
-            <p>
-                Rooms are automatically created when the first participant joins the room,
-                and are automatically deleted when the last participant leaves the room.
-            </p>
+            <section aria-labelledby="files-heading">
+                <h3 id="files-heading">💾 File sharing</h3>
 
-            <p>
-                Chat-history is available for newly joined participants.
-                History is rounded when the number of messages in the room exceeds the <code>maxRoomHistoryMessages</code> config parameter.
-                History is deleted and no-longer-available once the room is deleted.
-            </p>
+                <p>
+                    Share one or multiple files directly with other participants. Files are streamed peer-to-peer from
+                    the host's browser to recipients — the server does not receive, inspect, or store file contents.
+                </p>
 
-            <h3>File Sharing</h3>
+                <ul>
+                    <li><strong>How it works:</strong> The host announces a file, peers request chunks, and data is
+                        streamed in small pieces to avoid large memory spikes.</li>
+                    <li><strong>Availability:</strong> Files remain accessible only while the host keeps sharing. If the
+                        host cancels sharing or leaves the room, the files become unavailable.</li>
+                    <li><strong>Browser behavior:</strong> Your browser will prompt you to pick files to share and to
+                        save incoming files. Sizes and speeds depend on network conditions and peer bandwidth.</li>
+                </ul>
 
-            <p>
-                Users can share multiple files at once.
-            </p>
-
-            <p>
-                Files are streamed directly from the host-peer machine. Nothing is uploaded to the server nor stored in any 3d-party place.
-            </p>
-
-            <p>
-                Once host-peer cancels file-sharing, files are no longer available.
-                If host-peer exits the room, all of his file-sharing is canceled.
-            </p>
-
+                <p>
+                    Safety tip: only accept files from people you trust and verify file names and sizes before opening
+                    downloads.
+                </p>
+            </section>
         </div>
 
     </div>
@@ -193,13 +102,13 @@
     <script>
 
         function uuidv4() {
-            return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+            return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
                 (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
             );
         }
 
         function startLobby() {
-            window.open('/room/lobby', '_blank');
+            window.open('/room/reception', '_blank');
         }
 
         function startPrivateRoom() {
@@ -208,4 +117,5 @@
     </script>
 
 </body>
+
 </html>
