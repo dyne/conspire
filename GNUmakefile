@@ -1,6 +1,7 @@
 # Makefile to download and build it all
 OUTPUT ?= x86_64
 TARGET ?= x86_64-linux-musl
+VERSION ?= dev
 R := $(CURDIR)
 I := $(R)/build/deps
 
@@ -11,7 +12,8 @@ all: build/deps conspire
 
 conspire:
 	cmake -G Ninja -S server -B build -DARCH=$(TARGET) \
-		-DCMAKE_TOOLCHAIN_FILE="/opt/dyne/gcc-musl/settings.cmake"
+		-DCMAKE_TOOLCHAIN_FILE="/opt/dyne/gcc-musl/settings.cmake" \
+		-DVERSION="$(VERSION)"
 	ninja -C build
 	cp build/canchat-exe conspire-$(OUTPUT)
 	/opt/dyne/gcc-musl/bin/$(TARGET)-strip conspire-$(OUTPUT)

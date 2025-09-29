@@ -72,12 +72,18 @@ if(EXISTS "${DEPS_PREFIX}")
 endif()
 
 #################################################################
-## define certificates path
+## define version and build paths
+
+# Set version from command line or default
+if(NOT DEFINED VERSION)
+    set(VERSION "unknown")
+endif()
 
 add_definitions(
         -DCERT_PEM_PATH="cert/privkey.pem"
         -DCERT_CRT_PATH="cert/fullchain.pem"
         -DFRONT_PATH="front"
+        -DCONSPIRE_VERSION="${VERSION}"
 )
 
 #################################################################

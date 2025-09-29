@@ -124,10 +124,16 @@ void setupSignalHandlers() {
 
 void run(const oatpp::base::CommandLineArguments& args) {
 
+  // Print version and exit if '--version' is present
+  if(args.hasArgument("--version")) {
+    std::cout << "Conspire Chat Server v" << CONSPIRE_VERSION << std::endl;
+    return;
+  }
+
   // Print help and exit if '-h' or '--help' is present
   if(args.hasArgument("-h") || args.hasArgument("--help")) {
     std::cout << R"HELP(
-Conspire Chat Server
+Conspire Chat Server v)HELP" << CONSPIRE_VERSION << R"HELP(
 Usage: conspire [options]
 Options:
   --host <address>         Bind address (default: localhost)
@@ -137,6 +143,7 @@ Options:
   --url-stats <path>       Statistics endpoint path (default: admin/stats.json)
   --pid <path>             Path to PID file to create
   --front <path>           Path to frontend static files (default: front)
+  --version                Show version information
   -h, --help               Show this help message
 )HELP" << std::endl;
     return;
@@ -230,6 +237,8 @@ Options:
     }
     OATPP_LOGi("canchat", "Stats thread exiting cleanly");
   });
+
+  OATPP_LOGi("canchat", "Conspire Chat Server v{} starting up", appConfig->version)
 
   if(appConfig->useTLS) {
     OATPP_LOGi("canchat", "clients are expected to connect at https://{}:{}/", appConfig->host, appConfig->port);

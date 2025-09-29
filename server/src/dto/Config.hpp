@@ -66,6 +66,11 @@ public:
     DTO_FIELD(String, frontPath);
 
   /**
+   * Software version.
+   */
+  DTO_FIELD(String, version);
+
+  /**
    * Max size of the received bytes. (the whole MessageDto structure).
    * The actual payload is smaller.
    */

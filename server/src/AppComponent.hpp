@@ -125,6 +125,9 @@ public:
     // Parse --front argument for frontend path
     config->frontPath = m_cmdArgs.getNamedArgumentValue("--front", "front");
 
+    // Set version from build-time definition
+    config->version = CONSPIRE_VERSION;
+
     return config;
 
   }());
