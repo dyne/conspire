@@ -136,6 +136,7 @@ Options:
   --tls-chain <path>       Path to TLS certificate chain file (default: "fullchain.pem")
   --url-stats <path>       Statistics endpoint path (default: admin/stats.json)
   --pid <path>             Path to PID file to create
+  --front <path>           Path to frontend static files (default: front)
   -h, --help               Show this help message
 )HELP" << std::endl;
     return;

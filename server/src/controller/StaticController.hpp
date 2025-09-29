@@ -62,40 +62,37 @@ public:
 
     Action act() override {
       ++ controller->m_statistics->EVENT_FRONT_PAGE_LOADED;
-      static auto fileCache = loadFile(FRONT_PATH "/index.html");
+      std::string filePath = controller->m_config->frontPath->c_str() + std::string("/index.html");
+      auto fileCache = controller->loadFile(filePath.c_str());
       auto response = controller->createResponse(Status::CODE_200, fileCache);
       response->putHeader(Header::CONTENT_TYPE, "text/html");
       return _return(response);
-    }
-
-  };
+    }  };
 
   ENDPOINT_ASYNC("GET", "room/{roomId}", ChatHTML) {
 
     ENDPOINT_ASYNC_INIT(ChatHTML)
 
     Action act() override {
-      std::string fileCache = *loadFile(FRONT_PATH "/chat/index.html");
+      std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/index.html");
+      std::string fileCache = *controller->loadFile(filePath.c_str());
       auto text = std::regex_replace(fileCache, std::regex("%%%ROOM_ID%%%"), *request->getPathVariable("roomId"));
       auto response = controller->createResponse(Status::CODE_200, text);
       response->putHeader(Header::CONTENT_TYPE, "text/html");
       return _return(response);
-    }
-
-  };
+    }  };
 
   ENDPOINT_ASYNC("GET", "room/{roomId}/chat.js", ChatJS) {
 
     ENDPOINT_ASYNC_INIT(ChatJS)
 
     Action act() override {
-      static auto fileCache = loadFile(FRONT_PATH "/chat/chat.js");
+      std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/chat.js");
+      auto fileCache = controller->loadFile(filePath.c_str());
 
       oatpp::data::stream::BufferOutputStream stream;
 
-      auto baseUrl = controller->m_config->getWebsocketBaseUrl();
-
-      stream << "let urlWebsocket = \"" << baseUrl << "/api/ws/room/" << request->getPathVariable("roomId") << "\";\n";
+      auto baseUrl = controller->m_config->getWebsocketBaseUrl();      stream << "let urlWebsocket = \"" << baseUrl << "/api/ws/room/" << request->getPathVariable("roomId") << "\";\n";
       stream << "let urlRoom = \"/room/" << request->getPathVariable("roomId") << "\";\n";
       stream << "\n";
 

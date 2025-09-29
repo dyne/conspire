@@ -4,6 +4,9 @@ TARGET ?= x86_64-linux-musl
 R := $(CURDIR)
 I := $(R)/build/deps
 
+DESTDIR ?= /
+PREFIX ?= usr/local
+
 all: build/deps conspire
 
 conspire:
@@ -36,3 +39,8 @@ build/%.orig:
 
 clean:
 	rm -rf build conspire
+
+install:
+	install -m 0755 conspire-$(OUTPUT) $(DESTDIR)$(PREFIX)/bin/conspire-$(OUTPUT)
+	install -d -m 0755 $(DESTDIR)$(PREFIX)/share/conspire
+	cp -ra front $(DESTDIR)$(PREFIX)/share/conspire

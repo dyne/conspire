@@ -122,6 +122,9 @@ public:
 
     config->pidFilePath = m_cmdArgs.getNamedArgumentValue("--pid");
 
+    // Parse --front argument for frontend path
+    config->frontPath = m_cmdArgs.getNamedArgumentValue("--front", "front");
+
     return config;
 
   }());

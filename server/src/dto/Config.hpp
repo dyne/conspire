@@ -60,6 +60,11 @@ public:
    */
   DTO_FIELD(String, pidFilePath);
 
+    /**
+     * Path to frontend static files.
+     */
+    DTO_FIELD(String, frontPath);
+
   /**
    * Max size of the received bytes. (the whole MessageDto structure).
    * The actual payload is smaller.
