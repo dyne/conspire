@@ -16,9 +16,18 @@ autonomy.
 Go to [conspire.dyne.org](https://dyne.org/conspire) and bring your friends.
 
 Run locally on docker (self-signed certs, demo only!):
-
 ```
 docker run -p8443:8443 ghcr.io/dyne/conspire:latest
+```
+
+Create self signed certs and run locally:
+```
+mkdir cert \
+&& openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout cert/privkey.pem   -out cert/test_cert.crt   \
+  -subj "/C=NL/ST=Netherlands/L=Amsterdam/O=Dyne.org/CN=dyne.org" \
+&& cat cert/test_cert.crt cert/privkey.pem > cert/fullchain.pem \
+&& ./conspire
 ```
 
 Please know conspire needs reachable websockets and has CORS safety controls in place, therefore it needs to be directly connected to the network with a port dedicated to it. Running it inside a container is not supported.
