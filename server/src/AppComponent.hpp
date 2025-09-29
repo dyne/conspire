@@ -120,6 +120,8 @@ public:
       config->statisticsUrl = m_cmdArgs.getNamedArgumentValue("--url-stats", "admin/stats.json");
     }
 
+    config->pidFilePath = m_cmdArgs.getNamedArgumentValue("--pid");
+
     return config;
 
   }());

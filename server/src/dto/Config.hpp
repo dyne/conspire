@@ -55,6 +55,10 @@ public:
    */
   DTO_FIELD(String, tlsCertificateChainPath);
 
+  /**
+   * Path to PID file.
+   */
+  DTO_FIELD(String, pidFilePath);
 
   /**
    * Max size of the received bytes. (the whole MessageDto structure).
