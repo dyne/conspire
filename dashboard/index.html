@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conspire P2P Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="dashboard-header">
+            <h1>Conspire P2P Dashboard</h1>
+            <p class="subtitle">Real-time statistics and metrics visualization</p>
+            <div class="dashboard-controls">
+                <p class="stats-url">Data source: <code id="stats-url"></code></p>
+                <div class="control-buttons">
+                    <input type="file" id="jsonFileInput" accept=".json" style="display: none;" onchange="loadJsonFile(event)">
+                    <button onclick="document.getElementById('jsonFileInput').click()" class="load-file-btn">Load JSON File</button>
+                    <button onclick="refreshDashboard()" class="refresh-btn">Refresh Data</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+            <div class="chart-container">
+                <h3>Peer Activity</h3>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="peerChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>Room Activity</h3>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="roomChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>Communication</h3>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="communicationChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>System Metrics</h3>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="systemChart"></canvas>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

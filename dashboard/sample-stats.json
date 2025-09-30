@@ -1,0 +1,62 @@
+[
+  {
+    "timestamp": 1727725200000000,
+    "ev_front_page_loaded": 15,
+    "ev_peer_connected": 45,
+    "ev_peer_disconnected": 42,
+    "ev_peer_zombie_dropped": 8,
+    "ev_peer_send_message": 28,
+    "ev_peer_share_file": 3,
+    "ev_room_created": 12,
+    "ev_room_deleted": 10,
+    "file_served_bytes": 2548192
+  },
+  {
+    "timestamp": 1727726100000000,
+    "ev_front_page_loaded": 18,
+    "ev_peer_connected": 52,
+    "ev_peer_disconnected": 48,
+    "ev_peer_zombie_dropped": 9,
+    "ev_peer_send_message": 35,
+    "ev_peer_share_file": 4,
+    "ev_room_created": 15,
+    "ev_room_deleted": 13,
+    "file_served_bytes": 3247856
+  },
+  {
+    "timestamp": 1727727000000000,
+    "ev_front_page_loaded": 22,
+    "ev_peer_connected": 61,
+    "ev_peer_disconnected": 55,
+    "ev_peer_zombie_dropped": 11,
+    "ev_peer_send_message": 42,
+    "ev_peer_share_file": 6,
+    "ev_room_created": 18,
+    "ev_room_deleted": 16,
+    "file_served_bytes": 4156320
+  },
+  {
+    "timestamp": 1727727900000000,
+    "ev_front_page_loaded": 25,
+    "ev_peer_connected": 68,
+    "ev_peer_disconnected": 63,
+    "ev_peer_zombie_dropped": 12,
+    "ev_peer_send_message": 48,
+    "ev_peer_share_file": 7,
+    "ev_room_created": 21,
+    "ev_room_deleted": 19,
+    "file_served_bytes": 5894736
+  },
+  {
+    "timestamp": 1727728800000000,
+    "ev_front_page_loaded": 28,
+    "ev_peer_connected": 75,
+    "ev_peer_disconnected": 71,
+    "ev_peer_zombie_dropped": 14,
+    "ev_peer_send_message": 55,
+    "ev_peer_share_file": 9,
+    "ev_room_created": 24,
+    "ev_room_deleted": 22,
+    "file_served_bytes": 7321568
+  }
+]
