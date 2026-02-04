@@ -36,6 +36,10 @@ Please know conspire needs reachable websockets and has CORS safety controls in 
 
 For deploying Conspire on a server with TLS certificates and a custom landing page, see the [Deployment Guide](docs/DEPLOYMENT.md).
 
+## 📊 Monitoring
+
+Conspire exposes statistics at `/admin/stats.json`. The included [dashboard](dashboard/) provides real-time visualization of peer activity, room usage, and system metrics.
+
 ## 💼 License
 
 Conspire is based on [can-chat](https://github.com/lganzzzo/canchat) by Leonid
