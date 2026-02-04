@@ -32,6 +32,9 @@ mkdir cert \
 
 Please know conspire needs reachable websockets and has CORS safety controls in place, therefore it needs to be directly connected to the network with a port dedicated to it. Running it inside a container is not supported.
 
+## 📖 Production Deployment
+
+For deploying Conspire on a server with TLS certificates and a custom landing page, see the [Deployment Guide](docs/DEPLOYMENT.md).
 
 ## 💼 License
 
