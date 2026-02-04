@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Can-Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Conspire Chat</title>
 
     <style>
-
+        /* Peer color styles */
         .peer_style_new {
             background-color: #00AA00 !important;
             height: 0 !important;
@@ -30,306 +31,110 @@
         .peer_style_15 {background-color: #EFEBE9;}
         .peer_style_16 {background-color: #FAFAFA;}
         .peer_style_17 {background-color: #ECEFF1;}
-
     </style>
 
     <style>
-
-        html {
-            height: 100%;
+        /* Base styles - using dvh for mobile viewport */
+        * {
+            box-sizing: border-box;
         }
 
-        body {
-            margin: 0px 0px 0px 0px;
+        html, body {
+            margin: 0;
+            padding: 0;
             height: 100%;
+            height: 100dvh;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
         }
 
         #chat_container {
-            position: absolute;
+            display: flex;
+            flex-direction: column;
             width: 100%;
             height: 100%;
+            height: 100dvh;
+            background-color: #424242;
+            overflow: hidden;
+        }
+
+        /* Header / status bar */
+        #chat_status {
+            flex-shrink: 0;
+            height: 44px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            z-index: 10;
             background-color: #424242;
         }
 
-        #chat_status {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 254px;
-            height: 35px;
-            overflow: hidden;
+        #status_connection {
+            margin: 0;
             padding: 0;
-            box-shadow: 0px 2px 2px 0px rgba(0, 0, 0, 0.2);
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        .status_online {
+            color: #00FF00;
+            text-shadow: 0 0 2px #00FF00;
+            opacity: 0.7;
+        }
+
+        .status_offline {
+            color: #FF0000;
+            text-shadow: 0 0 2px #FF0000;
+            opacity: 1;
+        }
+
+        /* Participants toggle button */
+        #participants_toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        #participants_toggle:active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Main content area */
+        #chat_main {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+            position: relative;
+        }
+
+        /* Chat history */
+        #chat_history_wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
         }
 
         #chat_history {
-            position: absolute;
-            bottom: 158px;
-            top: 35px;
-            left:0;
-            right: 254px;
-            overflow: auto;
-            padding: 0 0 50px;
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 10px 0 20px;
+            -webkit-overflow-scrolling: touch;
         }
 
-        #chat_input_container {
-            position: absolute;
-            bottom:20px;
-            left:20px;
-            right: 274px;
-            height: 140px;
-            border-radius: 1px;
-        }
-
+        /* Who's typing indicator */
         #chat_whos_typing {
-            position: absolute;
-            bottom: 160px;
-            left: 22px;
-            right: 276px;
+            flex-shrink: 0;
+            height: 24px;
+            padding: 2px 16px;
             overflow: hidden;
-        }
-
-        #chat_participants {
-            position: absolute;
-            bottom: 0px;
-            top: 0;
-            right: 0;
-            width: 250px;
-            overflow: auto;
-            padding: 2px;
-            background-color: #212121;
-        }
-
-        form {
-            position: absolute;
-            top: 40px;
-            left: 0;
-            right: 100px;
-            bottom: 0;
-            overflow: hidden;
-        }
-
-        #ta-container {
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            right: 0;
-            padding: 2px;
-            border-radius: 1px;
-        }
-
-        #ta-div {
-            position: absolute;
-            left: 2px;
-            top: 2px;
-            bottom: 2px;
-            right: 2px;
-            padding: 2px 5px 2px 5px;
-            border-radius: 1px;
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-
-        form textarea {
-            margin: 0;
-            padding: 0;
-            border: none;
-            overflow: auto;
-            outline: none;
-            -webkit-box-shadow: none;
-            -moz-box-shadow: none;
-            box-shadow: none;
-            resize: none;
-            height: 100%;
-            width: 100%;
-            font-size: 14px;
-            border-radius: 1px;
-            font-family: monospace;
-            background-color: rgba(0, 0, 0, 0);
-            color: white;
-        }
-
-        .message-container {
-            text-align: left;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-
-        .message-div {
-            padding: 0;
-            margin: 0;
-        }
-
-        .message-bulb {
-            padding: 3px 20px 3px 21px;
-        }
-
-        .message-div-system {
-            padding: 3px 20px 3px 21px;
-            margin: 0;
-        }
-
-        .message-author {
-            margin: 0 0 5px 21px;
-            font-weight: bold;
-            color: white;
-        }
-
-        .message-text {
-            margin: 0;
-            text-align: left;
-            color: white;
-            white-space: pre-wrap;       /* Since CSS 2.1 */
-            white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
-            white-space: -pre-wrap;      /* Opera 4-6 */
-            white-space: -o-pre-wrap;    /* Opera 7 */
-            word-wrap: break-word;       /* Internet Explorer 5.5+ */
-        }
-
-        .message-div-files {
-            padding: 0 20px;
-            margin: 10px 0 0;
-        }
-
-        .message-div-file {
-            display: inline-block;
-            padding: 0 0 7px;
-            margin: 0 10px 10px 0;
-            background-color: rgba(255, 255, 255, 0.05);
-        }
-
-        .message-div-files a {
-            display: block;
-            text-align: left;
-            margin: 0 0 7px 0;
-            padding: 5px 10px 5px 10px;
-            text-decoration: none;
-            text-align: center;
-            background-color: #448AFF;
-            color: white;
-            font-family: Arial, Helvetica, sans-serif;
-            border-radius: 1px;
-        }
-
-        .message-div-files a:hover {
-            background-color: #2979FF;
-        }
-
-        .file-info-size {
-            margin: 0 10px;
-            font-family: monospace;
-            color: white;
-        }
-
-        .participant {
-            display: block;
-            overflow: hidden;
-            margin: 3px 20px;
-            border-radius: 1px;
-            padding: 0 5px 0 20px;
-            font-size: 14px;
-            font-family: monospace;
-            height: 30px;
-            transition-timing-function: ease-out;
-            transition: 0.5s;
-        }
-
-        .participant span {
-            line-height: 30px;
-            vertical-align: middle;
-        }
-
-        .participant_deleted {
-            background-color: #FF0000 !important;
-            height: 0 !important;
-            margin: 0 3px !important;
-            opacity: 0.5;
-        }
-
-        .participant_n {
-            margin: 3px 0 5px 0;
-            padding: 5px 20px 5px 20px;
-            font-size: 14px;
-            font-family: monospace;
-            color: #666666;
-        }
-
-        #chat_container hr {
-            border: 1px solid #F5F5F5;
-            width: 30px;
-            color: red;
-        }
-
-        #emoji {
-            position: absolute;
-            overflow: hidden;
-            top: 2px;
-            left: 2px;
-            right: 2px;
-            height: 34px;
-            padding: 2px 5px 2px 5px;
-            border-radius: 1px;
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-
-        #emoji p {
-            display: table-cell;
-            font-size: 24px;
-            border-radius: 1px;
-            padding: 0 3px 0 3px;
-            cursor: pointer;
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        #emoji p:hover {
-            color: rgba(255, 255, 255, 1);
-        }
-
-        #emoji p:active {
-            background-color: rgba(255, 255, 255, 0.2);
-        }
-
-        #file_share_div {
-            position: absolute;
-            overflow: hidden;
-            right: 0px;
-            top: 40px;
-            width: 100px;
-            height: 100px;
-        }
-
-        #file_share_button_overlay {
-            position: absolute;
-            border: none;
-            outline: none;
-            padding: 15px 0;
-            display: inline-block;
-            cursor: pointer;
-            right: 0px;
-            height: 96px;
-            width: 98px;
-            margin: 2px;
-            font-size: 14px;
-            border-radius: 1px;
-            background-color: rgba(255, 255, 255, 0.1);
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        #file_share_button_overlay:hover {
-            color: rgba(255, 255, 255, 1);
-        }
-
-        #file_share_button_overlay:active {
-            color: rgba(255, 255, 255, 1);
-            background-color: rgba(255, 255, 255, 0.2);
-        }
-
-        #file_share_button {
-            display: none;
-        }
-
-        #send_button {
-            display: none;
         }
 
         .typing_peer {
@@ -337,9 +142,10 @@
             font-family: monospace;
             font-size: 12px;
             color: white;
-            padding: 2px 5px;
-            margin: 0 3px 3px 0;
-            background-color: rgba(255, 255, 255, 0.05);
+            padding: 2px 6px;
+            margin: 0 4px 0 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
             transition: 0.25s;
         }
 
@@ -349,155 +155,362 @@
             padding: 0;
         }
 
-        #status_connection {
-            position: absolute;
-            left: 20px;
-            top: 12px;
-            margin: 0;
-            padding: 0;
-            font-family: monospace;
-            font-size: 12px;
+        /* Participants panel */
+        #chat_participants {
+            width: 250px;
+            flex-shrink: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 10px 0;
+            background-color: #212121;
+            -webkit-overflow-scrolling: touch;
         }
 
-        .status_online {
-            color: #00FF00;
-            text-shadow: 0 0 2px #00FF00;
+        .participant {
+            display: block;
+            overflow: hidden;
+            margin: 4px 12px;
+            border-radius: 3px;
+            padding: 0 8px 0 16px;
+            font-size: 13px;
+            font-family: monospace;
+            height: 32px;
+            transition: 0.3s ease-out;
+        }
+
+        .participant span {
+            line-height: 32px;
+            vertical-align: middle;
+        }
+
+        .participant_deleted {
+            background-color: #FF0000 !important;
+            height: 0 !important;
+            margin: 0 !important;
             opacity: 0.5;
         }
 
-        .status_offline {
-            color: #FF0000;
-            text-shadow: 0 0 2px #FF0000;
-            opacity: 1;
+        .participant_n {
+            margin: 8px 12px;
+            padding: 0;
+            font-size: 12px;
+            font-family: monospace;
+            color: #888;
         }
 
-        @media (max-device-width : 560px) {
+        /* Input area - FIXED at bottom */
+        #chat_input_container {
+            flex-shrink: 0;
+            padding: 10px;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+            background-color: #383838;
+            z-index: 10;
+        }
 
+        #emoji {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            margin-bottom: 8px;
+            height: 32px;
+            overflow: hidden;
+        }
+
+        #emoji p {
+            margin: 0;
+            padding: 4px 6px;
+            font-size: 18px;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 3px;
+            transition: 0.15s;
+        }
+
+        #emoji p:hover {
+            color: white;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        #emoji p:active {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Textarea row */
+        form {
+            display: flex;
+            margin: 0;
+            padding: 0;
+            margin-bottom: 8px;
+        }
+
+        #ta-container {
+            flex: 1;
+            display: flex;
+        }
+
+        #ta-div {
+            flex: 1;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            padding: 8px;
+            min-height: 60px;
+        }
+
+        form textarea {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            border: none;
+            outline: none;
+            resize: none;
+            font-size: 14px;
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: transparent;
+            color: white;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        form textarea::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Button row - horizontal layout */
+        #button_row {
+            display: flex;
+            gap: 8px;
+        }
+
+        #send_button,
+        #file_share_button_overlay {
+            flex: 1;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 4px;
+            background-color: #448AFF;
+            color: white;
+            transition: 0.15s;
+            height: 44px;
+        }
+
+        #file_share_button_overlay {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        #send_button:active {
+            background-color: #2979FF;
+        }
+
+        #file_share_button_overlay:active {
+            background-color: rgba(255, 255, 255, 0.25);
+        }
+
+        #file_share_button {
+            display: none;
+        }
+
+        /* Messages */
+        .message-container {
+            text-align: left;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .message-div {
+            padding: 0;
+            margin: 0;
+        }
+
+        .message-bulb {
+            padding: 4px 16px;
+        }
+
+        .message-div-system {
+            padding: 4px 16px;
+            margin: 0;
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .message-author {
+            margin: 0 0 4px 16px;
+            font-weight: 600;
+            font-size: 13px;
+            color: white;
+        }
+
+        .message-text {
+            margin: 0;
+            text-align: left;
+            color: white;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        /* File sharing */
+        .message-div-files {
+            padding: 0 16px;
+            margin: 8px 0 0;
+        }
+
+        .message-div-file {
+            display: inline-block;
+            padding: 0 0 6px;
+            margin: 0 8px 8px 0;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .message-div-files a {
+            display: block;
+            margin: 0 0 6px 0;
+            padding: 8px 12px;
+            text-decoration: none;
+            text-align: center;
+            background-color: #448AFF;
+            color: white;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 13px;
+            border-radius: 4px 4px 0 0;
+            min-height: 44px;
+            line-height: 28px;
+        }
+
+        .message-div-files a:active {
+            background-color: #2979FF;
+        }
+
+        .file-info-size {
+            margin: 0 10px;
+            font-family: monospace;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        #chat_container hr {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 40px;
+            margin: 20px auto;
+        }
+
+        /* Overlay for participants panel */
+        #participants_overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 15;
+        }
+
+        #participants_overlay.visible {
+            display: block;
+        }
+
+        /* ========================================
+           MOBILE STYLES
+           ======================================== */
+        @media (max-width: 768px) {
             #chat_status {
-                right: 0;
-                height: 70px;
-                box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.2);
+                height: 50px;
             }
 
-            #chat_history {
-                bottom: 258px;
-                top: 74px;
-                right: 254px;
-            }
-
-            #chat_input_container {
-                position: absolute;
-                bottom:20px;
-                left:20px;
-                right: 20px;
-                height: 280px;
-                border-radius: 1px;
-            }
-
-            #chat_whos_typing {
-                bottom: 258px;
-            }
-
+            /* Hide participants panel by default on mobile */
             #chat_participants {
-                position: absolute;
-                bottom: 278px;
-                top: 90px;
+                position: fixed;
+                top: 0;
                 right: 0;
-                width: 250px;
-                overflow: auto;
-                padding: 2px;
-                background-color: rgba(255, 255, 255, 0.05);
+                bottom: 0;
+                width: 280px;
+                max-width: 80vw;
+                transform: translateX(100%);
+                transition: transform 0.25s ease-out;
+                z-index: 20;
+                padding-top: 20px;
             }
 
+            #chat_participants.visible {
+                transform: translateX(0);
+            }
+
+            /* Input adjustments */
+            #chat_input_container {
+                padding: 8px;
+                padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+            }
+
+            #emoji {
+                height: 28px;
+                margin-bottom: 6px;
+            }
+
+            #emoji p {
+                font-size: 16px;
+                padding: 3px 5px;
+            }
+
+            #ta-div {
+                min-height: 50px;
+            }
+
+            form {
+                margin-bottom: 6px;
+            }
+
+            form textarea {
+                font-size: 16px; /* Prevents iOS zoom on focus */
+            }
+
+            #send_button,
+            #file_share_button_overlay {
+                height: 40px;
+                font-size: 13px;
+            }
+
+            /* Messages */
+            .message-container {
+                font-size: 15px;
+            }
+
+            .message-author {
+                font-size: 14px;
+            }
+
+            .participant {
+                font-size: 14px;
+                height: 40px;
+                margin: 6px 12px;
+            }
+
+            .participant span {
+                line-height: 40px;
+            }
+        }
+
+        /* Very small phones - hide emoji */
+        @media (max-width: 380px) {
             #emoji {
                 display: none;
             }
 
-            form textarea {
-                font-size: 24px;
+            #ta-div {
+                min-height: 44px;
             }
-
-            .message-container {
-                font-size: 28px;
-            }
-
-            .message-text {
-                white-space: pre;
-            }
-
-            .participant_n {
-                font-size: 18px;
-                padding: 5px 10px;
-                color: #888888;
-            }
-
-            .participant {
-                padding: 0 5px 0 10px;
-                font-size: 18px;
-                margin: 3px 10px;
-            }
-
-            #emoji p {
-                font-size: 24px;
-            }
-
-            form {
-                right: 150px;
-            }
-
-            #file_share_div {
-                top: 192px;
-                width: 150px;
-                height: 86px;
-            }
-
-            #file_share_button_overlay {
-                height: 86px;
-                width: 148px;
-                font-size: 24px;
-            }
-
-            #send_button {
-                display: block;
-                position: absolute;
-                border: none;
-                outline: none;
-                padding: 15px 0;
-                cursor: pointer;
-                right: 0px;
-                width: 148px;
-                height: 150px;
-                top: 40px;
-                margin: 2px;
-                font-size: 24px;
-                border-radius: 1px;
-                background-color: rgba(255, 255, 255, 0.1);
-                color: rgba(255, 255, 255, 0.7);
-            }
-
-            #send_button:hover {
-                color: rgba(255, 255, 255, 1);
-            }
-
-            #send_button:active {
-                color: rgba(255, 255, 255, 1);
-                background-color: rgba(255, 255, 255, 0.2);
-            }
-
-            .typing_peer {
-                font-size: 18px;
-            }
-
-            #status_connection {
-                left: 20px;
-                top: 24px;
-                font-size: 24px;
-            }
-
         }
 
+        /* Desktop - show participants panel inline */
+        @media (min-width: 769px) {
+            #participants_toggle {
+                display: none;
+            }
+        }
     </style>
-
 </head>
 <body>
 
@@ -505,13 +518,18 @@
 
         <div id="chat_status">
             <p id="status_connection" class="status_online">online</p>
+            <button id="participants_toggle" onclick="toggleParticipants()">
+                <span id="participant_count">0</span> 👥
+            </button>
         </div>
 
-        <div id="chat_history"></div>
-
-        <div id="chat_whos_typing"></div>
-
-        <div id="chat_participants"></div>
+        <div id="chat_main">
+            <div id="chat_history_wrapper">
+                <div id="chat_history"></div>
+                <div id="chat_whos_typing"></div>
+            </div>
+            <div id="chat_participants"></div>
+        </div>
 
         <div id="chat_input_container">
             <div id="emoji">
@@ -531,11 +549,6 @@
                 <p>&#128066;</p>
                 <p>&#128068;</p>
             </div>
-            <div id="file_share_div" >
-                <input id="file_share_button_overlay" type="submit" value="Share Files" onclick="document.getElementById('file_share_button').click();">
-                <input id="file_share_button" type="file" multiple onchange="handleFiles(this.files)" value="Share Files">
-            </div>
-            <input id="send_button" type="submit" value="Send" onclick="document.forms.publish.onsubmit();">
             <form name="publish" autocomplete="off">
                 <div id="ta-container">
                     <div id="ta-div">
@@ -547,12 +560,44 @@
                     </div>
                 </div>
             </form>
+            <div id="button_row">
+                <input id="send_button" type="button" value="Send" onclick="document.forms.publish.onsubmit();">
+                <input id="file_share_button_overlay" type="button" value="Share Files" onclick="document.getElementById('file_share_button').click();">
+                <input id="file_share_button" type="file" multiple onchange="handleFiles(this.files)">
+            </div>
         </div>
+
+        <div id="participants_overlay" onclick="toggleParticipants()"></div>
 
     </div>
 
-</body>
+    <script>
+        // Toggle participants panel on mobile
+        function toggleParticipants() {
+            const panel = document.getElementById('chat_participants');
+            const overlay = document.getElementById('participants_overlay');
+            panel.classList.toggle('visible');
+            overlay.classList.toggle('visible');
+        }
+
+        // Update participant count in toggle button
+        function updateParticipantCount() {
+            const participants = document.querySelectorAll('#chat_participants .participant:not(.participant_deleted)');
+            const countEl = document.getElementById('participant_count');
+            if (countEl) {
+                countEl.textContent = participants.length;
+            }
+        }
+
+        // Observe participant changes
+        const participantsContainer = document.getElementById('chat_participants');
+        if (participantsContainer) {
+            const observer = new MutationObserver(updateParticipantCount);
+            observer.observe(participantsContainer, { childList: true, subtree: true });
+        }
+    </script>
 
     <script src="/room/%%%ROOM_ID%%%/chat.js"></script>
 
+</body>
 </html>
