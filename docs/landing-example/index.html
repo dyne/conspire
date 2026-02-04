@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Community Chat</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 1rem;
+            text-align: center;
+        }
+        h1 { margin-bottom: 0.5rem; }
+        .tagline { color: #666; margin-bottom: 2rem; }
+        button {
+            background: #2c3e50;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #1a252f; }
+        .hint { color: #888; font-size: 0.9rem; margin-top: 1rem; }
+        .footer { margin-top: 3rem; color: #888; font-size: 0.85rem; }
+        .footer a { color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Community Chat</h1>
+    <p class="tagline">Secure, anonymous, ephemeral</p>
+    
+    <button id="new-room">Start a New Room</button>
+    <p class="hint">Share the link to invite others</p>
+    
+    <p class="footer">
+        Powered by <a href="https://dyne.org/conspire/">Conspire</a>
+    </p>
+    
+    <script src="room.js"></script>
+</body>
+</html>
