@@ -1,3 +1,5 @@
+import { handleFiles, submitMessage } from './chat.js';
+
 (() => {
   const panel = document.getElementById('chat_participants');
   const overlay = document.getElementById('participants_overlay');
@@ -8,7 +10,8 @@
 
   document.getElementById('participants_toggle')?.addEventListener('click', toggle);
   overlay?.addEventListener('click', toggle);
-  document.getElementById('send_button')?.addEventListener('click', () => document.forms.publish?.onsubmit?.());
+  document.getElementById('send_button')?.addEventListener('click', submitMessage);
+  document.forms.publish?.addEventListener('submit', (event) => { event.preventDefault(); submitMessage(); });
   document.getElementById('file_share_button_overlay')?.addEventListener('click', () => document.getElementById('file_share_button')?.click());
   document.getElementById('file_share_button')?.addEventListener('change', (event) => handleFiles(event.target.files));
 

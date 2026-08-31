@@ -29,7 +29,7 @@
 
 #include "rooms/Lobby.hpp"
 #include "dto/Config.hpp"
-#include "utils/ConfigValidation.hpp"
+#include "utils/AppConfig.hpp"
 #include "utils/ServerBoundaries.hpp"
 #include "utils/Statistics.hpp"
 
@@ -48,7 +48,6 @@
 
 #include "oatpp/utils/Conversion.hpp"
 
-#include <cstdlib>
 
 /**
  *  Class which creates and holds Application components and registers components in oatpp::Environment
@@ -92,55 +91,7 @@ public:
    * Create config component
    */
   OATPP_CREATE_COMPONENT(oatpp::Object<ConfigDto>, appConfig)([this] {
-
-    auto config = ConfigDto::createShared();
-
-    config->host = std::getenv("EXTERNAL_ADDRESS");
-    if (!config->host) {
-      config->host = m_cmdArgs.getNamedArgumentValue("--host", "localhost");
-    }
-    if(!config->host || !conspire::config::validHost(config->host->std_str())) {
-      throw std::runtime_error("Invalid host!");
-    }
-
-    const char* portText = std::getenv("EXTERNAL_PORT");
-    if(!portText) {
-      portText = m_cmdArgs.getNamedArgumentValue("--port", "8443");
-    }
-
-    const auto port = conspire::config::parsePort(portText ? portText : "");
-    if(!port) {
-      throw std::runtime_error("Invalid port!");
-    }
-    config->port = *port;
-
-    config->tlsPrivateKeyPath = std::getenv("TLS_FILE_PRIVATE_KEY");
-    if(!config->tlsPrivateKeyPath) {
-      config->tlsPrivateKeyPath = m_cmdArgs.getNamedArgumentValue("--tls-key", "" CERT_PEM_PATH);
-    }
-
-    config->tlsCertificateChainPath = std::getenv("TLS_FILE_CERT_CHAIN");
-    if(!config->tlsCertificateChainPath) {
-      config->tlsCertificateChainPath = m_cmdArgs.getNamedArgumentValue("--tls-chain", "" CERT_CRT_PATH);
-    }
-
-    config->statisticsUrl = std::getenv("URL_STATS_PATH");
-    if(!config->statisticsUrl) {
-      config->statisticsUrl = m_cmdArgs.getNamedArgumentValue("--url-stats", "admin/stats.json");
-    }
-    if(!config->statisticsUrl || !conspire::config::validStatsPath(config->statisticsUrl->std_str())) {
-      throw std::runtime_error("Invalid statistics path!");
-    }
-
-    config->pidFilePath = m_cmdArgs.getNamedArgumentValue("--pid");
-
-    // Parse --front argument for frontend path
-    config->frontPath = m_cmdArgs.getNamedArgumentValue("--front", "front");
-
-    // Set version from build-time definition
-    config->version = CONSPIRE_VERSION;
-
-    return config;
+    return conspire::config::fromCommandLine(m_cmdArgs);
 
   }());
 

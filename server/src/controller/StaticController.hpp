@@ -120,8 +120,7 @@ public:
 
       const auto baseUrl = controller->m_config->getWebsocketBaseUrl()->std_str();
       const auto encodedRoom = conspire::boundaries::urlPathSegment(roomId->std_str());
-      stream << "let urlWebsocket = " << conspire::boundaries::javascriptString(baseUrl + "/api/ws/room/" + encodedRoom) << ";\n";
-      stream << "let urlRoom = " << conspire::boundaries::javascriptString("/room/" + encodedRoom) << ";\n";
+      stream << "globalThis.ConspireChatConfig = {urlWebsocket: " << conspire::boundaries::javascriptString(baseUrl + "/api/ws/room/" + encodedRoom) << ", urlRoom: " << conspire::boundaries::javascriptString("/room/" + encodedRoom) << "};\n";
       stream << "\n";
 
       stream << fileCache;
@@ -140,6 +139,36 @@ public:
 
     Action act() override {
       std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/protocol.js");
+      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "room/{roomId}/format.js", FormatJS) {
+    ENDPOINT_ASYNC_INIT(FormatJS)
+
+    Action act() override {
+      const auto roomId = request->getPathVariable("roomId");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/format.js");
+      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "room/{roomId}/state.js", StateJS) {
+    ENDPOINT_ASYNC_INIT(StateJS)
+
+    Action act() override {
+      const auto roomId = request->getPathVariable("roomId");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/state.js");
       auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
       response->putHeader("X-Content-Type-Options", "nosniff");

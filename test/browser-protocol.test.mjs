@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MessageCode, humanFileSize, parseProtocolMessage, roomFileUrl } from '../front/chat/protocol.js';
+import { createChatState } from '../front/chat/state.js';
+import { humanFileSize as formatFileSize } from '../front/chat/format.js';
 import { readFile } from 'node:fs/promises';
 
 test('protocol parser accepts every supported message code', () => {
@@ -24,11 +26,37 @@ test('file URLs and file sizes are deterministic at boundaries', () => {
   assert.equal(humanFileSize(-1), '0 B');
 });
 
+test('chat state and formatting modules are isolated from the DOM', () => {
+  const first = createChatState();
+  const second = createChatState();
+  first.nextFileId += 1;
+  first.peers.set(1, { peerName: 'Ada' });
+  assert.equal(second.nextFileId, 1);
+  assert.equal(second.peers.size, 0);
+  assert.equal(formatFileSize(1024), '1.0 kB');
+  assert.equal(formatFileSize(-1), '0 B');
+});
+
 test('the shipped chat receive path imports and validates the protocol module', async () => {
   const chat = await readFile(new URL('../front/chat/chat.js', import.meta.url), 'utf8');
   assert.match(chat, /import\(urlRoom \+ "\/protocol\.js"\)/);
   assert.match(chat, /protocol\.parseProtocolMessage\(event\.data\)/);
   assert.doesNotMatch(chat, /onMessage\(JSON\.parse\(event\.data\)\)/);
+});
+
+test('room module imports have explicit matching server routes', async () => {
+  const [chat, ui, controller] = await Promise.all([
+    readFile(new URL('../front/chat/chat.js', import.meta.url), 'utf8'),
+    readFile(new URL('../front/chat/ui.js', import.meta.url), 'utf8'),
+    readFile(new URL('../server/src/controller/StaticController.hpp', import.meta.url), 'utf8'),
+  ]);
+  assert.match(chat, /from '\.\/format\.js'/);
+  assert.match(chat, /from '\.\/state\.js'/);
+  assert.match(ui, /from '\.\/chat\.js'/);
+  for (const route of ['format.js', 'state.js', 'chat.js', 'ui.js', 'protocol.js']) {
+    assert.match(controller, new RegExp(`room/\\{roomId\\}/${route.replace('.', '\\.')}`));
+  }
+  assert.doesNotMatch(controller, /\{module:/);
 });
 
 test('dashboard keeps hostile strings out of HTML sinks and does not proxy statistics', async () => {

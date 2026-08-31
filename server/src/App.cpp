@@ -98,10 +98,10 @@ Options:
   conspire::lifecycle::PidFile pidFile;
   const std::string pidFilePath = appConfig->pidFilePath ? appConfig->pidFilePath->std_str() : "";
   if (!pidFile.create(pidFilePath)) {
-    OATPP_LOGe("canchat", "Failed to create PID file: {}", pidFilePath);
+    OATPP_LOGe("conspire", "Failed to create PID file: {}", pidFilePath);
     return; // Exit if PID file creation failed
   }
-  if (pidFile.active()) OATPP_LOGi("canchat", "Created PID file: {}", pidFilePath);
+  if (pidFile.active()) OATPP_LOGi("conspire", "Created PID file: {}", pidFilePath);
 
   /* Get router component */
   OATPP_COMPONENT(std::shared_ptr<oatpp::web::server::HttpRouter>, router);
@@ -136,7 +136,7 @@ Options:
     statistics->runStatIteration();
   });
   if (!pingStarted || !statisticsStarted) {
-    OATPP_LOGe("canchat", "Failed to start lifecycle workers");
+    OATPP_LOGe("conspire", "Failed to start lifecycle workers");
     pingRunner.stop();
     statisticsRunner.stop();
     server.stop();
@@ -144,23 +144,23 @@ Options:
     return;
   }
 
-  OATPP_LOGi("canchat", "Conspire Chat Server v{} starting up", appConfig->version)
+  OATPP_LOGi("conspire", "Conspire Chat Server v{} starting up", appConfig->version)
 
   if(appConfig->useTLS) {
-    OATPP_LOGi("canchat", "clients are expected to connect at https://{}:{}/", appConfig->host, appConfig->port);
+    OATPP_LOGi("conspire", "clients are expected to connect at https://{}:{}/", appConfig->host, appConfig->port);
   } else {
-    OATPP_LOGi("canchat", "clients are expected to connect at http://{}:{}/", appConfig->host, appConfig->port);
+    OATPP_LOGi("conspire", "clients are expected to connect at http://{}:{}/", appConfig->host, appConfig->port);
   }
 
-  OATPP_LOGi("canchat", "canonical base URL={}", appConfig->getCanonicalBaseUrl())
-  OATPP_LOGi("canchat", "statistics URL={}", appConfig->getStatsUrl())
+  OATPP_LOGi("conspire", "canonical base URL={}", appConfig->getCanonicalBaseUrl())
+  OATPP_LOGi("conspire", "statistics URL={}", appConfig->getStatsUrl())
 
   // Wait for shutdown signal
   while (g_shutdownSignal == 0 && !pingRunner.failed() && !statisticsRunner.failed()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
-  OATPP_LOGi("canchat", "Shutting down server...");
+  OATPP_LOGi("conspire", "Shutting down server...");
 
   // Each owned worker is woken and joined before components/environment die.
   pingRunner.stop();
@@ -169,7 +169,7 @@ Options:
   if (serverThread.joinable()) serverThread.join();
   pidFile.reset();
 
-  OATPP_LOGi("canchat", "Server shutdown complete");
+  OATPP_LOGi("conspire", "Server shutdown complete");
 
 }
 

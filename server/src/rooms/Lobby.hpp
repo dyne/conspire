@@ -36,42 +36,17 @@
 #include <mutex>
 
 class Lobby : public oatpp::websocket::AsyncConnectionHandler::SocketInstanceListener {
-public:
-  std::atomic<v_int64> m_peerIdCounter;
+private:
+  std::atomic<v_int64> m_peerIdCounter{1};
   std::unordered_map<oatpp::String, std::shared_ptr<Room>> m_rooms;
   std::mutex m_roomsMutex;
-private:
   OATPP_COMPONENT(std::shared_ptr<Statistics>, m_statistics);
 public:
-
-  Lobby()
-    : m_peerIdCounter(1)
-  {}
-
-  /**
-   * Generate id for new user
-   * @return
-   */
+  // State is intentionally private: room changes must retain the lock discipline
+  // implemented by this aggregate.
   v_int64 obtainNewPeerId();
-
-  /**
-   * Get room by name or create new one if not exists.
-   * @param roomName
-   * @return
-   */
   std::shared_ptr<Room> getOrCreateRoom(const oatpp::String& roomName);
-
-  /**
-   * Get room by name.
-   * @param roomName
-   * @return
-   */
   std::shared_ptr<Room> getRoom(const oatpp::String& roomName);
-
-  /**
-   * Delete room by name.
-   * @param roomName
-   */
   void deleteRoom(const oatpp::String& roomName);
 
   /** Ping every current room once. Scheduling and cancellation belong to an

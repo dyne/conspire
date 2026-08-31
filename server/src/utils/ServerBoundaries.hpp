@@ -28,7 +28,8 @@ inline bool hasCapacity(std::size_t current, std::size_t maximum) {
 }
 
 inline bool containsControl(std::string_view value) {
-  for (const unsigned char character : value) {
+  for (const char rawCharacter : value) {
+    const auto character = static_cast<unsigned char>(rawCharacter);
     if (character < 0x20 || character == 0x7f) return true;
   }
   return false;
@@ -36,7 +37,8 @@ inline bool containsControl(std::string_view value) {
 
 inline bool validRoomId(std::string_view value) {
   if (value.empty() || value.size() > Limits::roomId) return false;
-  for (const unsigned char character : value) {
+  for (const char rawCharacter : value) {
+    const auto character = static_cast<unsigned char>(rawCharacter);
     if (!((character >= 'a' && character <= 'z') ||
           (character >= 'A' && character <= 'Z') ||
           (character >= '0' && character <= '9') ||
@@ -69,7 +71,8 @@ inline bool validChunk(std::int64_t position, std::int64_t declaredSize,
 
 inline bool validHost(std::string_view value) {
   if (value.empty() || value.size() > 255 || containsControl(value)) return false;
-  for (const unsigned char character : value) {
+  for (const char rawCharacter : value) {
+    const auto character = static_cast<unsigned char>(rawCharacter);
     if (!((character >= 'a' && character <= 'z') ||
           (character >= 'A' && character <= 'Z') ||
           (character >= '0' && character <= '9') || character == '.' ||
@@ -101,7 +104,8 @@ inline std::string urlPathSegment(std::string_view value) {
   static constexpr char hex[] = "0123456789ABCDEF";
   std::string result;
   result.reserve(value.size() * 3);
-  for (const unsigned char character : value) {
+  for (const char rawCharacter : value) {
+    const auto character = static_cast<unsigned char>(rawCharacter);
     if ((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
         (character >= '0' && character <= '9') || character == '-' || character == '_' || character == '.') {
       result.push_back(static_cast<char>(character));
@@ -116,7 +120,8 @@ inline std::string javascriptString(std::string_view value) {
   std::string result;
   result.reserve(value.size() + 2);
   result.push_back('"');
-  for (const unsigned char character : value) {
+  for (const char rawCharacter : value) {
+    const auto character = static_cast<unsigned char>(rawCharacter);
     switch (character) {
       case '\\': result += "\\\\"; break;
       case '"': result += "\\\""; break;
@@ -148,7 +153,8 @@ auto findById(const Map& values, const Id& id) -> typename Map::mapped_type {
 inline std::string attachmentFilename(std::string_view filename) {
   std::string result;
   result.reserve(filename.size());
-  for (const unsigned char character : filename) {
+  for (const char rawCharacter : filename) {
+    const auto character = static_cast<unsigned char>(rawCharacter);
     // HTTP quoted-string only permits visible ASCII excluding DQUOTE and backslash.
     result.push_back(character < 0x20 || character >= 0x7f || character == '"' ||
                      character == '\\' ? '_' : static_cast<char>(character));
