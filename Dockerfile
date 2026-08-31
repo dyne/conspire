@@ -23,4 +23,4 @@ COPY --chown=conspire:conspire front /app/front
 USER conspire:conspire
 VOLUME ["/run/conspire"]
 EXPOSE 8443
-ENTRYPOINT ["/app/conspire"]
+ENTRYPOINT ["/app/conspire", "--tls"]

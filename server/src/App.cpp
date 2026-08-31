@@ -74,10 +74,11 @@ void run(const oatpp::base::CommandLineArguments& args) {
 Conspire Chat Server v)HELP" << CONSPIRE_VERSION << R"HELP(
 Usage: conspire [options]
 Options:
-  --host <address>         Bind address (default: localhost)
-  --port <port>            Port to listen on (default: 8080)
-  --tls-key <path>         Path to TLS private key file (default: "privkey.pem")
-  --tls-chain <path>       Path to TLS certificate chain file (default: "fullchain.pem")
+  --host <hostname>        Public hostname (default: localhost)
+  --port <port>            Port to listen on (default: 8080; TLS: 8443)
+  --tls                    Enable TLS and load certificate files
+  --tls-key <path>         Path to TLS private key file (default: "cert/privkey.pem")
+  --tls-chain <path>       Path to TLS certificate chain file (default: "cert/fullchain.pem")
   --url-stats <path>       Statistics endpoint path (default: admin/stats.json)
   --pid <path>             Path to PID file to create
   --front <path>           Path to frontend static files (default: front)
@@ -91,6 +92,7 @@ Options:
   AppComponent components(args);
 
   OATPP_COMPONENT(oatpp::Object<ConfigDto>, appConfig);
+  OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, executor);
 
   // Setup signal handlers
   setupSignalHandlers();
@@ -99,6 +101,8 @@ Options:
   const std::string pidFilePath = appConfig->pidFilePath ? *appConfig->pidFilePath : "";
   if (!pidFile.create(pidFilePath)) {
     OATPP_LOGe("conspire", "Failed to create PID file: {}", pidFilePath);
+    executor->stop();
+    executor->join();
     return; // Exit if PID file creation failed
   }
   if (pidFile.active()) OATPP_LOGi("conspire", "Created PID file: {}", pidFilePath);
@@ -141,6 +145,9 @@ Options:
     statisticsRunner.stop();
     server.stop();
     if (serverThread.joinable()) serverThread.join();
+    connectionHandler->stop();
+    executor->stop();
+    executor->join();
     return;
   }
 
@@ -167,6 +174,10 @@ Options:
   statisticsRunner.stop();
   server.stop();
   if (serverThread.joinable()) serverThread.join();
+  connectionHandler->stop();
+  executor->waitTasksFinished(std::chrono::seconds(5));
+  executor->stop();
+  executor->join();
   pidFile.reset();
 
   OATPP_LOGi("conspire", "Server shutdown complete");

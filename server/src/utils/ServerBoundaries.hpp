@@ -164,6 +164,41 @@ inline std::string javascriptString(std::string_view value) {
   return result;
 }
 
+inline std::string htmlText(std::string_view value) {
+  std::string result;
+  result.reserve(value.size());
+  for (const char character : value) {
+    switch (character) {
+      case '&': result += "&amp;"; break;
+      case '<': result += "&lt;"; break;
+      case '>': result += "&gt;"; break;
+      case '"': result += "&quot;"; break;
+      case '\'': result += "&#39;"; break;
+      default: result.push_back(character);
+    }
+  }
+  return result;
+}
+
+inline std::string pageTitle(std::string_view version) {
+  if (!version.empty() && version.front() == 'v') version.remove_prefix(1);
+  return "Conspire v" + htmlText(version) + " by Dyne.org";
+}
+
+inline bool replaceLiteral(std::string& text, std::string_view marker,
+                           std::string_view replacement) {
+  if (marker.empty()) return false;
+  bool replaced = false;
+  std::size_t searchFrom = 0;
+  while (true) {
+    const auto position = text.find(marker, searchFrom);
+    if (position == std::string::npos) return replaced;
+    text.replace(position, marker.size(), replacement);
+    searchFrom = position + replacement.size();
+    replaced = true;
+  }
+}
+
 template <typename Collection>
 void retainLast(Collection& values, std::size_t maximum) {
   while (values.size() > maximum) values.pop_front();

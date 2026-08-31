@@ -12,6 +12,18 @@ test('shipped HTML keeps executable behavior in external modules', async () => {
   }
 });
 
+test('served pages expose the build-version title placeholder', async () => {
+  for (const file of ['front/index.html', 'front/chat/index.html']) {
+    const html = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.match(html, /<title>%%%CONSPIRE_TITLE%%%<\/title>/, file);
+  }
+
+  const controller = await readFile(
+    new URL('../server/src/controller/StaticController.hpp', import.meta.url), 'utf8');
+  assert.match(controller, /pageTitle\(version/);
+  assert.match(controller, /replaceLiteral\(page, "%%%CONSPIRE_TITLE%%%"/);
+});
+
 test('server admission and malformed-message guards remain explicit', async () => {
   const lobby = await readFile(new URL('../server/src/rooms/Lobby.cpp', import.meta.url), 'utf8');
   const room = await readFile(new URL('../server/src/rooms/Room.cpp', import.meta.url), 'utf8');

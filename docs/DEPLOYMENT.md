@@ -101,7 +101,7 @@ Type=simple
 User=conspire
 Group=conspire
 WorkingDirectory=/opt/conspire
-ExecStart=/opt/conspire/conspire
+ExecStart=/opt/conspire/conspire --tls
 Environment=EXTERNAL_ADDRESS=your-domain.com
 Environment=EXTERNAL_PORT=8443
 Environment=TLS_FILE_PRIVATE_KEY=cert/privkey.pem
@@ -205,9 +205,13 @@ For infrastructure-as-code deployment, see [conspire-infra](https://github.com/s
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `EXTERNAL_ADDRESS` | localhost | Public hostname |
-| `EXTERNAL_PORT` | 8443 | WebSocket port |
-| `TLS_FILE_PRIVATE_KEY` | — | Path to private key |
-| `TLS_FILE_CERT_CHAIN` | — | Path to certificate chain |
+| `EXTERNAL_PORT` | 8080 (8443 with `--tls`) | HTTP/WebSocket port |
+| `TLS_FILE_PRIVATE_KEY` | — | Private key path, read only with `--tls` |
+| `TLS_FILE_CERT_CHAIN` | — | Certificate-chain path, read only with `--tls` |
+
+For a local certificate-free smoke test, run `./conspire` without TLS options
+and open <http://localhost:8080>. Use `./conspire --tls` for the certificate
+configuration described above.
 
 ## Troubleshooting
 
