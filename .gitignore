@@ -40,6 +40,8 @@ coverage/
 dist/
 cert/
 node_modules/
+playwright-report/
+test-results/
 
 # Mac
 

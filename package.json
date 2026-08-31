@@ -5,11 +5,13 @@
   "scripts": {
     "test:browser": "node --test test/*.test.mjs",
     "test:e2e": "node --test test/e2e/*.test.mjs",
+    "test:e2e:browser": "playwright test",
     "coverage:browser": "node --experimental-test-coverage --test-coverage-lines=70 --test-coverage-branches=70 --test test/browser-protocol.test.mjs",
     "check:js": "node --check front/chat/chat.js && node --check front/chat/ui.js && node --check front/chat/state.js && node --check front/chat/format.js && node --check dashboard/app.js && node --check front/lobby.js",
     "check:web": "npm run check:js && npm run test:browser"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "ws": "8.21.3"
   }
 }
