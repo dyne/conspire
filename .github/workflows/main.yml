@@ -124,17 +124,28 @@ jobs:
           minorList: feat,feature
           patchList: fix,bugfix,perf
           noVersionBumpBehavior: current
+      - name: Install vendored build tools
+        if: ${{ steps.semver.outputs.bump != 'none' }}
+        run: sudo apt-get update && sudo apt-get install --yes cmake ninja-build ccache
       - name: Install pinned musl toolchain
         if: ${{ steps.semver.outputs.bump != 'none' }}
         uses: dyne/musl-action@d26fe56f7fe134a54e729d781ec687e847db34d3 # main at review
         with:
           target_arch: x86_64
+      - name: Build vendored oatpp 1.4 prefix
+        if: ${{ steps.semver.outputs.bump != 'none' }}
+        env:
+          CMAKE_TOOLCHAIN_FILE: /opt/dyne/gcc-musl/settings.cmake
+          CONSPIRE_DEPS_PREFIX: ${{ github.workspace }}/build/deps
+        run: ./scripts/build-vendored-oatpp.sh
       - name: Build verified release binary
         if: ${{ steps.semver.outputs.bump != 'none' }}
         env:
-          CONSPIRE_DEPS_PREFIX: ${{ vars.CONSPIRE_OATPP_1_4_PREFIX }}
+          CONSPIRE_DEPS_PREFIX: ${{ github.workspace }}/build/deps
         run: |
-          test -n "$CONSPIRE_DEPS_PREFIX"
+          test -f "$CONSPIRE_DEPS_PREFIX/lib/cmake/oatpp-1.4.0/oatppConfig.cmake"
+          test -f "$CONSPIRE_DEPS_PREFIX/lib/cmake/oatpp-websocket-1.4.0/oatpp-websocketConfig.cmake"
+          test -f "$CONSPIRE_DEPS_PREFIX/lib/cmake/oatpp-openssl-1.4.0/oatpp-opensslConfig.cmake"
           make VERSION="${{ steps.semver.outputs.nextStrict }}" \
             TARGET="$TARGET" CONSPIRE_DEPS_PREFIX="$CONSPIRE_DEPS_PREFIX"
       - name: Create release checksum

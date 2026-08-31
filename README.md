@@ -25,13 +25,13 @@ The Docker build context is deliberately produced from the same CMake build
 that review verifies, rather than expecting an untracked `./conspire` binary:
 
 ```sh
-CONSPIRE_DEPS_PREFIX=/path/to/verified-oatpp-1.4-prefix ./scripts/build-container.sh
+./scripts/build-vendored-oatpp.sh
+CONSPIRE_DEPS_PREFIX="$PWD/build/deps" ./scripts/build-container.sh
 ```
 
-It writes only ignored `dist/container-*` outputs and builds the runtime image
-from that deterministic context. The compatible oatpp 1.4 prefix is currently
-unavailable locally, so full image/smoke evidence must state that exact limit;
-the script refuses the incompatible public oatpp 1.3 line.
+It writes only ignored `build/` and `dist/container-*` outputs and builds the
+runtime image from that deterministic context. The committed oatpp 1.4 sources
+are built locally; the incompatible public oatpp 1.3 line is never substituted.
 
 ```sh
 docker run --read-only --tmpfs /run/conspire:uid=100,gid=101 \
@@ -41,24 +41,25 @@ docker run --read-only --tmpfs /run/conspire:uid=100,gid=101 \
 ## Native development and tests
 
 Native development uses CMake 3.20+, Ninja, GCC or Clang, and OpenSSL
-development headers. It requires an externally supplied compatible oatpp 1.4.0
-prefix containing oatpp, oatpp-websocket, and oatpp-openssl. The public oatpp
-1.3.x releases are intentionally not fetched because their API/layout is not
-compatible with this source tree.
+development headers. Build the committed oatpp 1.4.0 sources into a local
+prefix before configuring Conspire. The public oatpp 1.3.x releases are
+intentionally not fetched because their API/layout is not compatible with this
+source tree.
 
 ```bash
-cmake --preset native-gcc -DCONSPIRE_DEPS_PREFIX=/path/to/oatpp-1.4-prefix
+./scripts/build-vendored-oatpp.sh
+cmake --preset native-gcc -DCONSPIRE_DEPS_PREFIX="$PWD/build/deps"
 cmake --build --preset native-gcc
 ctest --preset native-gcc
 
-cmake --preset native-clang -DCONSPIRE_DEPS_PREFIX=/path/to/oatpp-1.4-prefix
+cmake --preset native-clang -DCONSPIRE_DEPS_PREFIX="$PWD/build/deps"
 cmake --build --preset native-clang
 ctest --preset native-clang
 ```
 
 Without the prefix, configure stops immediately with the exact prerequisite and
-does not fetch a dependency. The `make conspire` musl cross-build entry point
-also requires `CONSPIRE_DEPS_PREFIX` and deliberately never fetches oatpp.
+does not fetch a dependency. Release CI creates it from `vendor/` with the
+same musl toolchain used for the release artifact.
 
 When installed, `ccache` is detected automatically for native builds; its
 absence is safe and never changes build output. Coverage and sanitizer builds
@@ -142,8 +143,9 @@ Container deployment is supported with the mounted-certificate contract above.
 
 Every pull request and `master` push runs the same CMake/CTest coverage,
 browser, static-analysis, input-pin, and runtime-contract gates. Release jobs
-depend on all of those gates and default to a non-publishing dry run. Actual
-publication requires an explicit protected `workflow_dispatch` approval.
+depend on all of those gates and default to a non-publishing dry run. A
+successful `master` push with a Conventional Commit version bump publishes a
+release; maintainers can also use the protected publishing dispatch.
 
 `scripts/check-release-inputs.sh` emits SHA-256 checksums, a source SPDX SBOM,
 and provenance under `dist/metadata/`. Inputs must use immutable GitHub Action
@@ -153,9 +155,8 @@ issue in the protected release record. CI never inherits release secrets outside
 the protected publish job.
 
 Dependency updates are reviewed weekly and after security advisories. The
-currently bounded risk is that a compatible oatpp 1.4 prefix is not publicly
-available. Native and full-container verification therefore state that exact
-limitation and deliberately refuse to fetch or substitute oatpp 1.3.x.
+committed oatpp 1.4 source snapshots make native, container, and release builds
+self-contained; builds deliberately refuse to fetch or substitute oatpp 1.3.x.
 
 Before contributing: run `npm run check:web`, `cmake --preset core-coverage-gcc`,
 `cmake --build --preset core-coverage-gcc`, `ctest --preset core-coverage-gcc`,
