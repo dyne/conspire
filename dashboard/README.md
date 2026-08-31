@@ -30,7 +30,7 @@ index.html?statsUrl=https://your-conspire-server.com:8443/admin/stats.json
 
 ### CORS Issues & Solutions
 
-If you encounter CORS (Cross-Origin Resource Sharing) errors when fetching data from a remote server, you have several options:
+The dashboard fetches the selected endpoint directly; it does not use a public CORS proxy. Serve it from the same origin as the statistics endpoint, or configure that endpoint to permit the dashboard origin. Statistics URLs must be HTTPS (or localhost HTTP for development), responses are capped at 1 MiB, and data must match the documented numeric schema.
 
 #### Option 1: Use CORS Proxy
 Click the "Try CORS Proxy" button in the error dialog to route requests through a public CORS proxy service.

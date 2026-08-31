@@ -6,6 +6,8 @@
 #include <string>
 #include <string_view>
 
+#include "utils/ServerBoundaries.hpp"
+
 namespace conspire::config {
 
 inline std::optional<std::uint16_t> parsePort(std::string_view value) {
@@ -18,6 +20,14 @@ inline std::optional<std::uint16_t> parsePort(std::string_view value) {
     if (port > 65535) return std::nullopt;
   }
   return static_cast<std::uint16_t>(port);
+}
+
+inline bool validHost(std::string_view host) {
+  return conspire::boundaries::validHost(host);
+}
+
+inline bool validStatsPath(std::string_view path) {
+  return conspire::boundaries::validRelativePath(path) && path.size() <= 128;
 }
 
 inline std::string canonicalBaseUrl(std::string_view host, std::uint16_t port, bool useTls) {

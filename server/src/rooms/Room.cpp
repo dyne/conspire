@@ -152,6 +152,8 @@ std::shared_ptr<File> Room::shareFile(v_int64 hostPeerId, v_int64 clientFileId, 
 
   auto host = getPeerById(hostPeerId);
   if(!host) throw std::runtime_error("File host not found.");
+  if(!conspire::boundaries::hasCapacity(host->getFiles().size(), conspire::boundaries::Limits::filesPerPeer))
+    throw std::runtime_error("File limit reached.");
 
   v_int64 serverFileId = m_fileIdCounter ++;
 

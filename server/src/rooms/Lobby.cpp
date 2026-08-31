@@ -25,6 +25,7 @@
  ***************************************************************************/
 
 #include "Lobby.hpp"
+#include "utils/ServerBoundaries.hpp"
 
 v_int64 Lobby::obtainNewPeerId() {
   return m_peerIdCounter ++;
@@ -32,10 +33,11 @@ v_int64 Lobby::obtainNewPeerId() {
 
 std::shared_ptr<Room> Lobby::getOrCreateRoom(const oatpp::String& roomName) {
   std::lock_guard<std::mutex> lock(m_roomsMutex);
-  std::shared_ptr<Room>& room = m_rooms[roomName];
-  if(!room) {
-    room = std::make_shared<Room>(roomName);
-  }
+  const auto existing = m_rooms.find(roomName);
+  if (existing != m_rooms.end()) return existing->second;
+  if (!conspire::boundaries::hasCapacity(m_rooms.size(), conspire::boundaries::Limits::rooms)) return nullptr;
+  auto room = std::make_shared<Room>(roomName);
+  m_rooms.emplace(roomName, room);
   return room;
 }
 
@@ -81,6 +83,10 @@ void Lobby::onAfterCreate_NonBlocking(const std::shared_ptr<AsyncWebSocket>& soc
   auto roomName = params->find("roomName")->second;
   auto nickname = params->find("nickname")->second;
   auto room = getOrCreateRoom(roomName);
+  if (!room) {
+    socket->getConnection().invalidate();
+    return;
+  }
 
   auto peer = std::make_shared<Peer>(socket, room, nickname, obtainNewPeerId());
   socket->setListener(peer);

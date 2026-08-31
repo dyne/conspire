@@ -28,6 +28,7 @@
 
 #include "dto/DTOs.hpp"
 #include "rooms/Peer.hpp"
+#include "utils/ServerBoundaries.hpp"
 
 File::Subscriber::Subscriber(v_int64 id, const std::shared_ptr<File>& file)
   : m_id(id)
@@ -43,13 +44,14 @@ File::Subscriber::~Subscriber() {
   m_file->unsubscribe(m_id);
 }
 
-void File::Subscriber::provideFileChunk(const oatpp::String& data) {
+bool File::Subscriber::provideFileChunk(const oatpp::String& data) {
   std::lock_guard<std::mutex> lock(m_chunkLock);
   if(m_chunk != nullptr) {
-    throw std::runtime_error("File chunk collision.");
+    return false;
   }
   m_chunk = data;
   m_waitList.notifyAll();
+  return true;
 }
 
 void File::Subscriber::requestChunk(v_int64 size) {
@@ -166,19 +168,21 @@ void File::unsubscribe(v_int64 id) {
 
 std::shared_ptr<File::Subscriber> File::subscribe() {
   std::lock_guard<std::mutex> lock(m_subscribersLock);
+  if (!conspire::boundaries::hasCapacity(m_subscribers.size(), conspire::boundaries::Limits::subscribersPerFile)) return nullptr;
   auto s = std::make_shared<Subscriber>(m_subscriberIdCounter ++, shared_from_this());
   m_subscribers[s->getId()] = s.get();
   return s;
 }
 
-void File::provideFileChunk(v_int64 subscriberId, const oatpp::String& data) {
+bool File::provideFileChunk(v_int64 subscriberId, const oatpp::String& data) {
 
   std::lock_guard<std::mutex> lock(m_subscribersLock);
   auto it = m_subscribers.find(subscriberId);
 
   if(it != m_subscribers.end()) {
-    it->second->provideFileChunk(data);
-  } // else ignore.
+    return it->second->provideFileChunk(data);
+  }
+  return false;
 
 }
 

@@ -30,3 +30,33 @@ test('the shipped chat receive path imports and validates the protocol module', 
   assert.match(chat, /protocol\.parseProtocolMessage\(event\.data\)/);
   assert.doesNotMatch(chat, /onMessage\(JSON\.parse\(event\.data\)\)/);
 });
+
+test('dashboard keeps hostile strings out of HTML sinks and does not proxy statistics', async () => {
+  const dashboard = await readFile(new URL('../dashboard/app.js', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../dashboard/index.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(dashboard, /\.innerHTML\s*=/);
+  assert.doesNotMatch(dashboard, /cors-anywhere|tryProxyUrl/);
+  assert.match(dashboard, /safeStatsUrl/);
+  assert.match(dashboard, /MAX_STATS_BYTES/);
+  assert.match(dashboard, /validStats\(data\)/);
+  assert.doesNotMatch(html, /\sonclick=/);
+});
+
+test('room UI registers CSP-compatible handlers from an external script', async () => {
+  const room = await readFile(new URL('../front/chat/index.html', import.meta.url), 'utf8');
+  const ui = await readFile(new URL('../front/chat/ui.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(room, /\son(?:click|change)=/);
+  assert.doesNotMatch(room, /<style/);
+  assert.match(room, /chat\.css/);
+  assert.match(room, /ui\.js/);
+  assert.match(ui, /addEventListener\('click'/);
+  assert.match(ui, /addEventListener\('change'/);
+});
+
+test('lobby actions are CSP-compatible external listeners', async () => {
+  const lobby = await readFile(new URL('../front/index.html', import.meta.url), 'utf8');
+  const script = await readFile(new URL('../front/lobby.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(lobby, /\sonclick=|<script>(?!\s*src)/);
+  assert.match(lobby, /lobby\.js/);
+  assert.match(script, /noopener,noreferrer/);
+});

@@ -28,6 +28,7 @@
 #define StaticController_hpp
 
 #include "dto/Config.hpp"
+#include "utils/ServerBoundaries.hpp"
 #include "oatpp/web/server/api/ApiController.hpp"
 
 #include "oatpp/macro/codegen.hpp"
@@ -66,19 +67,42 @@ public:
       auto fileCache = controller->loadFile(filePath.c_str());
       auto response = controller->createResponse(Status::CODE_200, fileCache);
       response->putHeader(Header::CONTENT_TYPE, "text/html");
+      response->putHeader("Content-Security-Policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Referrer-Policy", "no-referrer");
+      response->putHeader("Cache-Control", "no-store");
       return _return(response);
     }  };
+
+  ENDPOINT_ASYNC("GET", "lobby.js", LobbyJS) {
+    ENDPOINT_ASYNC_INIT(LobbyJS)
+
+    Action act() override {
+      const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/lobby.js");
+      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
 
   ENDPOINT_ASYNC("GET", "room/{roomId}", ChatHTML) {
 
     ENDPOINT_ASYNC_INIT(ChatHTML)
 
     Action act() override {
+      const auto roomId = request->getPathVariable("roomId");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
       std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/index.html");
       std::string fileCache = *controller->loadFile(filePath.c_str());
-      auto text = std::regex_replace(fileCache, std::regex("%%%ROOM_ID%%%"), *request->getPathVariable("roomId"));
+      auto text = std::regex_replace(fileCache, std::regex("%%%ROOM_ID%%%"), conspire::boundaries::urlPathSegment(roomId->std_str()));
       auto response = controller->createResponse(Status::CODE_200, text);
       response->putHeader(Header::CONTENT_TYPE, "text/html");
+      response->putHeader("Content-Security-Policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Referrer-Policy", "no-referrer");
+      response->putHeader("Cache-Control", "no-store");
       return _return(response);
     }  };
 
@@ -87,19 +111,25 @@ public:
     ENDPOINT_ASYNC_INIT(ChatJS)
 
     Action act() override {
+      const auto roomId = request->getPathVariable("roomId");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
       std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/chat.js");
       auto fileCache = controller->loadFile(filePath.c_str());
 
       oatpp::data::stream::BufferOutputStream stream;
 
-      auto baseUrl = controller->m_config->getWebsocketBaseUrl();      stream << "let urlWebsocket = \"" << baseUrl << "/api/ws/room/" << request->getPathVariable("roomId") << "\";\n";
-      stream << "let urlRoom = \"/room/" << request->getPathVariable("roomId") << "\";\n";
+      const auto baseUrl = controller->m_config->getWebsocketBaseUrl()->std_str();
+      const auto encodedRoom = conspire::boundaries::urlPathSegment(roomId->std_str());
+      stream << "let urlWebsocket = " << conspire::boundaries::javascriptString(baseUrl + "/api/ws/room/" + encodedRoom) << ";\n";
+      stream << "let urlRoom = " << conspire::boundaries::javascriptString("/room/" + encodedRoom) << ";\n";
       stream << "\n";
 
       stream << fileCache;
 
       auto response = controller->createResponse(Status::CODE_200, stream.toString());
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
       return _return(response);
     }
 
@@ -112,6 +142,38 @@ public:
       std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/protocol.js");
       auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "room/{roomId}/ui.js", UiJS) {
+    ENDPOINT_ASYNC_INIT(UiJS)
+
+    Action act() override {
+      const auto roomId = request->getPathVariable("roomId");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/ui.js");
+      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "room/{roomId}/chat.css", ChatCSS) {
+    ENDPOINT_ASYNC_INIT(ChatCSS)
+
+    Action act() override {
+      const auto roomId = request->getPathVariable("roomId");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/chat.css");
+      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      response->putHeader(Header::CONTENT_TYPE, "text/css");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
       return _return(response);
     }
   };

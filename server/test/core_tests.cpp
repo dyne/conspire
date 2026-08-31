@@ -28,6 +28,18 @@ int main() {
   assert(canonicalBaseUrl("example.test", 80, false) == "http://example.test");
   assert(websocketBaseUrl("example.test", 443, true) == "wss://example.test:443");
   assert(websocketBaseUrl("example.test", 80, false) == "ws://example.test:80");
+  assert(conspire::config::validHost("example.test:8443"));
+  assert(!conspire::config::validHost("example.test\r\nInjected: yes"));
+  assert(!conspire::config::validHost("evil/path"));
+  assert(conspire::config::validStatsPath("admin/stats.json"));
+  assert(!conspire::config::validStatsPath("../stats.json"));
+  assert(!conspire::config::validStatsPath("/stats.json"));
+  assert(conspire::boundaries::validRequestPath("/room/one"));
+  assert(!conspire::boundaries::validRequestPath("//evil.test"));
+  assert(!conspire::boundaries::validRequestPath("/room\r\none"));
+  assert(conspire::boundaries::allowedOrigin("https://example.test", "https://example.test"));
+  assert(!conspire::boundaries::allowedOrigin("https://evil.test", "https://example.test"));
+  assert(conspire::boundaries::allowedOrigin("http://localhost", "https://example.test", true));
 
   std::deque<int> history{1, 2, 3, 4};
   conspire::boundaries::retainLast(history, 2);
@@ -41,10 +53,28 @@ int main() {
   assert(!conspire::boundaries::findById(entries, std::int64_t{8}));
 
   assert(conspire::boundaries::attachmentFilename("report.txt") == "report.txt");
-  assert(conspire::boundaries::attachmentFilename("a\"\r\nb") == "a___b");
+  assert(conspire::boundaries::attachmentFilename("a\"\\\r\nb\xC3\xA9") == "a____b__");
   assert(conspire::boundaries::attachmentFilename("") == "download");
   assert(conspire::boundaries::validFileDescriptor("a", 0, 1));
   assert(!conspire::boundaries::validFileDescriptor("", 0, 1));
   assert(!conspire::boundaries::validFileDescriptor("a", 2, 1));
+  assert(!conspire::boundaries::validFileDescriptor("a\n", 0));
+  assert(!conspire::boundaries::validFileDescriptor("a", -1));
+  assert(conspire::boundaries::validRoomId("room_42-A"));
+  assert(!conspire::boundaries::validRoomId("room/42"));
+  assert(!conspire::boundaries::validRoomId("room\n42"));
+  assert(!conspire::boundaries::validRoomId(std::string(65, 'a')));
+  assert(conspire::boundaries::validMessageContent("plain text"));
+  assert(!conspire::boundaries::validMessageContent("line\nfeed"));
+  assert(!conspire::boundaries::validMessageContent(std::string(8193, 'a')));
+  assert(conspire::boundaries::validChunk(0, 3, 3, 3));
+  assert(!conspire::boundaries::validChunk(-1, 3, 3, 3));
+  assert(!conspire::boundaries::validChunk(2, 2, 2, 3));
+  assert(!conspire::boundaries::validChunk(0, 4, 3, 4));
+  assert(conspire::boundaries::hasCapacity(31, 32));
+  assert(!conspire::boundaries::hasCapacity(32, 32));
+  assert(!conspire::boundaries::hasCapacity(0, 0));
+  assert(conspire::boundaries::urlPathSegment("a b/\"") == "a%20b%2F%22");
+  assert(conspire::boundaries::javascriptString("</script>\"\\\n") == "\"\\u003C/script\\u003E\\\"\\\\\\n\"");
   assert(coverageFixture(true) == 1);
 }

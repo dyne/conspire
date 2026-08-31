@@ -81,6 +81,7 @@ public:
     Action act() override {
 
       oatpp::String roomId = request->getPathVariable("roomId");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
 
       bool success;
       v_int64 fileId = oatpp::utils::Conversion::strToInt64(request->getPathVariable("fileId"), success);
@@ -92,11 +93,15 @@ public:
       auto file = room->getFileById(fileId);
       OATPP_ASSERT_HTTP(file, Status::CODE_404, "File not found");
 
+      auto subscriber = file->subscribe();
+      OATPP_ASSERT_HTTP(subscriber, Status::CODE_429, "Too many file subscribers");
       auto body = std::make_shared<oatpp::web::protocol::http::outgoing::StreamingBody>
-        (std::make_shared<ReadCallback>(file->subscribe()));
+        (std::make_shared<ReadCallback>(subscriber));
 
       auto response = OutgoingResponse::createShared(Status::CODE_200, body);
       response->putHeader("content-disposition", "attachment; filename=\"" + conspire::boundaries::attachmentFilename(file->getFileName()->std_str()) +"\"");
+      response->putHeader(Header::CONTENT_TYPE, "application/octet-stream");
+      response->putHeader("X-Content-Type-Options", "nosniff");
 
       return _return(response);
     }

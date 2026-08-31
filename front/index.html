@@ -48,8 +48,8 @@
         </p>
         <div id="starter">
 
-            <input type="button" value="Public Reception" onclick="startLobby();">
-            <input type="button" value="New Private Room" onclick="startPrivateRoom();">
+            <input id="public-room-button" type="button" value="Public Reception">
+            <input id="private-room-button" type="button" value="New Private Room">
         </div>
         <div id="note">
             <section aria-labelledby="rules-heading">
@@ -99,22 +99,7 @@
 
     </div>
 
-    <script>
-
-        function uuidv4() {
-            return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
-                (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-            );
-        }
-
-        function startLobby() {
-            window.open('/room/reception', '_blank');
-        }
-
-        function startPrivateRoom() {
-            window.open('/room/' + uuidv4(), '_blank');
-        }
-    </script>
+    <script src="lobby.js"></script>
 
 </body>
 

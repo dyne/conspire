@@ -30,6 +30,7 @@
 #include "rooms/Lobby.hpp"
 #include "dto/Config.hpp"
 #include "utils/ConfigValidation.hpp"
+#include "utils/ServerBoundaries.hpp"
 #include "utils/Statistics.hpp"
 
 #include "oatpp-openssl/server/ConnectionProvider.hpp"
@@ -64,9 +65,14 @@ private:
     std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>& request) override {
       auto host = request->getHeader(oatpp::web::protocol::http::Header::HOST);
       auto siteHost = appConfig->getHostString();
+      const auto path = request->getStartingLine().path.toString();
+      if(!host || !conspire::boundaries::validHost(host->std_str()) || !conspire::boundaries::validRequestPath(path->std_str())) {
+        return OutgoingResponse::createShared(oatpp::web::protocol::http::Status::CODE_400, nullptr);
+      }
       if(!host || host != siteHost) {
         auto response = OutgoingResponse::createShared(oatpp::web::protocol::http::Status::CODE_301, nullptr);
-        response->putHeader("Location", appConfig->getCanonicalBaseUrl() + request->getStartingLine().path.toString());
+        response->putHeader("Location", appConfig->getCanonicalBaseUrl() + path);
+        response->putHeader("Cache-Control", "no-store");
         return response;
       }
       return nullptr;
@@ -93,6 +99,9 @@ public:
     if (!config->host) {
       config->host = m_cmdArgs.getNamedArgumentValue("--host", "localhost");
     }
+    if(!config->host || !conspire::config::validHost(config->host->std_str())) {
+      throw std::runtime_error("Invalid host!");
+    }
 
     const char* portText = std::getenv("EXTERNAL_PORT");
     if(!portText) {
@@ -118,6 +127,9 @@ public:
     config->statisticsUrl = std::getenv("URL_STATS_PATH");
     if(!config->statisticsUrl) {
       config->statisticsUrl = m_cmdArgs.getNamedArgumentValue("--url-stats", "admin/stats.json");
+    }
+    if(!config->statisticsUrl || !conspire::config::validStatsPath(config->statisticsUrl->std_str())) {
+      throw std::runtime_error("Invalid statistics path!");
     }
 
     config->pidFilePath = m_cmdArgs.getNamedArgumentValue("--pid");

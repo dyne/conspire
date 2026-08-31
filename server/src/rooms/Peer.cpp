@@ -26,6 +26,7 @@
 
 #include "Peer.hpp"
 #include "Room.hpp"
+#include "utils/ServerBoundaries.hpp"
 
 #include "oatpp/network/tcp/Connection.hpp"
 #include "oatpp/encoding/Base64.hpp"
@@ -164,8 +165,16 @@ oatpp::async::CoroutineStarter Peer::validateFilesList(const MessageDto::FilesLi
 
 oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<MessageDto>& message) {
 
+  if (!message)
+    return onApiError("No message provided.");
   auto files = message->files;
-  validateFilesList(files);
+  if (!files || files->size() == 0 || files->size() > conspire::boundaries::Limits::filesPerMessage)
+    return onApiError("Invalid files list.");
+  for (const auto& file : *files) {
+    if (!file || !file->clientFileId || !file->name || !file->size ||
+        !conspire::boundaries::validFileDescriptor(file->name->std_str(), *file->size))
+      return onApiError("Invalid file descriptor.");
+  }
 
   auto fileMessage = MessageDto::createShared();
   fileMessage->code = MessageCodes::CODE_PEER_MESSAGE_FILE;
@@ -196,6 +205,8 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
 
 oatpp::async::CoroutineStarter Peer::handleFileChunkMessage(const oatpp::Object<MessageDto>& message) {
 
+  if (!message)
+    return onApiError("No message provided.");
   auto filesList = message->files;
   if(!filesList)
     return onApiError("No file provided.");
@@ -221,7 +232,12 @@ oatpp::async::CoroutineStarter Peer::handleFileChunkMessage(const oatpp::Object<
     return onApiError("Wrong file host.");
 
   auto data = oatpp::encoding::Base64::decode(fileDto->data);
-  file->provideFileChunk(fileDto->subscriberId, data);
+  if (!data || !fileDto->chunkPosition || !fileDto->chunkSize ||
+      !conspire::boundaries::validChunk(*fileDto->chunkPosition, *fileDto->chunkSize,
+                                        data->size(), file->getFileSize()))
+    return onApiError("Invalid file chunk.");
+  if (!file->provideFileChunk(fileDto->subscriberId, data))
+    return onApiError("Unexpected file chunk.");
 
   return nullptr;
 
@@ -229,6 +245,9 @@ oatpp::async::CoroutineStarter Peer::handleFileChunkMessage(const oatpp::Object<
 
 oatpp::async::CoroutineStarter Peer::handleMessage(const oatpp::Object<MessageDto>& message) {
 
+  if(!message) {
+    return onApiError("No message provided.");
+  }
   if(!message->code) {
     return onApiError("No message code provided.");
   }
@@ -236,6 +255,8 @@ oatpp::async::CoroutineStarter Peer::handleMessage(const oatpp::Object<MessageDt
   switch(*message->code) {
 
     case MessageCodes::CODE_PEER_MESSAGE:
+      if(!message->message || !conspire::boundaries::validMessageContent(message->message->std_str()))
+        return onApiError("Invalid message content.");
       m_room->addHistoryMessage(message);
       m_room->sendMessageAsync(message);
       ++ m_statistics->EVENT_PEER_SEND_MESSAGE;
