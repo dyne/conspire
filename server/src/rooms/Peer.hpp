@@ -41,6 +41,9 @@
 #include "oatpp/data/mapping/ObjectMapper.hpp"
 #include "oatpp/macro/component.hpp"
 
+#include <mutex>
+#include <vector>
+
 class Room; // FWD
 
 class Peer : public oatpp::websocket::AsyncWebSocket::Listener {
@@ -64,6 +67,7 @@ private:
 private:
   std::atomic<v_int32> m_pingPoingCounter;
   std::list<std::shared_ptr<File>> m_files;
+  mutable std::mutex m_stateLock;
 private:
 
   /* Inject application components */
@@ -138,7 +142,7 @@ public:
    * List of shared by user files.
    * @return
    */
-  const std::list<std::shared_ptr<File>>& getFiles();
+  std::vector<std::shared_ptr<File>> getFilesSnapshot();
 
   /**
    * Remove circle `std::shared_ptr` dependencies

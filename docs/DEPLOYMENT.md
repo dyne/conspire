@@ -1,6 +1,8 @@
 # Deployment Guide
 
-Deploy Conspire as a native binary with a custom landing page. This guide covers manual installation and provides a reference implementation for automation.
+Deploy Conspire as a native binary or the supported non-root container with a
+custom landing page. This guide covers manual installation and a reference
+runtime contract.
 
 ## Architecture
 
@@ -20,6 +22,34 @@ The landing page generates random room URLs and redirects users to Conspire.
 - Ports 80 (temp), 443, and 8443 accessible
 
 ## Installation
+
+### Container contract
+
+The container has no baked certificate or private key. Mount an operator-owned
+directory at `/run/certs:ro` containing `privkey.pem` and `fullchain.pem`, run
+the filesystem read-only, and give `/run/conspire` a writable tmpfs for the
+optional PID file:
+
+Build the image from the same verified CMake inputs used in review (not from an
+untracked `conspire` file):
+
+```sh
+CONSPIRE_DEPS_PREFIX=/path/to/verified-oatpp-1.4-prefix ./scripts/build-container.sh
+```
+
+This prerequisite is intentionally strict: the compatible oatpp 1.4 prefix is
+currently unavailable in this checkout and public oatpp 1.3.x must not be used
+as a substitute.
+
+```sh
+docker run --read-only --tmpfs /run/conspire:uid=100,gid=101 \
+  -v /opt/conspire/cert:/run/certs:ro -p 8443:8443 \
+  -e EXTERNAL_ADDRESS=your-domain.com -e EXTERNAL_PORT=8443 \
+  ghcr.io/dyne/conspire:latest
+```
+
+The service runs as a non-root `conspire` user. Do not mount a certificate
+directory read-write and do not build demo keys into a derived image.
 
 ### 1. Download Conspire
 
@@ -184,6 +214,10 @@ For infrastructure-as-code deployment, see [conspire-infra](https://github.com/s
 **Port 8443 not accessible**: Check firewall rules and any cloud provider firewall settings.
 
 **Certificate errors**: Ensure cert files exist and are readable by the conspire user. Check paths in systemd environment.
+
+For the container, the corresponding paths are
+`/run/certs/privkey.pem` and `/run/certs/fullchain.pem`; verify the mount is
+read-only and that the files are readable by its non-root UID.
 
 **WebSocket connection failed**: Conspire requires direct network access. Do not place it behind nginx, Apache, or any reverse proxy.
 

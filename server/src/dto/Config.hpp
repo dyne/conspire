@@ -31,6 +31,7 @@
 #include "oatpp/macro/codegen.hpp"
 
 #include "oatpp/data/stream/BufferStream.hpp"
+#include "utils/ConfigValidation.hpp"
 
 #include OATPP_CODEGEN_BEGIN(DTO)
 
@@ -99,31 +100,11 @@ public:
   }
 
   oatpp::String getCanonicalBaseUrl() {
-    oatpp::data::stream::BufferOutputStream stream(256);
-    v_uint16 defPort;
-    if(useTLS) {
-      stream << "https://";
-      defPort = 443;
-    } else {
-      stream << "http://";
-      defPort = 80;
-    }
-    stream << host;
-    if(!port || defPort != port) {
-      stream << ":" << port;
-    }
-    return stream.toString();
+    return conspire::config::canonicalBaseUrl(host ? host->std_str() : "", port ? *port : 0, useTLS && *useTLS);
   }
 
   oatpp::String getWebsocketBaseUrl() {
-    oatpp::data::stream::BufferOutputStream stream(256);
-    if(useTLS) {
-      stream << "wss://";
-    } else {
-      stream << "ws://";
-    }
-    stream << host << ":" << port;
-    return stream.toString();
+    return conspire::config::websocketBaseUrl(host ? host->std_str() : "", port ? *port : 0, useTLS && *useTLS);
   }
 
   oatpp::String getStatsUrl() {

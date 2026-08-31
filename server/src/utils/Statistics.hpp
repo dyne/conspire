@@ -71,7 +71,9 @@ public:
   void takeSample();
   oatpp::String getJsonData();
 
-  void runStatLoop();
+  /** Take one statistics sample. Scheduling and cancellation belong to an
+   * owned lifecycle runner, not this component. */
+  void runStatIteration();
 
 };
 

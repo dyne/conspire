@@ -25,14 +25,24 @@
  ***************************************************************************/
 
 #include "Room.hpp"
+#include "utils/ServerBoundaries.hpp"
+
+#include <vector>
 
 oatpp::String Room::getName() {
   return m_name;
 }
 
-void Room::addPeer(const std::shared_ptr<Peer>& peer) {
+bool Room::addPeer(const std::shared_ptr<Peer>& peer) {
   std::lock_guard<std::mutex> guard(m_peerByIdLock);
+  if (!conspire::boundaries::hasCapacity(m_peerById.size(), conspire::boundaries::Limits::peersPerRoom)) return false;
   m_peerById[peer->getPeerId()] = peer;
+  return true;
+}
+
+bool Room::hasPeerCapacity() const {
+  std::lock_guard<std::mutex> guard(m_peerByIdLock);
+  return conspire::boundaries::hasCapacity(m_peerById.size(), conspire::boundaries::Limits::peersPerRoom);
 }
 
 void Room::welcomePeer(const std::shared_ptr<Peer>& peer) {
@@ -59,14 +69,17 @@ void Room::onboardPeer(const std::shared_ptr<Peer>& peer) {
 
   infoMessage->peers = {};
 
+  std::vector<std::shared_ptr<Peer>> peers;
   {
     std::lock_guard<std::mutex> guard(m_peerByIdLock);
-    for (auto &it : m_peerById) {
-      auto p = PeerDto::createShared();
-      p->peerId = it.second->getPeerId();
-      p->peerName = it.second->getNickname();
-      infoMessage->peers->push_back(p);
-    }
+    peers.reserve(m_peerById.size());
+    for (const auto& entry : m_peerById) peers.push_back(entry.second);
+  }
+  for (const auto& current : peers) {
+    auto p = PeerDto::createShared();
+    p->peerId = current->getPeerId();
+    p->peerName = current->getNickname();
+    infoMessage->peers->push_back(p);
   }
 
   infoMessage->history = getHistory();
@@ -88,32 +101,24 @@ void Room::goodbyePeer(const std::shared_ptr<Peer>& peer) {
 
 std::shared_ptr<Peer> Room::getPeerById(v_int64 peerId) {
   std::lock_guard<std::mutex> guard(m_peerByIdLock);
-  auto it = m_peerById.find(peerId);
-  if(it != m_peerById.end()) {
-    return it->second;
-  }
-  return nullptr;
+  return conspire::boundaries::findById(m_peerById, peerId);
 }
 
 void Room::removePeerById(v_int64 peerId) {
-
-  std::lock_guard<std::mutex> guard(m_peerByIdLock);
-  auto peer = m_peerById.find(peerId);
-
-  if(peer != m_peerById.end()) {
-
-    {
-      std::lock_guard<std::mutex> guard(m_fileByIdLock);
-      for (const auto &file : peer->second->getFiles()) {
-        file->clearSubscribers();
-        m_fileById.erase(file->getServerFileId());
-      }
-
-    }
-
-    m_peerById.erase(peerId);
-
+  std::shared_ptr<Peer> peer;
+  {
+    std::lock_guard<std::mutex> guard(m_peerByIdLock);
+    const auto it = m_peerById.find(peerId);
+    if (it == m_peerById.end()) return;
+    peer = it->second;
+    m_peerById.erase(it);
   }
+  const auto files = peer->getFilesSnapshot();
+  {
+    std::lock_guard<std::mutex> guard(m_fileByIdLock);
+    for (const auto& file : files) m_fileById.erase(file->getServerFileId());
+  }
+  for (const auto& file : files) file->clearSubscribers();
 
 }
 
@@ -127,9 +132,7 @@ void Room::addHistoryMessage(const oatpp::Object<MessageDto>& message) {
 
   m_history.push_back(message);
 
-  while(m_history.size() > m_appConfig->maxRoomHistoryMessages) {
-    m_history.pop_front();
-  }
+  conspire::boundaries::retainLast(m_history, *m_appConfig->maxRoomHistoryMessages);
 
 }
 
@@ -152,18 +155,19 @@ oatpp::List<oatpp::Object<MessageDto>> Room::getHistory() {
 }
 
 std::shared_ptr<File> Room::shareFile(v_int64 hostPeerId, v_int64 clientFileId, const oatpp::String& fileName, v_int64 fileSize) {
-
-  std::lock_guard<std::mutex> guard(m_fileByIdLock);
-
   auto host = getPeerById(hostPeerId);
   if(!host) throw std::runtime_error("File host not found.");
+  if(!conspire::boundaries::hasCapacity(host->getFilesSnapshot().size(), conspire::boundaries::Limits::filesPerPeer))
+    throw std::runtime_error("File limit reached.");
 
   v_int64 serverFileId = m_fileIdCounter ++;
 
   auto file = std::make_shared<File>(host, clientFileId, serverFileId, fileName, fileSize);
   host->addFile(file);
-
-  m_fileById[serverFileId] = file;
+  {
+    std::lock_guard<std::mutex> guard(m_fileByIdLock);
+    m_fileById[serverFileId] = file;
+  }
 
   ++ m_statistics->EVENT_PEER_SHARE_FILE;
 
@@ -173,24 +177,27 @@ std::shared_ptr<File> Room::shareFile(v_int64 hostPeerId, v_int64 clientFileId, 
 
 std::shared_ptr<File> Room::getFileById(v_int64 fileId) {
   std::lock_guard<std::mutex> guard(m_fileByIdLock);
-  auto it = m_fileById.find(fileId);
-  if(it != m_fileById.end()) {
-    return it->second;
-  }
-  return nullptr;
+  return conspire::boundaries::findById(m_fileById, fileId);
 }
 
 void Room::sendMessageAsync(const oatpp::Object<MessageDto>& message) {
-  std::lock_guard<std::mutex> guard(m_peerByIdLock);
-  for(auto& pair : m_peerById) {
-    pair.second->sendMessageAsync(message);
+  std::vector<std::shared_ptr<Peer>> peers;
+  {
+    std::lock_guard<std::mutex> guard(m_peerByIdLock);
+    peers.reserve(m_peerById.size());
+    for (const auto& pair : m_peerById) peers.push_back(pair.second);
   }
+  for (const auto& peer : peers) peer->sendMessageAsync(message);
 }
 
 void Room::pingAllPeers() {
-  std::lock_guard<std::mutex> guard(m_peerByIdLock);
-  for(auto& pair : m_peerById) {
-    auto& peer = pair.second;
+  std::vector<std::shared_ptr<Peer>> peers;
+  {
+    std::lock_guard<std::mutex> guard(m_peerByIdLock);
+    peers.reserve(m_peerById.size());
+    for (const auto& pair : m_peerById) peers.push_back(pair.second);
+  }
+  for (const auto& peer : peers) {
     if(!peer->sendPingAsync()) {
       peer->invalidateSocket();
       ++ m_statistics->EVENT_PEER_ZOMBIE_DROPPED;
@@ -199,5 +206,6 @@ void Room::pingAllPeers() {
 }
 
 bool Room::isEmpty() {
+  std::lock_guard<std::mutex> guard(m_peerByIdLock);
   return m_peerById.size() == 0;
 }

@@ -25,7 +25,6 @@
  ***************************************************************************/
 
 #include "Statistics.hpp"
-#include <thread>
 
 void Statistics::takeSample() {
 
@@ -80,20 +79,6 @@ oatpp::String Statistics::getJsonData() {
   return m_objectMapper.writeToString(m_dataPoints);
 }
 
-void Statistics::runStatLoop() {
-
-  while(true) {
-
-    std::chrono::duration<v_int64, std::micro> elapsed = std::chrono::microseconds(0);
-    auto startTime = std::chrono::system_clock::now();
-
-    do {
-      std::this_thread::sleep_for(m_updateInterval - elapsed);
-      elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - startTime);
-    } while (elapsed < m_updateInterval);
-
-    takeSample();
-
-  }
-
+void Statistics::runStatIteration() {
+  takeSample();
 }

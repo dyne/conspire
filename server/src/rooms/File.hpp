@@ -29,6 +29,8 @@
 
 #include "oatpp/data/stream/Stream.hpp"
 #include "oatpp/async/CoroutineWaitList.hpp"
+#include "utils/ServerBoundaries.hpp"
+#include <memory>
 #include <unordered_map>
 
 class Peer; // FWD
@@ -36,21 +38,26 @@ class Peer; // FWD
 class File : public std::enable_shared_from_this<File> {
 public:
 
-  class Subscriber {
+  class Subscriber : public std::enable_shared_from_this<Subscriber> {
   private:
 
     class WaitListListener : public oatpp::async::CoroutineWaitList::Listener {
     private:
-      Subscriber* m_subscriber;
+      std::weak_ptr<Subscriber> m_subscriber;
     public:
 
-      WaitListListener(Subscriber* subscriber)
-        : m_subscriber(subscriber)
-      {}
+      WaitListListener() = default;
+
+      void bind(const std::shared_ptr<Subscriber>& subscriber) { m_subscriber = subscriber; }
 
       void onNewItem(oatpp::async::CoroutineWaitList& list) override {
-        std::lock_guard<std::mutex> lock(m_subscriber->m_chunkLock);
-        if (m_subscriber->m_chunk || !m_subscriber->m_valid) {
+        const auto subscriber = m_subscriber.lock();
+        if (!subscriber) {
+          list.notifyAll();
+          return;
+        }
+        std::lock_guard<std::mutex> lock(subscriber->m_chunkLock);
+        if (subscriber->m_chunk || !subscriber->m_valid) {
           list.notifyAll();
         }
       }
@@ -62,6 +69,7 @@ public:
     std::shared_ptr<File> m_file;
     bool m_valid;
     v_int64 m_progress;
+    conspire::boundaries::ChunkRequest m_request;
   private:
     std::mutex m_chunkLock;
     oatpp::String m_chunk;
@@ -76,13 +84,14 @@ public:
 
     ~Subscriber();
 
-    void provideFileChunk(const oatpp::String& data);
+    bool provideFileChunk(v_int64 position, v_int64 size, const oatpp::String& data);
 
     oatpp::v_io_size readChunk(void *buffer, v_buff_size count, oatpp::async::Action& action);
 
     v_int64 getId();
 
     void invalidate();
+    void bindWaitListListener(const std::shared_ptr<Subscriber>& self);
 
   };
 
@@ -100,7 +109,7 @@ private:
 
   std::mutex m_subscribersLock;
   std::atomic<v_int64> m_subscriberIdCounter;
-  std::unordered_map<v_int64, Subscriber*> m_subscribers;
+  std::unordered_map<v_int64, std::weak_ptr<Subscriber>> m_subscribers;
 
 public:
 
@@ -112,7 +121,7 @@ public:
 
   std::shared_ptr<Subscriber> subscribe();
 
-  void provideFileChunk(v_int64 subscriberId, const oatpp::String& data);
+  bool provideFileChunk(v_int64 subscriberId, v_int64 position, v_int64 size, const oatpp::String& data);
 
   std::shared_ptr<Peer> getHost();
 

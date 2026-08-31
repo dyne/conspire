@@ -26,6 +26,7 @@
 
 #include "Peer.hpp"
 #include "Room.hpp"
+#include "utils/ServerBoundaries.hpp"
 
 #include "oatpp/network/tcp/Connection.hpp"
 #include "oatpp/encoding/Base64.hpp"
@@ -53,8 +54,13 @@ void Peer::sendMessageAsync(const oatpp::Object<MessageDto>& message) {
 
   };
 
-  if(m_socket) {
-    m_asyncExecutor->execute<SendMessageCoroutine>(&m_writeLock, m_socket, m_objectMapper->writeToString(message));
+  std::shared_ptr<AsyncWebSocket> socket;
+  {
+    std::lock_guard<std::mutex> lock(m_stateLock);
+    socket = m_socket;
+  }
+  if(socket) {
+    m_asyncExecutor->execute<SendMessageCoroutine>(&m_writeLock, socket, m_objectMapper->writeToString(message));
   }
 
 }
@@ -91,8 +97,13 @@ bool Peer::sendPingAsync() {
 
   ++ m_pingPoingCounter;
 
-  if(m_socket && m_pingPoingCounter == 1) {
-    m_asyncExecutor->execute<SendPingCoroutine>(&m_writeLock, m_socket);
+  std::shared_ptr<AsyncWebSocket> socket;
+  {
+    std::lock_guard<std::mutex> lock(m_stateLock);
+    socket = m_socket;
+  }
+  if(socket && m_pingPoingCounter == 1) {
+    m_asyncExecutor->execute<SendPingCoroutine>(&m_writeLock, socket);
     return true;
   }
 
@@ -164,8 +175,16 @@ oatpp::async::CoroutineStarter Peer::validateFilesList(const MessageDto::FilesLi
 
 oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<MessageDto>& message) {
 
+  if (!message)
+    return onApiError("No message provided.");
   auto files = message->files;
-  validateFilesList(files);
+  if (!files || files->size() == 0 || files->size() > conspire::boundaries::Limits::filesPerMessage)
+    return onApiError("Invalid files list.");
+  for (const auto& file : *files) {
+    if (!file || !file->clientFileId || !file->name || !file->size ||
+        !conspire::boundaries::validFileDescriptor(file->name->std_str(), *file->size))
+      return onApiError("Invalid file descriptor.");
+  }
 
   auto fileMessage = MessageDto::createShared();
   fileMessage->code = MessageCodes::CODE_PEER_MESSAGE_FILE;
@@ -196,11 +215,13 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
 
 oatpp::async::CoroutineStarter Peer::handleFileChunkMessage(const oatpp::Object<MessageDto>& message) {
 
+  if (!message)
+    return onApiError("No message provided.");
   auto filesList = message->files;
   if(!filesList)
     return onApiError("No file provided.");
 
-  if(filesList->size() > 1)
+  if(filesList->size() != 1)
     return onApiError("Invalid files count. Expected - 1.");
 
   auto fileDto = filesList->front();
@@ -221,7 +242,12 @@ oatpp::async::CoroutineStarter Peer::handleFileChunkMessage(const oatpp::Object<
     return onApiError("Wrong file host.");
 
   auto data = oatpp::encoding::Base64::decode(fileDto->data);
-  file->provideFileChunk(fileDto->subscriberId, data);
+  if (!data || !fileDto->chunkPosition || !fileDto->chunkSize ||
+      !conspire::boundaries::validChunk(*fileDto->chunkPosition, *fileDto->chunkSize,
+                                        data->size(), file->getFileSize()))
+    return onApiError("Invalid file chunk.");
+  if (!file->provideFileChunk(fileDto->subscriberId, *fileDto->chunkPosition, *fileDto->chunkSize, data))
+    return onApiError("Unexpected file chunk.");
 
   return nullptr;
 
@@ -229,6 +255,9 @@ oatpp::async::CoroutineStarter Peer::handleFileChunkMessage(const oatpp::Object<
 
 oatpp::async::CoroutineStarter Peer::handleMessage(const oatpp::Object<MessageDto>& message) {
 
+  if(!message) {
+    return onApiError("No message provided.");
+  }
   if(!message->code) {
     return onApiError("No message code provided.");
   }
@@ -236,6 +265,8 @@ oatpp::async::CoroutineStarter Peer::handleMessage(const oatpp::Object<MessageDt
   switch(*message->code) {
 
     case MessageCodes::CODE_PEER_MESSAGE:
+      if(!message->message || !conspire::boundaries::validMessageContent(message->message->std_str()))
+        return onApiError("Invalid message content.");
       m_room->addHistoryMessage(message);
       m_room->sendMessageAsync(message);
       ++ m_statistics->EVENT_PEER_SEND_MESSAGE;
@@ -272,18 +303,22 @@ v_int64 Peer::getPeerId() {
 }
 
 void Peer::addFile(const std::shared_ptr<File>& file) {
+  std::lock_guard<std::mutex> lock(m_stateLock);
   m_files.push_back(file);
 }
 
-const std::list<std::shared_ptr<File>>& Peer::getFiles() {
-  return m_files;
+std::vector<std::shared_ptr<File>> Peer::getFilesSnapshot() {
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  return {m_files.begin(), m_files.end()};
 }
 
 void Peer::invalidateSocket() {
-  if(m_socket) {
-    m_socket->getConnection().invalidate();
+  std::shared_ptr<AsyncWebSocket> socket;
+  {
+    std::lock_guard<std::mutex> lock(m_stateLock);
+    socket = std::move(m_socket);
   }
-  m_socket.reset();
+  if(socket) socket->getConnection().invalidate();
 }
 
 oatpp::async::CoroutineStarter Peer::onPing(const std::shared_ptr<AsyncWebSocket>& socket, const oatpp::String& message) {
@@ -318,6 +353,7 @@ oatpp::async::CoroutineStarter Peer::readMessage(const std::shared_ptr<AsyncWebS
       return onApiError("Can't parse message");
     }
 
+    if (!message) return onApiError("No message provided.");
     message->peerName = m_nickname;
     message->peerId = m_peerId;
     message->timestamp = oatpp::Environment::getMicroTickCount();

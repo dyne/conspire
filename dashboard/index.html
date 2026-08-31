@@ -15,9 +15,9 @@
             <div class="dashboard-controls">
                 <p class="stats-url">Data source: <code id="stats-url"></code></p>
                 <div class="control-buttons">
-                    <input type="file" id="jsonFileInput" accept=".json" style="display: none;" onchange="loadJsonFile(event)">
-                    <button onclick="document.getElementById('jsonFileInput').click()" class="load-file-btn">Load JSON File</button>
-                    <button onclick="refreshDashboard()" class="refresh-btn">Refresh Data</button>
+                    <input type="file" id="jsonFileInput" accept=".json" style="display: none;">
+                    <button type="button" id="load-file-button" class="load-file-btn">Load JSON File</button>
+                    <button type="button" id="refresh-button" class="refresh-btn">Refresh Data</button>
                 </div>
             </div>
         </header>

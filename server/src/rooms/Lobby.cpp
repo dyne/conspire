@@ -25,6 +25,9 @@
  ***************************************************************************/
 
 #include "Lobby.hpp"
+#include "utils/ServerBoundaries.hpp"
+
+#include <vector>
 
 v_int64 Lobby::obtainNewPeerId() {
   return m_peerIdCounter ++;
@@ -32,10 +35,11 @@ v_int64 Lobby::obtainNewPeerId() {
 
 std::shared_ptr<Room> Lobby::getOrCreateRoom(const oatpp::String& roomName) {
   std::lock_guard<std::mutex> lock(m_roomsMutex);
-  std::shared_ptr<Room>& room = m_rooms[roomName];
-  if(!room) {
-    room = std::make_shared<Room>(roomName);
-  }
+  const auto existing = m_rooms.find(roomName);
+  if (existing != m_rooms.end()) return existing->second;
+  if (!conspire::boundaries::hasCapacity(m_rooms.size(), conspire::boundaries::Limits::rooms)) return nullptr;
+  auto room = std::make_shared<Room>(roomName);
+  m_rooms.emplace(roomName, room);
   return room;
 }
 
@@ -48,30 +52,20 @@ std::shared_ptr<Room> Lobby::getRoom(const oatpp::String& roomName) {
   return nullptr;
 }
 
-void Lobby::deleteRoom(const oatpp::String& roomName) {
+void Lobby::deleteRoomIfEmpty(const std::shared_ptr<Room>& room) {
   std::lock_guard<std::mutex> lock(m_roomsMutex);
-  m_rooms.erase(roomName);
+  const auto found = m_rooms.find(room->getName());
+  if (found != m_rooms.end() && found->second == room && room->isEmpty()) m_rooms.erase(found);
 }
 
-void Lobby::runPingLoop(const std::chrono::duration<v_int64, std::micro>& interval) {
-
-  while(true) {
-
-    std::chrono::duration<v_int64, std::micro> elapsed = std::chrono::microseconds(0);
-    auto startTime = std::chrono::system_clock::now();
-
-    do {
-      std::this_thread::sleep_for(interval - elapsed);
-      elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - startTime);
-    } while (elapsed < interval);
-
+void Lobby::runPingIteration() {
+  std::vector<std::shared_ptr<Room>> rooms;
+  {
     std::lock_guard<std::mutex> lock(m_roomsMutex);
-    for (const auto &room : m_rooms) {
-      room.second->pingAllPeers();
-    }
-
+    rooms.reserve(m_rooms.size());
+    for (const auto& room : m_rooms) rooms.push_back(room.second);
   }
-
+  for (const auto& room : rooms) room->pingAllPeers();
 }
 
 void Lobby::onAfterCreate_NonBlocking(const std::shared_ptr<AsyncWebSocket>& socket, const std::shared_ptr<const ParameterMap>& params) {
@@ -80,13 +74,31 @@ void Lobby::onAfterCreate_NonBlocking(const std::shared_ptr<AsyncWebSocket>& soc
 
   auto roomName = params->find("roomName")->second;
   auto nickname = params->find("nickname")->second;
-  auto room = getOrCreateRoom(roomName);
-
-  auto peer = std::make_shared<Peer>(socket, room, nickname, obtainNewPeerId());
+  std::shared_ptr<Room> room;
+  std::shared_ptr<Peer> peer;
+  {
+    // Room lookup/creation and peer admission share the same lobby critical
+    // section as empty-room deletion. A joining peer can therefore never be
+    // admitted to a room after that room has been removed from the lobby.
+    std::lock_guard<std::mutex> lock(m_roomsMutex);
+    const auto existing = m_rooms.find(roomName);
+    if (existing != m_rooms.end()) {
+      room = existing->second;
+    } else if (conspire::boundaries::hasCapacity(m_rooms.size(), conspire::boundaries::Limits::rooms)) {
+      room = std::make_shared<Room>(roomName);
+      m_rooms.emplace(roomName, room);
+    }
+    if (room && room->hasPeerCapacity()) {
+      peer = std::make_shared<Peer>(socket, room, nickname, obtainNewPeerId());
+      room->welcomePeer(peer);
+      if (!room->addPeer(peer)) peer.reset();
+    }
+  }
+  if (!peer) {
+    socket->getConnection().invalidate();
+    return;
+  }
   socket->setListener(peer);
-
-  room->welcomePeer(peer);
-  room->addPeer(peer);
   room->onboardPeer(peer);
 
 }
@@ -102,8 +114,6 @@ void Lobby::onBeforeDestroy_NonBlocking(const std::shared_ptr<AsyncWebSocket>& s
   room->goodbyePeer(peer);
   peer->invalidateSocket();
 
-  if(room->isEmpty()) {
-    deleteRoom(room->getName());
-  }
+  deleteRoomIfEmpty(room);
 
 }

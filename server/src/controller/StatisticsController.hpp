@@ -59,6 +59,8 @@ public:
       auto json = controller->m_statistics->getJsonData();
       auto response = controller->createResponse(Status::CODE_200, json);
       response->putHeader(Header::CONTENT_TYPE, "application/json");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
       return _return(response);
     }
 

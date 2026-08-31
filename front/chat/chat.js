@@ -1,7 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Variables add by server:
-// - urlWebsocket
-// - urlRoom
+import { humanFileSize } from './format.js';
+import { createChatState } from './state.js';
+
+const { urlWebsocket, urlRoom } = globalThis.ConspireChatConfig;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 let CODE_INFO = 0;
@@ -18,11 +19,12 @@ let CODE_FILE_CHUNK_DATA = 8;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 let socket = new WebSocket(urlWebsocket);
+let protocolModule = import(urlRoom + "/protocol.js");
 let peedId = null;
 let peerName = null;
 let peersMap = new Map();
-let filesIdCounter = 1;
-let filesMap = new Map();
+const chatState = createChatState();
+let filesMap = chatState.files;
 let bulbColorsNumber = 18;
 let socketSendBuffer = [];
 let lastTimeTypingSent = 0;
@@ -30,7 +32,7 @@ let lastTimeTypingSent = 0;
 setupEmoji();
 
 function nextFileId() {
-    return filesIdCounter ++;
+    return chatState.nextFileId ++;
 }
 
 function insertAtCursor(myField, myValue) {
@@ -50,28 +52,6 @@ function insertAtCursor(myField, myValue) {
     } else {
         myField.value += myValue;
     }
-}
-
-function humanFileSize(bytes, spin) {
-    var thresh = 1024;
-    if(Math.abs(bytes) < thresh) {
-        return bytes + ' B';
-    }
-    var units = ['kB','MB','GB','TB','PB','EB','ZB','YB'];
-    var u = -1;
-    do {
-        bytes /= thresh;
-        ++u;
-    } while(Math.abs(bytes) >= thresh && u < units.length - 1);
-    let result = bytes.toFixed(1) + ' ' + units[u];
-    if(spin) {
-        let progress = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
-        let i1 = spin % progress.length;
-        let i2 = Math.trunc(spin / 10) % progress.length;
-        let i3 = Math.trunc(spin / 100) % progress.length;
-        result = result + " (" + progress[i3] + progress[i2] + progress[i1] + ")";
-    }
-    return result;
 }
 
 function setupEmoji (){
@@ -526,7 +506,7 @@ function sendFileChunks(message) {
 
 }
 
-function handleFiles(files) {
+export function handleFiles(files) {
 
     let filesJson = [];
 
@@ -553,8 +533,9 @@ function handleFiles(files) {
 }
 
 // send message from the form
-document.forms.publish.onsubmit = function() {
-    let outgoingMessage = this.message.value;
+export function submitMessage() {
+    const form = document.forms.publish;
+    let outgoingMessage = form.message.value;
 
     let text = outgoingMessage.replace(/\s/g,''); // check if text not empty (remove all whitespaces)
 
@@ -566,7 +547,7 @@ document.forms.publish.onsubmit = function() {
             message: outgoingMessage
         }
         socketSendNextData(JSON.stringify(message));
-        this.message.value = "";
+        form.message.value = "";
     }
 
     return false;
@@ -574,7 +555,7 @@ document.forms.publish.onsubmit = function() {
 
 document.getElementById('chat_input').addEventListener("keypress", function (e) {
     if(e.which == 13 && !e.shiftKey) {
-        document.forms.publish.onsubmit();
+        submitMessage();
         e.preventDefault();
     }
 });
@@ -603,7 +584,12 @@ socket.onclose = function(event) {
 
 // message received - show the message in div#messages
 socket.onmessage = function(event) {
-    onMessage(JSON.parse(event.data));
+    protocolModule.then(function(protocol) {
+        let message = protocol.parseProtocolMessage(event.data);
+        if(message) {
+            onMessage(message);
+        }
+    });
 }
 
 function onMessage(message) {
@@ -639,7 +625,7 @@ function onMessage(message) {
 
         case CODE_PEER_JOINED:
             postSystemMessage(message);
-            peer = new Object();
+            let peer = new Object();
             peer.peerId = message.peerId;
             peer.peerName = message.peerName;
             peersMap.set(peer.peerId, peer);

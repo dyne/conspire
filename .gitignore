@@ -36,8 +36,10 @@
 **/.idea/
 **/cmake-build-debug/
 **/build/
+coverage/
+dist/
+cert/
 
 # Mac
 
 **/.DS_Store
-

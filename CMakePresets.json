@@ -1,0 +1,36 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "native-base", "hidden": true, "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "BUILD_TESTING": "ON" }
+    },
+    { "name": "native-gcc", "inherits": "native-base", "cacheVariables": { "CMAKE_CXX_COMPILER": "g++" } },
+    { "name": "native-clang", "inherits": "native-base", "cacheVariables": { "CMAKE_CXX_COMPILER": "clang++" } },
+    { "name": "coverage-gcc", "inherits": "native-gcc", "cacheVariables": { "CONSPIRE_ENABLE_COVERAGE": "ON" } },
+    { "name": "core-tests-gcc", "inherits": "native-gcc", "cacheVariables": { "CONSPIRE_CORE_TESTS_ONLY": "ON" } },
+    { "name": "core-coverage-gcc", "inherits": "coverage-gcc", "cacheVariables": { "CONSPIRE_CORE_TESTS_ONLY": "ON" } },
+    { "name": "core-asan-ubsan", "inherits": "native-clang", "cacheVariables": { "CONSPIRE_CORE_TESTS_ONLY": "ON", "CONSPIRE_SANITIZER": "address-undefined", "CONSPIRE_STRESS_SEED": "424242" } },
+    { "name": "core-tsan", "inherits": "native-clang", "cacheVariables": { "CONSPIRE_CORE_TESTS_ONLY": "ON", "CONSPIRE_SANITIZER": "thread", "CONSPIRE_STRESS_SEED": "424242" } }
+  ],
+  "buildPresets": [
+    { "name": "native-gcc", "configurePreset": "native-gcc" },
+    { "name": "native-clang", "configurePreset": "native-clang" },
+    { "name": "coverage-gcc", "configurePreset": "coverage-gcc" },
+    { "name": "core-tests-gcc", "configurePreset": "core-tests-gcc" },
+    { "name": "core-coverage-gcc", "configurePreset": "core-coverage-gcc" },
+    { "name": "core-asan-ubsan", "configurePreset": "core-asan-ubsan" },
+    { "name": "core-tsan", "configurePreset": "core-tsan" }
+  ],
+  "testPresets": [
+    { "name": "native-gcc", "configurePreset": "native-gcc", "output": { "outputOnFailure": true } },
+    { "name": "native-clang", "configurePreset": "native-clang", "output": { "outputOnFailure": true } },
+    { "name": "coverage-gcc", "configurePreset": "coverage-gcc", "output": { "outputOnFailure": true } },
+    { "name": "core-tests-gcc", "configurePreset": "core-tests-gcc", "output": { "outputOnFailure": true } },
+    { "name": "core-coverage-gcc", "configurePreset": "core-coverage-gcc", "output": { "outputOnFailure": true } },
+    { "name": "core-asan-ubsan", "configurePreset": "core-asan-ubsan", "output": { "outputOnFailure": true } },
+    { "name": "core-tsan", "configurePreset": "core-tsan", "output": { "outputOnFailure": true } }
+  ]
+}

@@ -5,46 +5,67 @@ let charts = {}; // Store chart instances for updating
 
 // Chart colors from design system
 const colors = ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B'];
+const MAX_STATS_BYTES = 1024 * 1024;
+const MAX_STATS_POINTS = 1000;
+const REQUIRED_STAT_FIELDS = ['timestamp', 'ev_peer_connected', 'ev_peer_disconnected'];
+
+function safeStatsUrl(value) {
+    try {
+        const url = new URL(value, window.location.origin);
+        if (!['https:', 'http:'].includes(url.protocol)) return null;
+        if (url.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) return null;
+        return url.href;
+    } catch (_) { return null; }
+}
+
+function validStats(data) {
+    return Array.isArray(data) && data.length > 0 && data.length <= MAX_STATS_POINTS &&
+        data.every(point => point && typeof point === 'object' &&
+            REQUIRED_STAT_FIELDS.every(field => Number.isFinite(point[field])));
+}
+
+function replaceChildren(element, ...children) {
+    element.replaceChildren(...children);
+}
+
+function messageNode(tag, text) {
+    const node = document.createElement(tag);
+    node.textContent = text;
+    return node;
+}
+
+function actionButton(label, handler) {
+    const button = messageNode('button', label);
+    button.type = 'button';
+    button.style.cssText = 'background: #c33; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-top: 10px;';
+    button.addEventListener('click', handler);
+    return button;
+}
 
 // Get stats URL from URL parameters or use default
 function getStatsUrl() {
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('statsUrl') || DEFAULT_STATS_URL;
+    return safeStatsUrl(urlParams.get('statsUrl') || DEFAULT_STATS_URL) || DEFAULT_STATS_URL;
 }
 
 // Fetch stats data from remote URL
 async function fetchStatsData(url = getStatsUrl()) {
     try {
+        const safeUrl = safeStatsUrl(url);
+        if (!safeUrl) throw new Error('Statistics URL must be HTTPS, or HTTP on localhost.');
         showLoadingState();
-        
-        // Try to fetch with CORS first
-        let response;
-        try {
-            response = await fetch(url, {
-                mode: 'cors',
-                headers: {
-                    'Accept': 'application/json',
-                }
-            });
-        } catch (corsError) {
-            // If CORS fails, try with no-cors mode (limited functionality)
-            console.warn('CORS request failed, trying alternative methods:', corsError.message);
-            throw new Error(`CORS policy blocked request to ${url}. This usually means the server doesn't allow cross-origin requests from this domain.`);
-        }
+        const response = await fetch(safeUrl, { mode: 'cors', headers: { 'Accept': 'application/json' } });
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
         }
         
-        const data = await response.json();
-        
-        if (!Array.isArray(data)) {
-            throw new Error('Invalid data format: expected an array');
-        }
-        
-        if (data.length === 0) {
-            throw new Error('No statistics data available');
-        }
+        const length = Number(response.headers.get('content-length') || 0);
+        if (length > MAX_STATS_BYTES) throw new Error('Statistics response is too large.');
+        const body = await response.text();
+        if (body.length > MAX_STATS_BYTES) throw new Error('Statistics response is too large.');
+        const data = JSON.parse(body);
+        if (!validStats(data)) throw new Error('Invalid statistics data.');
         
         statsData = data;
         hideLoadingState();
@@ -52,12 +73,7 @@ async function fetchStatsData(url = getStatsUrl()) {
     } catch (error) {
         console.error('Error fetching stats data:', error);
         
-        // Try to use fallback data or suggest solutions
-        if (error.message.includes('CORS')) {
-            showCorsErrorState(url);
-        } else {
-            showErrorState(error.message);
-        }
+        showErrorState('Unable to load statistics data.');
         throw error;
     }
 }
@@ -74,7 +90,9 @@ function showLoadingState() {
     if (!loadingDiv) {
         loadingDiv = document.createElement('div');
         loadingDiv.id = 'loading-indicator';
-        loadingDiv.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--color-text-secondary);">Loading dashboard data...</p>';
+        const text = messageNode('p', 'Loading dashboard data...');
+        text.style.cssText = 'text-align: center; padding: 20px; color: var(--color-text-secondary);';
+        loadingDiv.appendChild(text);
         document.querySelector('.container').insertBefore(loadingDiv, document.querySelector('.dashboard-grid'));
     }
     loadingDiv.style.display = 'block';
@@ -114,10 +132,9 @@ function showErrorState(message) {
         document.querySelector('.container').insertBefore(errorDiv, document.querySelector('.dashboard-grid'));
     }
     
-    errorDiv.innerHTML = `
-        <p><strong>Error loading dashboard data:</strong> ${message}</p>
-        <button onclick="retryDataLoad()" style="background: #c33; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-top: 10px;">Retry</button>
-    `;
+    const paragraph = document.createElement('p');
+    paragraph.append(messageNode('strong', 'Error loading dashboard data: '), document.createTextNode(` ${message}`));
+    replaceChildren(errorDiv, paragraph, actionButton('Retry', retryDataLoad));
     errorDiv.style.display = 'block';
     
     const loadingDiv = document.getElementById('loading-indicator');
@@ -126,48 +143,6 @@ function showErrorState(message) {
     }
 }
 
-// Show CORS-specific error with solutions
-function showCorsErrorState(url) {
-    const container = document.querySelector('.dashboard-grid');
-    if (container) {
-        container.style.opacity = '0.3';
-    }
-    
-    // Add error indicator if it doesn't exist
-    let errorDiv = document.getElementById('error-indicator');
-    if (!errorDiv) {
-        errorDiv = document.createElement('div');
-        errorDiv.id = 'error-indicator';
-        errorDiv.style.cssText = 'background: #fee; border: 1px solid #fcc; padding: 20px; margin: 20px 0; border-radius: 8px; color: #c33;';
-        document.querySelector('.container').insertBefore(errorDiv, document.querySelector('.dashboard-grid'));
-    }
-    
-    errorDiv.innerHTML = `
-        <h3>CORS Policy Error</h3>
-        <p><strong>Cannot access data from:</strong> <code>${url}</code></p>
-        <p>This error occurs because the server doesn't allow cross-origin requests from this domain.</p>
-        
-        <h4>Solutions:</h4>
-        <ul style="text-align: left; margin: 10px 0;">
-            <li><strong>Serve from same domain:</strong> Host this dashboard on the same server as the stats endpoint</li>
-            <li><strong>Use CORS proxy:</strong> Try a proxy service like <code>https://cors-anywhere.herokuapp.com/${url}</code></li>
-            <li><strong>Server configuration:</strong> Add CORS headers to the stats endpoint</li>
-            <li><strong>Local development:</strong> Use <code>--disable-web-security</code> flag with Chrome (development only)</li>
-        </ul>
-        
-        <div style="margin-top: 15px;">
-            <button onclick="tryProxyUrl()" style="background: #0066cc; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">Try CORS Proxy</button>
-            <button onclick="loadSampleData()" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">Load Sample Data</button>
-            <button onclick="retryDataLoad()" style="background: #c33; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Retry</button>
-        </div>
-    `;
-    errorDiv.style.display = 'block';
-    
-    const loadingDiv = document.getElementById('loading-indicator');
-    if (loadingDiv) {
-        loadingDiv.style.display = 'none';
-    }
-}
 
 // Retry data loading
 async function retryDataLoad() {
@@ -179,25 +154,6 @@ async function retryDataLoad() {
     }
 }
 
-// Try using a CORS proxy
-async function tryProxyUrl() {
-    const originalUrl = getStatsUrl();
-    const proxyUrl = `https://cors-anywhere.herokuapp.com/${originalUrl}`;
-    
-    try {
-        await fetchStatsData(proxyUrl);
-        initializeCharts();
-        
-        // Update the displayed URL to show we're using proxy
-        const statsUrlElement = document.getElementById('stats-url');
-        if (statsUrlElement) {
-            statsUrlElement.innerHTML = `${originalUrl} <em>(via CORS proxy)</em>`;
-        }
-    } catch (error) {
-        console.error('CORS proxy also failed:', error);
-        showErrorState('CORS proxy request also failed. The proxy service might be unavailable.');
-    }
-}
 
 // Load sample data for demonstration
 function loadSampleData() {
@@ -214,19 +170,15 @@ function loadSampleData() {
     // Update the displayed URL to show we're using sample data
     const statsUrlElement = document.getElementById('stats-url');
     if (statsUrlElement) {
-        statsUrlElement.innerHTML = '<em>Sample Data (Demo Mode)</em>';
+        statsUrlElement.textContent = 'Sample Data (Demo Mode)';
     }
     
     // Show info message
     const errorDiv = document.getElementById('error-indicator');
     if (errorDiv) {
-        errorDiv.innerHTML = `
-            <div style="background: #e7f3ff; border: 1px solid #bee5eb; color: #0c5460; padding: 15px; border-radius: 8px;">
-                <h4>Demo Mode Active</h4>
-                <p>Loading sample data for demonstration. This is not real-time data from the server.</p>
-                <button onclick="retryDataLoad()" style="background: #0066cc; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Try Real Data Again</button>
-            </div>
-        `;
+        replaceChildren(errorDiv, messageNode('h4', 'Demo Mode Active'),
+            messageNode('p', 'Loading sample data for demonstration. This is not real-time data from the server.'),
+            actionButton('Try Real Data Again', retryDataLoad));
     }
 }
 
@@ -453,6 +405,9 @@ async function refreshDashboard() {
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', async function() {
+    document.getElementById('jsonFileInput')?.addEventListener('change', loadJsonFile);
+    document.getElementById('load-file-button')?.addEventListener('click', () => document.getElementById('jsonFileInput')?.click());
+    document.getElementById('refresh-button')?.addEventListener('click', refreshDashboard);
     // Display current stats URL
     const statsUrlElement = document.getElementById('stats-url');
     if (statsUrlElement) {
@@ -478,26 +433,17 @@ function loadJsonFile(event) {
         alert('Please select a JSON file');
         return;
     }
+    if (file.size > MAX_STATS_BYTES) {
+        alert('JSON file is too large');
+        return;
+    }
     
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
             const data = JSON.parse(e.target.result);
             
-            if (!Array.isArray(data)) {
-                throw new Error('Invalid JSON format: expected an array');
-            }
-            
-            // Validate data structure
-            if (data.length > 0) {
-                const requiredFields = ['timestamp', 'ev_peer_connected', 'ev_peer_disconnected'];
-                const firstItem = data[0];
-                const missingFields = requiredFields.filter(field => !(field in firstItem));
-                
-                if (missingFields.length > 0) {
-                    throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-                }
-            }
+            if (!validStats(data)) throw new Error('Invalid JSON statistics data');
             
             statsData = data;
             hideLoadingState();
@@ -506,18 +452,14 @@ function loadJsonFile(event) {
             // Update the displayed URL
             const statsUrlElement = document.getElementById('stats-url');
             if (statsUrlElement) {
-                statsUrlElement.innerHTML = `<em>Local file: ${file.name}</em>`;
+                statsUrlElement.textContent = `Local file: ${file.name}`;
             }
             
             // Show success message
             const errorDiv = document.getElementById('error-indicator');
             if (errorDiv) {
-                errorDiv.innerHTML = `
-                    <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; border-radius: 8px;">
-                        <h4>File Loaded Successfully</h4>
-                        <p>Loaded ${data.length} data points from ${file.name}</p>
-                    </div>
-                `;
+                replaceChildren(errorDiv, messageNode('h4', 'File Loaded Successfully'),
+                    messageNode('p', `Loaded ${data.length} data points from ${file.name}`));
                 setTimeout(() => {
                     errorDiv.style.display = 'none';
                 }, 3000);

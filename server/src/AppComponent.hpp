@@ -29,6 +29,8 @@
 
 #include "rooms/Lobby.hpp"
 #include "dto/Config.hpp"
+#include "utils/AppConfig.hpp"
+#include "utils/ServerBoundaries.hpp"
 #include "utils/Statistics.hpp"
 
 #include "oatpp-openssl/server/ConnectionProvider.hpp"
@@ -46,7 +48,6 @@
 
 #include "oatpp/utils/Conversion.hpp"
 
-#include <cstdlib>
 
 /**
  *  Class which creates and holds Application components and registers components in oatpp::Environment
@@ -63,9 +64,14 @@ private:
     std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>& request) override {
       auto host = request->getHeader(oatpp::web::protocol::http::Header::HOST);
       auto siteHost = appConfig->getHostString();
+      const auto path = request->getStartingLine().path.toString();
+      if(!host || !conspire::boundaries::validHost(host->std_str()) || !conspire::boundaries::validRequestPath(path->std_str())) {
+        return OutgoingResponse::createShared(oatpp::web::protocol::http::Status::CODE_400, nullptr);
+      }
       if(!host || host != siteHost) {
         auto response = OutgoingResponse::createShared(oatpp::web::protocol::http::Status::CODE_301, nullptr);
-        response->putHeader("Location", appConfig->getCanonicalBaseUrl() + request->getStartingLine().path.toString());
+        response->putHeader("Location", appConfig->getCanonicalBaseUrl() + path);
+        response->putHeader("Cache-Control", "no-store");
         return response;
       }
       return nullptr;
@@ -85,50 +91,7 @@ public:
    * Create config component
    */
   OATPP_CREATE_COMPONENT(oatpp::Object<ConfigDto>, appConfig)([this] {
-
-    auto config = ConfigDto::createShared();
-
-    config->host = std::getenv("EXTERNAL_ADDRESS");
-    if (!config->host) {
-      config->host = m_cmdArgs.getNamedArgumentValue("--host", "localhost");
-    }
-
-    const char* portText = std::getenv("EXTERNAL_PORT");
-    if(!portText) {
-      portText = m_cmdArgs.getNamedArgumentValue("--port", "8443");
-    }
-
-    bool success;
-    auto port = oatpp::utils::Conversion::strToUInt32(portText, success);
-    if(!success || port > 65535) {
-      throw std::runtime_error("Invalid port!");
-    }
-    config->port = (v_uint16) port;
-
-    config->tlsPrivateKeyPath = std::getenv("TLS_FILE_PRIVATE_KEY");
-    if(!config->tlsPrivateKeyPath) {
-      config->tlsPrivateKeyPath = m_cmdArgs.getNamedArgumentValue("--tls-key", "" CERT_PEM_PATH);
-    }
-
-    config->tlsCertificateChainPath = std::getenv("TLS_FILE_CERT_CHAIN");
-    if(!config->tlsCertificateChainPath) {
-      config->tlsCertificateChainPath = m_cmdArgs.getNamedArgumentValue("--tls-chain", "" CERT_CRT_PATH);
-    }
-
-    config->statisticsUrl = std::getenv("URL_STATS_PATH");
-    if(!config->statisticsUrl) {
-      config->statisticsUrl = m_cmdArgs.getNamedArgumentValue("--url-stats", "admin/stats.json");
-    }
-
-    config->pidFilePath = m_cmdArgs.getNamedArgumentValue("--pid");
-
-    // Parse --front argument for frontend path
-    config->frontPath = m_cmdArgs.getNamedArgumentValue("--front", "front");
-
-    // Set version from build-time definition
-    config->version = CONSPIRE_VERSION;
-
-    return config;
+    return conspire::config::fromCommandLine(m_cmdArgs);
 
   }());
 

@@ -28,6 +28,8 @@
 #define RoomsController_hpp
 
 #include "utils/Nickname.hpp"
+#include "utils/ServerBoundaries.hpp"
+#include "dto/Config.hpp"
 
 #include "oatpp-websocket/Handshaker.hpp"
 
@@ -37,6 +39,8 @@
 #include "oatpp/macro/codegen.hpp"
 #include "oatpp/macro/component.hpp"
 
+#include <cstdlib>
+
 
 #include OATPP_CODEGEN_BEGIN(ApiController) /// <-- Begin Code-Gen
 
@@ -45,6 +49,7 @@ private:
   typedef RoomsController __ControllerType;
 private:
   OATPP_COMPONENT(std::shared_ptr<oatpp::network::ConnectionHandler>, websocketConnectionHandler, "websocket");
+  OATPP_COMPONENT(oatpp::Object<ConfigDto>, appConfig);
 public:
   RoomsController(OATPP_COMPONENT(std::shared_ptr<ObjectMapper>, objectMapper))
     : oatpp::web::server::api::ApiController(objectMapper)
@@ -58,6 +63,11 @@ public:
     Action act() override {
 
       auto roomName = request->getPathVariable("roomId");
+      OATPP_ASSERT_HTTP(roomName && conspire::boundaries::validRoomId(roomName->std_str()), Status::CODE_400, "Invalid room id");
+      const auto origin = request->getHeader("Origin");
+      const bool developmentOverride = std::getenv("CONSPIRE_ALLOW_DEV_ORIGIN") != nullptr;
+      OATPP_ASSERT_HTTP(origin && conspire::boundaries::allowedOrigin(origin->std_str(), appConfig->getCanonicalBaseUrl()->std_str(), developmentOverride),
+                        Status::CODE_403, "Invalid origin");
       auto nickname = Nickname::random();
 
       OATPP_ASSERT_HTTP(nickname, Status::CODE_400, "No nickname specified.");
