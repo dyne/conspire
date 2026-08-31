@@ -102,7 +102,7 @@ jobs:
   publish-release:
     name: Publish verified release
     needs: [quality, supply-chain, container-smoke, release-dry-run]
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    if: ${{ github.ref == 'refs/heads/master' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -115,6 +115,15 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+      - name: Calculate Conventional Commit version
+        id: semver
+        uses: ietf-tools/semver-action@c90370b2958652d71c06a3484129a4d423a6d8a8 # v1.11.0
+        with:
+          token: ${{ github.token }}
+          branch: master
+          minorList: feat,feature
+          patchList: fix,bugfix,perf
+          noVersionBumpBehavior: current
       - name: Determine release version
         id: semantic-release
         uses: cycjimmy/semantic-release-action@b1b432f13acb7768e0c8efdec416d363a57546f2 # v4.1.1
@@ -123,6 +132,12 @@ jobs:
             @semantic-release/changelog
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify release-version calculation
+        if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
+        env:
+          IETF_SEMVER_VERSION: ${{ steps.semver.outputs.nextStrict }}
+          SEMANTIC_RELEASE_VERSION: ${{ steps.semantic-release.outputs.new_release_version }}
+        run: test "$IETF_SEMVER_VERSION" = "$SEMANTIC_RELEASE_VERSION"
       - name: Install pinned musl toolchain
         if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
         uses: dyne/musl-action@d26fe56f7fe134a54e729d781ec687e847db34d3 # main at review
