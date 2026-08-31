@@ -74,11 +74,9 @@ public:
    */
   void deleteRoom(const oatpp::String& roomName);
 
-  /**
-   * Websocket-Ping all peers in the loop. Each time `interval`.
-   * @param interval
-   */
-  void runPingLoop(const std::chrono::duration<v_int64, std::micro>& interval = std::chrono::minutes(1));
+  /** Ping every current room once. Scheduling and cancellation belong to an
+   * owned lifecycle runner. */
+  void runPingIteration();
 
 public:
 

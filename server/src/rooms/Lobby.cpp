@@ -27,6 +27,8 @@
 #include "Lobby.hpp"
 #include "utils/ServerBoundaries.hpp"
 
+#include <vector>
+
 v_int64 Lobby::obtainNewPeerId() {
   return m_peerIdCounter ++;
 }
@@ -55,25 +57,14 @@ void Lobby::deleteRoom(const oatpp::String& roomName) {
   m_rooms.erase(roomName);
 }
 
-void Lobby::runPingLoop(const std::chrono::duration<v_int64, std::micro>& interval) {
-
-  while(true) {
-
-    std::chrono::duration<v_int64, std::micro> elapsed = std::chrono::microseconds(0);
-    auto startTime = std::chrono::system_clock::now();
-
-    do {
-      std::this_thread::sleep_for(interval - elapsed);
-      elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - startTime);
-    } while (elapsed < interval);
-
+void Lobby::runPingIteration() {
+  std::vector<std::shared_ptr<Room>> rooms;
+  {
     std::lock_guard<std::mutex> lock(m_roomsMutex);
-    for (const auto &room : m_rooms) {
-      room.second->pingAllPeers();
-    }
-
+    rooms.reserve(m_rooms.size());
+    for (const auto& room : m_rooms) rooms.push_back(room.second);
   }
-
+  for (const auto& room : rooms) room->pingAllPeers();
 }
 
 void Lobby::onAfterCreate_NonBlocking(const std::shared_ptr<AsyncWebSocket>& socket, const std::shared_ptr<const ParameterMap>& params) {

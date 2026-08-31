@@ -83,6 +83,23 @@ filename/file-descriptor boundaries. Oatpp-dependent peer lifecycle, streaming
 subscriber, DTO serialization, statistics-loop retention, and PID integration
 remain explicitly deferred; the native preset refuses to configure rather than
 silently reporting partial project coverage.
+
+### Sanitizers and bounded lifecycle stress
+
+The following opt-in presets keep release builds free of sanitizer flags while
+testing the dependency-independent lifecycle seam with a fixed, recorded seed
+and a 20-second timeout:
+
+```sh
+cmake --preset core-asan-ubsan && cmake --build --preset core-asan-ubsan && ctest --preset core-asan-ubsan
+cmake --preset core-tsan && cmake --build --preset core-tsan && ctest --preset core-tsan
+```
+
+`CONSPIRE_STRESS_SEED` defaults to `424242`; override it at configure time to
+reproduce or extend a failure. Full server sanitizer and websocket stress runs
+remain blocked until a compatible oatpp 1.4 prefix is supplied; the native
+presets intentionally fail with the existing actionable prefix diagnostic
+rather than silently downgrading to oatpp 1.3.
 docker run -p8443:8443 ghcr.io/dyne/conspire:latest
 ```
 

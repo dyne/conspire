@@ -1,5 +1,6 @@
 #include "utils/ConfigValidation.hpp"
 #include "utils/ServerBoundaries.hpp"
+#include "utils/Lifecycle.hpp"
 
 #include <cassert>
 #include <cstdint>
@@ -7,6 +8,10 @@
 #include <deque>
 #include <memory>
 #include <unordered_map>
+#include <atomic>
+#include <chrono>
+#include <filesystem>
+#include <thread>
 
 int coverageFixture(bool includeOptionalPath);
 
@@ -77,4 +82,32 @@ int main() {
   assert(conspire::boundaries::urlPathSegment("a b/\"") == "a%20b%2F%22");
   assert(conspire::boundaries::javascriptString("</script>\"\\\n") == "\"\\u003C/script\\u003E\\\"\\\\\\n\"");
   assert(coverageFixture(true) == 1);
+
+  std::atomic<int> iterations{0};
+  conspire::lifecycle::PeriodicRunner runner;
+  assert(runner.start(std::chrono::milliseconds(1), [&iterations] { ++iterations; }));
+  assert(!runner.start(std::chrono::milliseconds(1), [] {}));
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  runner.stop();
+  const auto stoppedAt = iterations.load();
+  runner.stop();
+  std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  assert(iterations.load() == stoppedAt);
+  assert(!runner.running());
+
+  conspire::lifecycle::PeriodicRunner failingRunner;
+  assert(failingRunner.start(std::chrono::milliseconds(1), [] { throw std::runtime_error("startup failure"); }));
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  failingRunner.stop();
+  assert(failingRunner.failed());
+
+  const auto pidPath = (std::filesystem::temp_directory_path() / "conspire-core-test.pid").string();
+  std::filesystem::remove(pidPath);
+  {
+    conspire::lifecycle::PidFile pidFile;
+    assert(pidFile.create(pidPath));
+    assert(pidFile.active());
+    assert(std::filesystem::exists(pidPath));
+  }
+  assert(!std::filesystem::exists(pidPath));
 }

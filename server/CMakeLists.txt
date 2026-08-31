@@ -14,6 +14,27 @@ set(CONSPIRE_DEPS_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/../build/deps" CACHE PATH
 option(CONSPIRE_ENABLE_COVERAGE "Instrument Conspire project targets for coverage" OFF)
 option(CONSPIRE_USE_CCACHE "Use ccache when it is available" ON)
 option(CONSPIRE_CORE_TESTS_ONLY "Build dependency-independent configuration tests without oatpp" OFF)
+set(CONSPIRE_SANITIZER "none" CACHE STRING "Sanitizer mode: none, address-undefined, or thread")
+set_property(CACHE CONSPIRE_SANITIZER PROPERTY STRINGS none address-undefined thread)
+set(CONSPIRE_STRESS_SEED "424242" CACHE STRING "Fixed seed for bounded lifecycle stress tests")
+
+set(_conspire_sanitizers none address-undefined thread)
+if(NOT CONSPIRE_SANITIZER IN_LIST _conspire_sanitizers)
+  message(FATAL_ERROR "CONSPIRE_SANITIZER must be one of: none, address-undefined, thread")
+endif()
+if(NOT CONSPIRE_SANITIZER STREQUAL "none" AND NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  message(FATAL_ERROR "CONSPIRE_SANITIZER requires GCC or Clang")
+endif()
+
+function(conspire_apply_sanitizer target)
+  if(CONSPIRE_SANITIZER STREQUAL "address-undefined")
+    target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer -g)
+    target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+  elseif(CONSPIRE_SANITIZER STREQUAL "thread")
+    target_compile_options(${target} PRIVATE -fsanitize=thread -fno-omit-frame-pointer -g)
+    target_link_options(${target} PRIVATE -fsanitize=thread)
+  endif()
+endfunction()
 
 if(CONSPIRE_USE_CCACHE)
   find_program(CONSPIRE_CCACHE_PROGRAM ccache)
@@ -28,7 +49,14 @@ endif()
 if(BUILD_TESTING)
   add_executable(conspire-core-test test/core_tests.cpp test/coverage_fixture.cpp)
   target_include_directories(conspire-core-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  conspire_apply_sanitizer(conspire-core-test)
   add_test(NAME conspire-core-unit COMMAND conspire-core-test)
+  add_executable(conspire-lifecycle-stress test/lifecycle_stress.cpp)
+  target_include_directories(conspire-lifecycle-stress PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_compile_definitions(conspire-lifecycle-stress PRIVATE CONSPIRE_STRESS_SEED=${CONSPIRE_STRESS_SEED})
+  conspire_apply_sanitizer(conspire-lifecycle-stress)
+  add_test(NAME conspire-lifecycle-stress COMMAND conspire-lifecycle-stress)
+  set_tests_properties(conspire-lifecycle-stress PROPERTIES TIMEOUT 20)
   if(CONSPIRE_ENABLE_COVERAGE)
     if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
       message(FATAL_ERROR "CONSPIRE_ENABLE_COVERAGE requires GCC or Clang")
@@ -83,7 +111,7 @@ add_library(conspire-lib
   src/rooms/Room.cpp src/rooms/Room.hpp
   src/rooms/Lobby.cpp src/rooms/Lobby.hpp
   src/utils/Nickname.cpp src/utils/Nickname.hpp
-  src/utils/ConfigValidation.hpp src/utils/ServerBoundaries.hpp
+  src/utils/ConfigValidation.hpp src/utils/ServerBoundaries.hpp src/utils/Lifecycle.hpp
   src/utils/Statistics.cpp src/utils/Statistics.hpp
   src/dto/DTOs.hpp src/dto/Config.hpp)
 target_include_directories(conspire-lib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -93,9 +121,11 @@ target_compile_definitions(conspire-lib PRIVATE
 target_link_libraries(conspire-lib
   PUBLIC oatpp::oatpp oatpp::oatpp-websocket oatpp::oatpp-openssl
   PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+conspire_apply_sanitizer(conspire-lib)
 
 add_executable(conspire-exe src/App.cpp)
 target_link_libraries(conspire-exe PRIVATE conspire-lib)
+conspire_apply_sanitizer(conspire-exe)
 
 if(CONSPIRE_ENABLE_COVERAGE)
   if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -110,6 +140,7 @@ endif()
 if(BUILD_TESTING)
   add_executable(conspire-test test/tests.cpp test/WSTest.cpp test/WSTest.hpp)
   target_link_libraries(conspire-test PRIVATE conspire-lib oatpp::oatpp-test)
+  conspire_apply_sanitizer(conspire-test)
   if(CONSPIRE_ENABLE_COVERAGE)
     target_compile_options(conspire-test PRIVATE --coverage -O0 -g)
     target_link_options(conspire-test PRIVATE --coverage)

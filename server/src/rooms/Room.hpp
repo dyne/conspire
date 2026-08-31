@@ -39,14 +39,16 @@
 
 class Room {
 private:
+  // Never hold more than one aggregate lock. Copy shared ownership while a
+  // collection lock is held, then call peers/files only after releasing it.
   oatpp::String m_name;
   std::atomic<v_int64> m_fileIdCounter;
   std::unordered_map<v_int64, std::shared_ptr<File>> m_fileById;
   std::unordered_map<v_int64, std::shared_ptr<Peer>> m_peerById;
   std::list<oatpp::Object<MessageDto>> m_history;
-  std::mutex m_peerByIdLock;
-  std::mutex m_fileByIdLock;
-  std::mutex m_historyLock;
+  mutable std::mutex m_peerByIdLock;
+  mutable std::mutex m_fileByIdLock;
+  mutable std::mutex m_historyLock;
 private:
   OATPP_COMPONENT(oatpp::Object<ConfigDto>, m_appConfig);
   OATPP_COMPONENT(std::shared_ptr<Statistics>, m_statistics);

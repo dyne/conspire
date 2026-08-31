@@ -54,8 +54,13 @@ void Peer::sendMessageAsync(const oatpp::Object<MessageDto>& message) {
 
   };
 
-  if(m_socket) {
-    m_asyncExecutor->execute<SendMessageCoroutine>(&m_writeLock, m_socket, m_objectMapper->writeToString(message));
+  std::shared_ptr<AsyncWebSocket> socket;
+  {
+    std::lock_guard<std::mutex> lock(m_stateLock);
+    socket = m_socket;
+  }
+  if(socket) {
+    m_asyncExecutor->execute<SendMessageCoroutine>(&m_writeLock, socket, m_objectMapper->writeToString(message));
   }
 
 }
@@ -92,8 +97,13 @@ bool Peer::sendPingAsync() {
 
   ++ m_pingPoingCounter;
 
-  if(m_socket && m_pingPoingCounter == 1) {
-    m_asyncExecutor->execute<SendPingCoroutine>(&m_writeLock, m_socket);
+  std::shared_ptr<AsyncWebSocket> socket;
+  {
+    std::lock_guard<std::mutex> lock(m_stateLock);
+    socket = m_socket;
+  }
+  if(socket && m_pingPoingCounter == 1) {
+    m_asyncExecutor->execute<SendPingCoroutine>(&m_writeLock, socket);
     return true;
   }
 
@@ -293,18 +303,22 @@ v_int64 Peer::getPeerId() {
 }
 
 void Peer::addFile(const std::shared_ptr<File>& file) {
+  std::lock_guard<std::mutex> lock(m_stateLock);
   m_files.push_back(file);
 }
 
-const std::list<std::shared_ptr<File>>& Peer::getFiles() {
-  return m_files;
+std::vector<std::shared_ptr<File>> Peer::getFilesSnapshot() {
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  return {m_files.begin(), m_files.end()};
 }
 
 void Peer::invalidateSocket() {
-  if(m_socket) {
-    m_socket->getConnection().invalidate();
+  std::shared_ptr<AsyncWebSocket> socket;
+  {
+    std::lock_guard<std::mutex> lock(m_stateLock);
+    socket = std::move(m_socket);
   }
-  m_socket.reset();
+  if(socket) socket->getConnection().invalidate();
 }
 
 oatpp::async::CoroutineStarter Peer::onPing(const std::shared_ptr<AsyncWebSocket>& socket, const oatpp::String& message) {

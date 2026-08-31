@@ -30,14 +30,19 @@
 #include "rooms/Peer.hpp"
 #include "utils/ServerBoundaries.hpp"
 
+#include <vector>
+
 File::Subscriber::Subscriber(v_int64 id, const std::shared_ptr<File>& file)
   : m_id(id)
   , m_file(file)
   , m_valid(true)
   , m_progress(0)
-  , m_waitListListener(this)
 {
   m_waitList.setListener(&m_waitListListener);
+}
+
+void File::Subscriber::bindWaitListListener(const std::shared_ptr<Subscriber>& self) {
+  m_waitListListener.bind(self);
 }
 
 File::Subscriber::~Subscriber() {
@@ -83,11 +88,11 @@ oatpp::async::CoroutineStarter File::Subscriber::waitForChunkAsync() {
 
   class WaitCoroutine : public oatpp::async::Coroutine<WaitCoroutine> {
   private:
-    Subscriber* m_subscriber;
+    std::shared_ptr<Subscriber> m_subscriber;
   public:
 
-    WaitCoroutine(Subscriber* subscriber)
-      : m_subscriber(subscriber)
+    explicit WaitCoroutine(std::shared_ptr<Subscriber> subscriber)
+      : m_subscriber(std::move(subscriber))
     {}
 
     Action act() override {
@@ -100,7 +105,7 @@ oatpp::async::CoroutineStarter File::Subscriber::waitForChunkAsync() {
 
   };
 
-  return WaitCoroutine::start(this);
+  return WaitCoroutine::start(shared_from_this());
 
 }
 
@@ -170,19 +175,25 @@ std::shared_ptr<File::Subscriber> File::subscribe() {
   std::lock_guard<std::mutex> lock(m_subscribersLock);
   if (!conspire::boundaries::hasCapacity(m_subscribers.size(), conspire::boundaries::Limits::subscribersPerFile)) return nullptr;
   auto s = std::make_shared<Subscriber>(m_subscriberIdCounter ++, shared_from_this());
-  m_subscribers[s->getId()] = s.get();
+  s->bindWaitListListener(s);
+  m_subscribers[s->getId()] = s;
   return s;
 }
 
 bool File::provideFileChunk(v_int64 subscriberId, const oatpp::String& data) {
 
-  std::lock_guard<std::mutex> lock(m_subscribersLock);
-  auto it = m_subscribers.find(subscriberId);
-
-  if(it != m_subscribers.end()) {
-    return it->second->provideFileChunk(data);
+  std::shared_ptr<Subscriber> subscriber;
+  {
+    std::lock_guard<std::mutex> lock(m_subscribersLock);
+    auto it = m_subscribers.find(subscriberId);
+    if (it == m_subscribers.end()) return false;
+    subscriber = it->second.lock();
+    if (!subscriber) {
+      m_subscribers.erase(it);
+      return false;
+    }
   }
-  return false;
+  return subscriber->provideFileChunk(data);
 
 }
 
@@ -207,9 +218,14 @@ v_int64 File::getFileSize() {
 }
 
 void File::clearSubscribers() {
-  std::lock_guard<std::mutex> lock(m_subscribersLock);
-  for(auto& subscriber : m_subscribers) {
-    subscriber.second->invalidate();
+  std::vector<std::shared_ptr<Subscriber>> subscribers;
+  {
+    std::lock_guard<std::mutex> lock(m_subscribersLock);
+    subscribers.reserve(m_subscribers.size());
+    for (auto& entry : m_subscribers) {
+      if (auto subscriber = entry.second.lock()) subscribers.push_back(std::move(subscriber));
+    }
+    m_subscribers.clear();
   }
-  m_subscribers.clear();
+  for (const auto& subscriber : subscribers) subscriber->invalidate();
 }
