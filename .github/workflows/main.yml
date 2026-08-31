@@ -124,6 +124,22 @@ jobs:
           minorList: feat,feature
           patchList: fix,bugfix,perf
           noVersionBumpBehavior: current
+      - name: Install pinned musl toolchain
+        if: ${{ steps.semver.outputs.bump != 'none' }}
+        uses: dyne/musl-action@d26fe56f7fe134a54e729d781ec687e847db34d3 # main at review
+        with:
+          target_arch: x86_64
+      - name: Build verified release binary
+        if: ${{ steps.semver.outputs.bump != 'none' }}
+        env:
+          CONSPIRE_DEPS_PREFIX: ${{ vars.CONSPIRE_OATPP_1_4_PREFIX }}
+        run: |
+          test -n "$CONSPIRE_DEPS_PREFIX"
+          make VERSION="${{ steps.semver.outputs.nextStrict }}" \
+            TARGET="$TARGET" CONSPIRE_DEPS_PREFIX="$CONSPIRE_DEPS_PREFIX"
+      - name: Create release checksum
+        if: ${{ steps.semver.outputs.bump != 'none' }}
+        run: sha256sum "conspire-${OUTPUT}" > SHA256SUMS.txt
       - name: Determine release version
         id: semantic-release
         uses: cycjimmy/semantic-release-action@b1b432f13acb7768e0c8efdec416d363a57546f2 # v4.1.1
@@ -138,22 +154,6 @@ jobs:
           IETF_SEMVER_VERSION: ${{ steps.semver.outputs.nextStrict }}
           SEMANTIC_RELEASE_VERSION: ${{ steps.semantic-release.outputs.new_release_version }}
         run: test "$IETF_SEMVER_VERSION" = "$SEMANTIC_RELEASE_VERSION"
-      - name: Install pinned musl toolchain
-        if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
-        uses: dyne/musl-action@d26fe56f7fe134a54e729d781ec687e847db34d3 # main at review
-        with:
-          target_arch: x86_64
-      - name: Build verified release binary
-        if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
-        env:
-          CONSPIRE_DEPS_PREFIX: ${{ vars.CONSPIRE_OATPP_1_4_PREFIX }}
-        run: |
-          test -n "$CONSPIRE_DEPS_PREFIX"
-          make VERSION="${{ steps.semantic-release.outputs.new_release_version }}" \
-            TARGET="$TARGET" CONSPIRE_DEPS_PREFIX="$CONSPIRE_DEPS_PREFIX"
-      - name: Create release checksum
-        if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
-        run: sha256sum "conspire-${OUTPUT}" > SHA256SUMS.txt
       - name: Upload release to files.dyne.org
         if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
         uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
