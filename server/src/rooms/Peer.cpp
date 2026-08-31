@@ -182,7 +182,7 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
     return onApiError("Invalid files list.");
   for (const auto& file : *files) {
     if (!file || !file->clientFileId || !file->name || !file->size ||
-        !conspire::boundaries::validFileDescriptor(file->name->std_str(), *file->size))
+        !conspire::boundaries::validFileDescriptor(*file->name, *file->size))
       return onApiError("Invalid file descriptor.");
   }
 
@@ -265,7 +265,7 @@ oatpp::async::CoroutineStarter Peer::handleMessage(const oatpp::Object<MessageDt
   switch(*message->code) {
 
     case MessageCodes::CODE_PEER_MESSAGE:
-      if(!message->message || !conspire::boundaries::validMessageContent(message->message->std_str()))
+      if(!message->message || !conspire::boundaries::validMessageContent(*message->message))
         return onApiError("Invalid message content.");
       m_room->addHistoryMessage(message);
       m_room->sendMessageAsync(message);
@@ -325,18 +325,22 @@ oatpp::async::CoroutineStarter Peer::onPing(const std::shared_ptr<AsyncWebSocket
   return oatpp::async::synchronize(&m_writeLock, socket->sendPongAsync(message));
 }
 
-oatpp::async::CoroutineStarter Peer::onPong(const std::shared_ptr<AsyncWebSocket>& socket, const oatpp::String& message) {
+oatpp::async::CoroutineStarter Peer::onPong(const std::shared_ptr<AsyncWebSocket>&, const oatpp::String&) {
   -- m_pingPoingCounter;
   return nullptr; // do nothing
 }
 
-oatpp::async::CoroutineStarter Peer::onClose(const std::shared_ptr<AsyncWebSocket>& socket, v_uint16 code, const oatpp::String& message) {
+oatpp::async::CoroutineStarter Peer::onClose(const std::shared_ptr<AsyncWebSocket>&, v_uint16, const oatpp::String&) {
   return nullptr; // do nothing
 }
 
-oatpp::async::CoroutineStarter Peer::readMessage(const std::shared_ptr<AsyncWebSocket>& socket, v_uint8 opcode, p_char8 data, oatpp::v_io_size size) {
+oatpp::async::CoroutineStarter Peer::readMessage(const std::shared_ptr<AsyncWebSocket>&, v_uint8, p_char8 data, oatpp::v_io_size size) {
 
-  if(m_messageBuffer.getCurrentPosition() + size >  m_appConfig->maxMessageSizeBytes) {
+  const auto maxMessageSize = *m_appConfig->maxMessageSizeBytes;
+  const auto currentPosition = m_messageBuffer.getCurrentPosition();
+  if(size > 0 && (currentPosition < 0 ||
+                  static_cast<v_uint64>(currentPosition) > maxMessageSize ||
+                  static_cast<v_uint64>(size) > maxMessageSize - static_cast<v_uint64>(currentPosition))) {
     return onApiError("Message size exceeds max allowed size.");
   }
 

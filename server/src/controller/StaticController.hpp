@@ -93,10 +93,10 @@ public:
 
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
-      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
       std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/index.html");
       std::string fileCache = *controller->loadFile(filePath.c_str());
-      auto text = std::regex_replace(fileCache, std::regex("%%%ROOM_ID%%%"), conspire::boundaries::urlPathSegment(roomId->std_str()));
+      auto text = std::regex_replace(fileCache, std::regex("%%%ROOM_ID%%%"), conspire::boundaries::urlPathSegment(*roomId));
       auto response = controller->createResponse(Status::CODE_200, text);
       response->putHeader(Header::CONTENT_TYPE, "text/html");
       response->putHeader("Content-Security-Policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
@@ -112,15 +112,17 @@ public:
 
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
-      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
       std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/chat.js");
       auto fileCache = controller->loadFile(filePath.c_str());
 
       oatpp::data::stream::BufferOutputStream stream;
 
-      const auto baseUrl = controller->m_config->getWebsocketBaseUrl()->std_str();
-      const auto encodedRoom = conspire::boundaries::urlPathSegment(roomId->std_str());
-      stream << "globalThis.ConspireChatConfig = {urlWebsocket: " << conspire::boundaries::javascriptString(baseUrl + "/api/ws/room/" + encodedRoom) << ", urlRoom: " << conspire::boundaries::javascriptString("/room/" + encodedRoom) << "};\n";
+      const auto baseUrl = *controller->m_config->getWebsocketBaseUrl();
+      const auto encodedRoom = conspire::boundaries::urlPathSegment(*roomId);
+      const auto websocketUrl = conspire::boundaries::javascriptString(baseUrl + "/api/ws/room/" + encodedRoom);
+      const auto roomUrl = conspire::boundaries::javascriptString("/room/" + encodedRoom);
+      stream << "globalThis.ConspireChatConfig = {urlWebsocket: " << websocketUrl.c_str() << ", urlRoom: " << roomUrl.c_str() << "};\n";
       stream << "\n";
 
       stream << fileCache;
@@ -152,7 +154,7 @@ public:
 
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
-      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
       const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/format.js");
       auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
@@ -167,7 +169,7 @@ public:
 
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
-      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
       const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/state.js");
       auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
@@ -182,7 +184,7 @@ public:
 
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
-      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
       const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/ui.js");
       auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
@@ -197,7 +199,7 @@ public:
 
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
-      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
       const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/chat.css");
       auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
       response->putHeader(Header::CONTENT_TYPE, "text/css");

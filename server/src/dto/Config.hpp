@@ -100,11 +100,11 @@ public:
   }
 
   oatpp::String getCanonicalBaseUrl() {
-    return conspire::config::canonicalBaseUrl(host ? host->std_str() : "", port ? *port : 0, useTLS && *useTLS);
+    return conspire::config::canonicalBaseUrl(host ? *host : "", port ? *port : 0, useTLS && *useTLS);
   }
 
   oatpp::String getWebsocketBaseUrl() {
-    return conspire::config::websocketBaseUrl(host ? host->std_str() : "", port ? *port : 0, useTLS && *useTLS);
+    return conspire::config::websocketBaseUrl(host ? *host : "", port ? *port : 0, useTLS && *useTLS);
   }
 
   oatpp::String getStatsUrl() {
