@@ -37,6 +37,8 @@
 **/cmake-build-debug/
 **/build/
 coverage/
+dist/
+cert/
 
 # Mac
 

@@ -1,169 +1,159 @@
-name: conspire
+name: verified-delivery
+
 on:
   pull_request:
-    paths-ignore:
-      - '*.md'
   push:
-    paths-ignore:
-      - '*.md'
-    branches:
-      - master
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a verified release (maintainers only)'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}
+  group: verified-delivery-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  OUTPUT: x86_64
-  TARGET: x86_64-linux-musl
+  CMAKE_BUILD_PARALLEL_LEVEL: 2
 
 jobs:
   quality:
-    name: Test and coverage
-    runs-on: ubuntu-latest
+    name: CMake, browser, coverage, format, and analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-      - name: Install native test tools
-        run: sudo apt-get update && sudo apt-get install --yes cmake g++ ninja-build
-      - name: Run dependency-independent C++ tests with coverage
+      - name: Install checked tooling
+        run: sudo apt-get update && sudo apt-get install --yes cmake ninja-build g++ clang ccache cppcheck clang-tidy shellcheck
+      - name: CMake, CTest, and coverage
         run: |
           cmake --preset core-coverage-gcc
           cmake --build --preset core-coverage-gcc
           ctest --preset core-coverage-gcc
-      - name: Run browser tests and coverage gate
+      - name: Browser gates
+        run: npm run check:web && npm run coverage:browser
+      - name: Static gates
         run: |
-          npm run test:browser
-          npm run coverage:browser
-      - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+          ./scripts/check-release-inputs.sh
+          ./scripts/check-release-contract.sh
+          ./scripts/run-static-analysis.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: coverage-reports
-          path: build/core-coverage-gcc/server/CMakeFiles/conspire-core-test.dir/*.gcov
+          name: quality-evidence
+          path: |
+            build/core-coverage-gcc/server/CMakeFiles/conspire-core-test.dir/*.gcov
+            dist/metadata/
+          if-no-files-found: error
+          retention-days: 14
 
-  semantic-release:
-    name: 🤖 Semantic release
-    runs-on: ubuntu-latest
-    outputs:
-      new_release_published: ${{ steps.semantic-release.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic-release.outputs.new_release_version }}
-    if: ${{ github.ref_name == 'master' && github.event_name == 'push' }}
+  container-smoke:
+    name: Runtime image contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: [quality, supply-chain]
     steps:
-      - uses: actions/checkout@v4
-      - name: Semantic Release
-        uses: cycjimmy/semantic-release-action@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Validate Docker contract without publishing
+        run: ./scripts/container-smoke.sh --verify-only
+
+  supply-chain:
+    name: Dependency and configuration scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: quality
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Scan source and Docker configuration
+        uses: aquasecurity/trivy-action@1f0aa582c8c8f5f7639610d6d38baddfea4fdcee # v0.9.2
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: '1'
+
+  release-dry-run:
+    name: Release dry run
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: [quality, supply-chain, container-smoke]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Produce non-publishing release evidence
+        run: ./scripts/release-dry-run.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-dry-run-evidence
+          path: dist/metadata/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-release:
+    name: Publish verified release
+    needs: [quality, supply-chain, container-smoke, release-dry-run]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    environment: release
+    env:
+      OUTPUT: x86_64
+      TARGET: x86_64-linux-musl
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Determine release version
         id: semantic-release
+        uses: cycjimmy/semantic-release-action@b1b432f13acb7768e0c8efdec416d363a57546f2 # v4.1.1
         with:
           extra_plugins: |
             @semantic-release/changelog
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  gcc-musl-build:
-    name: 🐧 Build release
-    runs-on: ubuntu-latest
-    needs: [semantic-release]
-    if: ${{ needs.semantic-release.outputs.new_release_published == 'true' }}
-    # strategy:
-    #   matrix:
-    #     include:
-    #       - target: x86_64-linux-musl
-    #         output: x86_64
-    #       - target: arm-linux-musleabihf
-    #         output: arm_hf
-    #       - target: riscv64-linux-musl
-    #         output: riscv_64
-    #       - target: aarch64-linux-musl
-    #         output: arm_64
-    #   fail-fast: true
-    # env:
-    #   TARGET: ${{ matrix.target }}
-    #   OUTPUT: ${{ matrix.output }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Install dyne musl
-        uses: dyne/musl-action@main
+      - name: Install pinned musl toolchain
+        if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
+        uses: dyne/musl-action@d26fe56f7fe134a54e729d781ec687e847db34d3 # main at review
         with:
           target_arch: x86_64
-      - name: Build conspire
+      - name: Build verified release binary
+        if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
+        env:
+          CONSPIRE_DEPS_PREFIX: ${{ vars.CONSPIRE_OATPP_1_4_PREFIX }}
         run: |
-          make VERSION=${{ needs.semantic-release.outputs.new_release_version }}
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ env.OUTPUT }}
-          path: |
-            conspire-${{ env.OUTPUT }}
-
-  draft-binary-release:
-    name: 📦 Upload release
-    needs: [semantic-release, gcc-musl-build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: download binary artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: |
-            upload
-      - name: show directory structure
-        run: tree -dL 3
-      - name: compute sha256 hash checksums
-        run: |
-          mkdir -p upload/checksums
-          find upload -type f -exec sha256sum {} \; | awk '{ split($2, a, "/"); print $1, a[length(a)] }' | tee upload/checksums/SHA256SUMS.txt
-      - name: upload releases to files.dyne.org
-        uses: appleboy/scp-action@v1
+          test -n "$CONSPIRE_DEPS_PREFIX"
+          make VERSION="${{ steps.semantic-release.outputs.new_release_version }}" \
+            TARGET="$TARGET" CONSPIRE_DEPS_PREFIX="$CONSPIRE_DEPS_PREFIX"
+      - name: Create release checksum
+        if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
+        run: sha256sum "conspire-${OUTPUT}" > SHA256SUMS.txt
+      - name: Upload release to files.dyne.org
+        if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
         with:
           host: ${{ secrets.FILES_SSH_HOST }}
           username: ${{ secrets.FILES_SSH_USER }}
           key: ${{ secrets.FILES_SSH_KEY }}
           port: ${{ secrets.FILES_SSH_PORT }}
-          # scp-drone uploads dirs if wildcards are in them, so here
-          # we need to list uploaded files one by one.
-          source: |
-            upload/release-${{ env.OUTPUT }}/conspire-${{ env.OUTPUT }},
-            upload/checksums/SHA256SUMS.txt
-          target: |
-            /srv/ftp/conspire
-          strip_components: 2
+          source: conspire-${{ env.OUTPUT }},SHA256SUMS.txt
+          target: /srv/ftp/conspire
           overwrite: true
-      - name: relase all binary artifacts
-        uses: softprops/action-gh-release@v2
+      - name: Publish GitHub release
+        if: ${{ steps.semantic-release.outputs.new_release_published == 'true' }}
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
-            upload/release-*/*
-            upload/checksums/SHA256SUMS.txt
-          tag_name: ${{ needs.semantic-release.outputs.new_release_version }}
-          draft: false
-          prerelease: false
+            conspire-${{ env.OUTPUT }}
+            SHA256SUMS.txt
+          tag_name: ${{ steps.semantic-release.outputs.new_release_version }}
           fail_on_unmatched_files: true
-          generate_release_notes: true
-
-  publish_docker_image:
-    name: 🐳 Publish Docker image
-    needs: [semantic-release]
-    uses: ForkbombEu/workflows/.github/workflows/publish-ghcr.yml@main
-    secrets: inherit
-
-  remove-tag-on-fail:
-    name: 🧻 Remove tag on fail
-    needs: [semantic-release, gcc-musl-build]
-    runs-on: ubuntu-latest
-    if: ${{ (failure() || cancelled()) && needs.semantic-release.outputs.new_release_published == 'True' }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Remove tag
-        uses: dev-drprasad/delete-tag-and-release@v1.0
-        with:
-          tag_name: ${{ needs.semantic-release.outputs.new_release_version }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          delete_release: false
-          repo: dyne/conspire
