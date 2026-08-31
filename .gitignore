@@ -39,6 +39,7 @@
 coverage/
 dist/
 cert/
+node_modules/
 
 # Mac
 

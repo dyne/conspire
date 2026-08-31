@@ -71,6 +71,15 @@ TLS is opt-in. Pass `--tls` together with certificate paths when it is needed:
   --tls-key cert/privkey.pem --tls-chain cert/fullchain.pem
 ```
 
+The real-process chat test starts this native binary on an isolated localhost
+port, connects three WebSocket clients, verifies broadcast and room history,
+and checks clean shutdown:
+
+```bash
+npm ci
+npm run test:e2e
+```
+
 Without the prefix, configure stops immediately with the exact prerequisite and
 does not fetch a dependency. Release CI creates it from `vendor/` with the
 same musl toolchain used for the release artifact.
