@@ -44,7 +44,7 @@ public:
 
   DTO_FIELD(String, host);
   DTO_FIELD(UInt16, port);
-  DTO_FIELD(Boolean, useTLS) = true;
+  DTO_FIELD(Boolean, useTLS) = false;
 
   /**
    * Path to TLS private key file.

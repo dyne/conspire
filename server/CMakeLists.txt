@@ -130,7 +130,7 @@ if(CONSPIRE_HAS_NATIVE_DEPS)
   src/utils/Statistics.cpp src/utils/Statistics.hpp
   src/dto/DTOs.hpp src/dto/Config.hpp)
   target_include_directories(conspire-lib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_compile_definitions(conspire-lib PRIVATE
+  target_compile_definitions(conspire-lib PUBLIC
   CERT_PEM_PATH="cert/privkey.pem" CERT_CRT_PATH="cert/fullchain.pem"
   FRONT_PATH="front" CONSPIRE_VERSION="${CONSPIRE_VERSION}")
   target_link_libraries(conspire-lib
@@ -140,9 +140,6 @@ if(CONSPIRE_HAS_NATIVE_DEPS)
   conspire_enable_warnings(conspire-lib)
 
   add_executable(conspire-exe src/App.cpp)
-  target_compile_definitions(conspire-exe PRIVATE
-  CERT_PEM_PATH="cert/privkey.pem" CERT_CRT_PATH="cert/fullchain.pem"
-  FRONT_PATH="front" CONSPIRE_VERSION="${CONSPIRE_VERSION}")
   target_link_libraries(conspire-exe PRIVATE conspire-lib)
   conspire_apply_sanitizer(conspire-exe)
   conspire_enable_warnings(conspire-exe)

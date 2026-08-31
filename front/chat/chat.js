@@ -20,7 +20,7 @@ let CODE_FILE_CHUNK_DATA = 8;
 
 let socket = new WebSocket(urlWebsocket);
 let protocolModule = import(urlRoom + "/protocol.js");
-let peedId = null;
+let peerId = null;
 let peerName = null;
 let peersMap = new Map();
 const chatState = createChatState();

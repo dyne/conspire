@@ -57,6 +57,33 @@ cmake --build --preset native-clang
 ctest --preset native-clang
 ```
 
+For a certificate-free local run, start the native build without `--tls` and
+open <http://localhost:8080>:
+
+```bash
+./build/native-gcc/server/conspire-exe
+```
+
+TLS is opt-in. Pass `--tls` together with certificate paths when it is needed:
+
+```bash
+./build/native-gcc/server/conspire-exe --tls --port 8443 \
+  --tls-key cert/privkey.pem --tls-chain cert/fullchain.pem
+```
+
+The real-process tests start this native binary on isolated localhost ports.
+The protocol test connects three WebSocket clients, verifies broadcast and room
+history, and checks clean shutdown. The Playwright test drives the served UI in
+three independent browser contexts and verifies the versioned title,
+participants, message delivery, and history without TLS:
+
+```bash
+npm ci
+npx playwright install chromium
+npm run test:e2e
+npm run test:e2e:browser
+```
+
 Without the prefix, configure stops immediately with the exact prerequisite and
 does not fetch a dependency. Release CI creates it from `vendor/` with the
 same musl toolchain used for the release artifact.

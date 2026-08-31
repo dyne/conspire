@@ -93,6 +93,15 @@ int main() {
   assert(!chunkRequest.accept(7, 1, 1));
   assert(conspire::boundaries::urlPathSegment("a b/\"") == "a%20b%2F%22");
   assert(conspire::boundaries::javascriptString("</script>\"\\\n") == "\"\\u003C/script\\u003E\\\"\\\\\\n\"");
+  assert(conspire::boundaries::htmlText("1<&\"'") == "1&lt;&amp;&quot;&#39;");
+  assert(conspire::boundaries::pageTitle("1.2.3") == "Conspire v1.2.3 by Dyne.org");
+  assert(conspire::boundaries::pageTitle("v1.2.3") == "Conspire v1.2.3 by Dyne.org");
+  std::string page = "<title>%%%CONSPIRE_TITLE%%%</title><p>%%%CONSPIRE_TITLE%%%</p>";
+  assert(conspire::boundaries::replaceLiteral(page, "%%%CONSPIRE_TITLE%%%",
+                                               conspire::boundaries::pageTitle("1.2.3")));
+  assert(page == "<title>Conspire v1.2.3 by Dyne.org</title>"
+                 "<p>Conspire v1.2.3 by Dyne.org</p>");
+  assert(!conspire::boundaries::replaceLiteral(page, "%%%MISSING%%%", "unused"));
   assert(coverageFixture(true) == 1);
 
   std::atomic<int> iterations{0};

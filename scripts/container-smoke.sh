@@ -7,6 +7,7 @@ readonly dockerfile="$root/Dockerfile"
 rg -q '^USER conspire:conspire$' "$dockerfile"
 rg -q 'TLS_FILE_PRIVATE_KEY=/run/certs/privkey.pem' "$dockerfile"
 rg -q 'TLS_FILE_CERT_CHAIN=/run/certs/fullchain.pem' "$dockerfile"
+rg -q '^ENTRYPOINT \["/app/conspire", "--tls"\]$' "$dockerfile"
 if rg -qi 'newkey|privkey\.pem.*COPY|libressl-dev|cmake|ninja|g\+\+' "$dockerfile"; then
   printf '%s\n' 'runtime Dockerfile contains a key-generation, key-copy, or build-tool pattern' >&2
   exit 1

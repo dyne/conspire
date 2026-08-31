@@ -34,8 +34,6 @@
 #include "oatpp/macro/codegen.hpp"
 #include "oatpp/macro/component.hpp"
 
-#include <regex>
-
 #include OATPP_CODEGEN_BEGIN(ApiController) /// <-- Begin Code-Gen
 
 class StaticController : public oatpp::web::server::api::ApiController {
@@ -51,6 +49,13 @@ private:
     OATPP_ASSERT_HTTP(buffer, Status::CODE_404, "File Not Found:(");
     return buffer;
   }
+
+  static std::string renderPage(oatpp::String file, const oatpp::String& version) {
+    std::string page = *file;
+    const auto title = conspire::boundaries::pageTitle(version ? *version : "unknown");
+    conspire::boundaries::replaceLiteral(page, "%%%CONSPIRE_TITLE%%%", title);
+    return page;
+  }
 public:
   StaticController(OATPP_COMPONENT(std::shared_ptr<ObjectMapper>, objectMapper))
     : oatpp::web::server::api::ApiController(objectMapper)
@@ -65,7 +70,8 @@ public:
       ++ controller->m_statistics->EVENT_FRONT_PAGE_LOADED;
       std::string filePath = controller->m_config->frontPath->c_str() + std::string("/index.html");
       auto fileCache = controller->loadFile(filePath.c_str());
-      auto response = controller->createResponse(Status::CODE_200, fileCache);
+      auto response = controller->createResponse(Status::CODE_200,
+                                                  controller->renderPage(fileCache, controller->m_config->version));
       response->putHeader(Header::CONTENT_TYPE, "text/html");
       response->putHeader("Content-Security-Policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
       response->putHeader("X-Content-Type-Options", "nosniff");
@@ -95,8 +101,8 @@ public:
       const auto roomId = request->getPathVariable("roomId");
       OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
       std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/index.html");
-      std::string fileCache = *controller->loadFile(filePath.c_str());
-      auto text = std::regex_replace(fileCache, std::regex("%%%ROOM_ID%%%"), conspire::boundaries::urlPathSegment(*roomId));
+      auto text = controller->renderPage(controller->loadFile(filePath.c_str()), controller->m_config->version);
+      conspire::boundaries::replaceLiteral(text, "%%%ROOM_ID%%%", conspire::boundaries::urlPathSegment(*roomId));
       auto response = controller->createResponse(Status::CODE_200, text);
       response->putHeader(Header::CONTENT_TYPE, "text/html");
       response->putHeader("Content-Security-Policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'");

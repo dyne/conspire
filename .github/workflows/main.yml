@@ -32,6 +32,10 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
+      - name: Install Node test dependencies
+        run: npm ci
+      - name: Install browser test runtime
+        run: npx playwright install --with-deps chromium
       - name: Install checked tooling
         run: sudo apt-get update && sudo apt-get install --yes cmake ninja-build g++ clang ccache cppcheck clang-tidy shellcheck ripgrep
       - name: CMake, CTest, and coverage
@@ -39,6 +43,15 @@ jobs:
           cmake --preset core-coverage-gcc
           cmake --build --preset core-coverage-gcc
           ctest --preset core-coverage-gcc
+      - name: Real chat session
+        run: |
+          ./scripts/build-vendored-oatpp.sh
+          cmake --preset native-gcc \
+            -DCONSPIRE_DEPS_PREFIX="$GITHUB_WORKSPACE/build/deps" \
+            -DCONSPIRE_VERSION=e2e
+          cmake --build --preset native-gcc --target conspire-exe
+          npm run test:e2e
+          npm run test:e2e:browser
       - name: Browser gates
         run: npm run check:web && npm run coverage:browser
       - name: Static gates
