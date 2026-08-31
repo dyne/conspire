@@ -29,6 +29,7 @@
 
 #include "oatpp/data/stream/Stream.hpp"
 #include "oatpp/async/CoroutineWaitList.hpp"
+#include "utils/ServerBoundaries.hpp"
 #include <memory>
 #include <unordered_map>
 
@@ -68,6 +69,7 @@ public:
     std::shared_ptr<File> m_file;
     bool m_valid;
     v_int64 m_progress;
+    conspire::boundaries::ChunkRequest m_request;
   private:
     std::mutex m_chunkLock;
     oatpp::String m_chunk;
@@ -82,7 +84,7 @@ public:
 
     ~Subscriber();
 
-    bool provideFileChunk(const oatpp::String& data);
+    bool provideFileChunk(v_int64 position, v_int64 size, const oatpp::String& data);
 
     oatpp::v_io_size readChunk(void *buffer, v_buff_size count, oatpp::async::Action& action);
 
@@ -119,7 +121,7 @@ public:
 
   std::shared_ptr<Subscriber> subscribe();
 
-  bool provideFileChunk(v_int64 subscriberId, const oatpp::String& data);
+  bool provideFileChunk(v_int64 subscriberId, v_int64 position, v_int64 size, const oatpp::String& data);
 
   std::shared_ptr<Peer> getHost();
 

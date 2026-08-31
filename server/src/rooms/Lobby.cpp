@@ -52,9 +52,10 @@ std::shared_ptr<Room> Lobby::getRoom(const oatpp::String& roomName) {
   return nullptr;
 }
 
-void Lobby::deleteRoom(const oatpp::String& roomName) {
+void Lobby::deleteRoomIfEmpty(const std::shared_ptr<Room>& room) {
   std::lock_guard<std::mutex> lock(m_roomsMutex);
-  m_rooms.erase(roomName);
+  const auto found = m_rooms.find(room->getName());
+  if (found != m_rooms.end() && found->second == room && room->isEmpty()) m_rooms.erase(found);
 }
 
 void Lobby::runPingIteration() {
@@ -73,17 +74,31 @@ void Lobby::onAfterCreate_NonBlocking(const std::shared_ptr<AsyncWebSocket>& soc
 
   auto roomName = params->find("roomName")->second;
   auto nickname = params->find("nickname")->second;
-  auto room = getOrCreateRoom(roomName);
-  if (!room) {
+  std::shared_ptr<Room> room;
+  std::shared_ptr<Peer> peer;
+  {
+    // Room lookup/creation and peer admission share the same lobby critical
+    // section as empty-room deletion. A joining peer can therefore never be
+    // admitted to a room after that room has been removed from the lobby.
+    std::lock_guard<std::mutex> lock(m_roomsMutex);
+    const auto existing = m_rooms.find(roomName);
+    if (existing != m_rooms.end()) {
+      room = existing->second;
+    } else if (conspire::boundaries::hasCapacity(m_rooms.size(), conspire::boundaries::Limits::rooms)) {
+      room = std::make_shared<Room>(roomName);
+      m_rooms.emplace(roomName, room);
+    }
+    if (room && room->hasPeerCapacity()) {
+      peer = std::make_shared<Peer>(socket, room, nickname, obtainNewPeerId());
+      room->welcomePeer(peer);
+      if (!room->addPeer(peer)) peer.reset();
+    }
+  }
+  if (!peer) {
     socket->getConnection().invalidate();
     return;
   }
-
-  auto peer = std::make_shared<Peer>(socket, room, nickname, obtainNewPeerId());
   socket->setListener(peer);
-
-  room->welcomePeer(peer);
-  room->addPeer(peer);
   room->onboardPeer(peer);
 
 }
@@ -99,8 +114,6 @@ void Lobby::onBeforeDestroy_NonBlocking(const std::shared_ptr<AsyncWebSocket>& s
   room->goodbyePeer(peer);
   peer->invalidateSocket();
 
-  if(room->isEmpty()) {
-    deleteRoom(room->getName());
-  }
+  deleteRoomIfEmpty(room);
 
 }

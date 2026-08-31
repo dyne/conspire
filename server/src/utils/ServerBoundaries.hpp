@@ -23,6 +23,31 @@ struct Limits {
   static constexpr std::size_t subscribersPerFile = 32;
 };
 
+class ChunkRequest {
+private:
+  std::int64_t m_position{0};
+  std::int64_t m_size{0};
+  bool m_outstanding{false};
+
+public:
+  void begin(std::int64_t position, std::int64_t size) {
+    m_position = position;
+    m_size = size;
+    m_outstanding = true;
+  }
+
+  bool accept(std::int64_t position, std::int64_t size, std::size_t receivedSize) {
+    if (!m_outstanding || position != m_position || size != m_size ||
+        size < 0 || static_cast<std::uint64_t>(size) != receivedSize) {
+      return false;
+    }
+    m_outstanding = false;
+    return true;
+  }
+
+  void cancel() { m_outstanding = false; }
+};
+
 inline bool hasCapacity(std::size_t current, std::size_t maximum) {
   return maximum != 0 && current < maximum;
 }

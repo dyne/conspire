@@ -75,7 +75,8 @@ public:
    * Add peer to the room.
    * @param peer
    */
-  void addPeer(const std::shared_ptr<Peer>& peer);
+  bool addPeer(const std::shared_ptr<Peer>& peer);
+  bool hasPeerCapacity() const;
 
   /**
    * Inform the audience about the new peer.

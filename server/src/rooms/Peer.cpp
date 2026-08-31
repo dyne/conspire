@@ -221,7 +221,7 @@ oatpp::async::CoroutineStarter Peer::handleFileChunkMessage(const oatpp::Object<
   if(!filesList)
     return onApiError("No file provided.");
 
-  if(filesList->size() > 1)
+  if(filesList->size() != 1)
     return onApiError("Invalid files count. Expected - 1.");
 
   auto fileDto = filesList->front();
@@ -246,7 +246,7 @@ oatpp::async::CoroutineStarter Peer::handleFileChunkMessage(const oatpp::Object<
       !conspire::boundaries::validChunk(*fileDto->chunkPosition, *fileDto->chunkSize,
                                         data->size(), file->getFileSize()))
     return onApiError("Invalid file chunk.");
-  if (!file->provideFileChunk(fileDto->subscriberId, data))
+  if (!file->provideFileChunk(fileDto->subscriberId, *fileDto->chunkPosition, *fileDto->chunkSize, data))
     return onApiError("Unexpected file chunk.");
 
   return nullptr;
@@ -353,6 +353,7 @@ oatpp::async::CoroutineStarter Peer::readMessage(const std::shared_ptr<AsyncWebS
       return onApiError("Can't parse message");
     }
 
+    if (!message) return onApiError("No message provided.");
     message->peerName = m_nickname;
     message->peerId = m_peerId;
     message->timestamp = oatpp::Environment::getMicroTickCount();

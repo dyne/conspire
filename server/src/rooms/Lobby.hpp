@@ -41,13 +41,13 @@ private:
   std::unordered_map<oatpp::String, std::shared_ptr<Room>> m_rooms;
   std::mutex m_roomsMutex;
   OATPP_COMPONENT(std::shared_ptr<Statistics>, m_statistics);
+  void deleteRoomIfEmpty(const std::shared_ptr<Room>& room);
 public:
   // State is intentionally private: room changes must retain the lock discipline
   // implemented by this aggregate.
   v_int64 obtainNewPeerId();
   std::shared_ptr<Room> getOrCreateRoom(const oatpp::String& roomName);
   std::shared_ptr<Room> getRoom(const oatpp::String& roomName);
-  void deleteRoom(const oatpp::String& roomName);
 
   /** Ping every current room once. Scheduling and cancellation belong to an
    * owned lifecycle runner. */

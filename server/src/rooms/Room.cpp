@@ -33,9 +33,16 @@ oatpp::String Room::getName() {
   return m_name;
 }
 
-void Room::addPeer(const std::shared_ptr<Peer>& peer) {
+bool Room::addPeer(const std::shared_ptr<Peer>& peer) {
   std::lock_guard<std::mutex> guard(m_peerByIdLock);
+  if (!conspire::boundaries::hasCapacity(m_peerById.size(), conspire::boundaries::Limits::peersPerRoom)) return false;
   m_peerById[peer->getPeerId()] = peer;
+  return true;
+}
+
+bool Room::hasPeerCapacity() const {
+  std::lock_guard<std::mutex> guard(m_peerByIdLock);
+  return conspire::boundaries::hasCapacity(m_peerById.size(), conspire::boundaries::Limits::peersPerRoom);
 }
 
 void Room::welcomePeer(const std::shared_ptr<Peer>& peer) {

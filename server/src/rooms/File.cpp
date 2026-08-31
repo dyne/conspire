@@ -30,6 +30,7 @@
 #include "rooms/Peer.hpp"
 #include "utils/ServerBoundaries.hpp"
 
+#include <algorithm>
 #include <vector>
 
 File::Subscriber::Subscriber(v_int64 id, const std::shared_ptr<File>& file)
@@ -49,9 +50,9 @@ File::Subscriber::~Subscriber() {
   m_file->unsubscribe(m_id);
 }
 
-bool File::Subscriber::provideFileChunk(const oatpp::String& data) {
+bool File::Subscriber::provideFileChunk(v_int64 position, v_int64 size, const oatpp::String& data) {
   std::lock_guard<std::mutex> lock(m_chunkLock);
-  if(m_chunk != nullptr) {
+  if(m_chunk != nullptr || !m_request.accept(position, size, data ? data->size() : 0)) {
     return false;
   }
   m_chunk = data;
@@ -63,6 +64,7 @@ void File::Subscriber::requestChunk(v_int64 size) {
 
   if(m_valid) {
 
+    m_request.begin(m_progress, size);
     auto message = MessageDto::createShared();
     message->code = MessageCodes::CODE_FILE_REQUEST_CHUNK;
 
@@ -130,7 +132,11 @@ oatpp::v_io_size File::Subscriber::readChunk(void *buffer, v_buff_size count, oa
       return chunkSize;
     }
 
-    requestChunk(count);
+    const auto remaining = static_cast<v_buff_size>(m_file->getFileSize() - m_progress);
+    const auto boundedCount = std::min<v_buff_size>(
+      count, static_cast<v_buff_size>(conspire::boundaries::Limits::chunkBytes));
+    const auto requestSize = static_cast<v_int64>(std::min<v_buff_size>(boundedCount, remaining));
+    requestChunk(requestSize);
     action = waitForChunkAsync().next(oatpp::async::Action::createActionByType(oatpp::async::Action::TYPE_REPEAT));
     return oatpp::IOError::RETRY_READ;
 
@@ -147,6 +153,7 @@ v_int64 File::Subscriber::getId() {
 void File::Subscriber::invalidate() {
   std::lock_guard<std::mutex> lock(m_chunkLock);
   m_valid = false;
+  m_request.cancel();
   m_waitList.notifyAll();
 }
 
@@ -180,7 +187,7 @@ std::shared_ptr<File::Subscriber> File::subscribe() {
   return s;
 }
 
-bool File::provideFileChunk(v_int64 subscriberId, const oatpp::String& data) {
+bool File::provideFileChunk(v_int64 subscriberId, v_int64 position, v_int64 size, const oatpp::String& data) {
 
   std::shared_ptr<Subscriber> subscriber;
   {
@@ -193,7 +200,7 @@ bool File::provideFileChunk(v_int64 subscriberId, const oatpp::String& data) {
       return false;
     }
   }
-  return subscriber->provideFileChunk(data);
+  return subscriber->provideFileChunk(position, size, data);
 
 }
 

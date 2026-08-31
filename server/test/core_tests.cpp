@@ -79,6 +79,18 @@ int main() {
   assert(conspire::boundaries::hasCapacity(31, 32));
   assert(!conspire::boundaries::hasCapacity(32, 32));
   assert(!conspire::boundaries::hasCapacity(0, 0));
+  assert(conspire::boundaries::Limits::chunkBytes == 64 * 1024);
+  conspire::boundaries::ChunkRequest chunkRequest;
+  assert(!chunkRequest.accept(0, 3, 3));
+  chunkRequest.begin(4, 3);
+  assert(!chunkRequest.accept(0, 3, 3));
+  assert(!chunkRequest.accept(4, 2, 2));
+  assert(!chunkRequest.accept(4, 3, 2));
+  assert(chunkRequest.accept(4, 3, 3));
+  assert(!chunkRequest.accept(4, 3, 3));
+  chunkRequest.begin(7, 1);
+  chunkRequest.cancel();
+  assert(!chunkRequest.accept(7, 1, 1));
   assert(conspire::boundaries::urlPathSegment("a b/\"") == "a%20b%2F%22");
   assert(conspire::boundaries::javascriptString("</script>\"\\\n") == "\"\\u003C/script\\u003E\\\"\\\\\\n\"");
   assert(coverageFixture(true) == 1);
