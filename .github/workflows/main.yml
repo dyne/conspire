@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: 22
       - name: Install checked tooling
-        run: sudo apt-get update && sudo apt-get install --yes cmake ninja-build g++ clang ccache cppcheck clang-tidy shellcheck
+        run: sudo apt-get update && sudo apt-get install --yes cmake ninja-build g++ clang ccache cppcheck clang-tidy shellcheck ripgrep
       - name: CMake, CTest, and coverage
         run: |
           cmake --preset core-coverage-gcc
