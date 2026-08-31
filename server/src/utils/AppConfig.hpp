@@ -15,7 +15,7 @@ inline oatpp::Object<ConfigDto> fromCommandLine(const oatpp::base::CommandLineAr
   auto config = ConfigDto::createShared();
   config->host = std::getenv("EXTERNAL_ADDRESS");
   if (!config->host) config->host = arguments.getNamedArgumentValue("--host", "localhost");
-  if (!config->host || !validHost(config->host->std_str())) throw std::runtime_error("Invalid host!");
+  if (!config->host || !validHost(*config->host)) throw std::runtime_error("Invalid host!");
 
   const char* portText = std::getenv("EXTERNAL_PORT");
   if (!portText) portText = arguments.getNamedArgumentValue("--port", "8443");
@@ -29,7 +29,7 @@ inline oatpp::Object<ConfigDto> fromCommandLine(const oatpp::base::CommandLineAr
   if (!config->tlsCertificateChainPath) config->tlsCertificateChainPath = arguments.getNamedArgumentValue("--tls-chain", "" CERT_CRT_PATH);
   config->statisticsUrl = std::getenv("URL_STATS_PATH");
   if (!config->statisticsUrl) config->statisticsUrl = arguments.getNamedArgumentValue("--url-stats", "admin/stats.json");
-  if (!config->statisticsUrl || !validStatsPath(config->statisticsUrl->std_str())) throw std::runtime_error("Invalid statistics path!");
+  if (!config->statisticsUrl || !validStatsPath(*config->statisticsUrl)) throw std::runtime_error("Invalid statistics path!");
   config->pidFilePath = arguments.getNamedArgumentValue("--pid");
   config->frontPath = arguments.getNamedArgumentValue("--front", "front");
   config->version = CONSPIRE_VERSION;

@@ -140,6 +140,9 @@ if(CONSPIRE_HAS_NATIVE_DEPS)
   conspire_enable_warnings(conspire-lib)
 
   add_executable(conspire-exe src/App.cpp)
+  target_compile_definitions(conspire-exe PRIVATE
+  CERT_PEM_PATH="cert/privkey.pem" CERT_CRT_PATH="cert/fullchain.pem"
+  FRONT_PATH="front" CONSPIRE_VERSION="${CONSPIRE_VERSION}")
   target_link_libraries(conspire-exe PRIVATE conspire-lib)
   conspire_apply_sanitizer(conspire-exe)
   conspire_enable_warnings(conspire-exe)

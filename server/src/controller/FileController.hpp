@@ -81,7 +81,7 @@ public:
     Action act() override {
 
       oatpp::String roomId = request->getPathVariable("roomId");
-      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(roomId->std_str()), Status::CODE_400, "Invalid room id");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
 
       bool success;
       v_int64 fileId = oatpp::utils::Conversion::strToInt64(request->getPathVariable("fileId"), success);
@@ -99,7 +99,7 @@ public:
         (std::make_shared<ReadCallback>(subscriber));
 
       auto response = OutgoingResponse::createShared(Status::CODE_200, body);
-      response->putHeader("content-disposition", "attachment; filename=\"" + conspire::boundaries::attachmentFilename(file->getFileName()->std_str()) +"\"");
+      response->putHeader("content-disposition", "attachment; filename=\"" + conspire::boundaries::attachmentFilename(*file->getFileName()) +"\"");
       response->putHeader(Header::CONTENT_TYPE, "application/octet-stream");
       response->putHeader("X-Content-Type-Options", "nosniff");
 

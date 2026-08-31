@@ -58,19 +58,19 @@ private:
 
   class RedirectInterceptor : public oatpp::web::server::interceptor::RequestInterceptor {
   private:
-    OATPP_COMPONENT(oatpp::Object<ConfigDto>, appConfig);
+    OATPP_COMPONENT(oatpp::Object<ConfigDto>, componentAppConfig);
   public:
 
     std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>& request) override {
       auto host = request->getHeader(oatpp::web::protocol::http::Header::HOST);
-      auto siteHost = appConfig->getHostString();
+      auto siteHost = componentAppConfig->getHostString();
       const auto path = request->getStartingLine().path.toString();
-      if(!host || !conspire::boundaries::validHost(host->std_str()) || !conspire::boundaries::validRequestPath(path->std_str())) {
+      if(!host || !conspire::boundaries::validHost(*host) || !conspire::boundaries::validRequestPath(*path)) {
         return OutgoingResponse::createShared(oatpp::web::protocol::http::Status::CODE_400, nullptr);
       }
       if(!host || host != siteHost) {
         auto response = OutgoingResponse::createShared(oatpp::web::protocol::http::Status::CODE_301, nullptr);
-        response->putHeader("Location", appConfig->getCanonicalBaseUrl() + path);
+        response->putHeader("Location", componentAppConfig->getCanonicalBaseUrl() + path);
         response->putHeader("Cache-Control", "no-store");
         return response;
       }
@@ -107,21 +107,21 @@ public:
    */
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::ServerConnectionProvider>, serverConnectionProvider)([] {
 
-    OATPP_COMPONENT(oatpp::Object<ConfigDto>, appConfig);
+    OATPP_COMPONENT(oatpp::Object<ConfigDto>, componentAppConfig);
 
     std::shared_ptr<oatpp::network::ServerConnectionProvider> result;
 
-    if(appConfig->useTLS) {
+    if(componentAppConfig->useTLS) {
 
-      OATPP_LOGd("oatpp::openssl::Config", "key_path='{}'", appConfig->tlsPrivateKeyPath);
-      OATPP_LOGd("oatpp::openssl::Config", "chn_path='{}'", appConfig->tlsCertificateChainPath);
+      OATPP_LOGd("oatpp::openssl::Config", "key_path='{}'", componentAppConfig->tlsPrivateKeyPath);
+      OATPP_LOGd("oatpp::openssl::Config", "chn_path='{}'", componentAppConfig->tlsCertificateChainPath);
 
       auto config = oatpp::openssl::Config::createDefaultServerConfigShared(
-              appConfig->tlsCertificateChainPath->c_str(),
-              appConfig->tlsPrivateKeyPath->c_str());
-      result = oatpp::openssl::server::ConnectionProvider::createShared(config, {"0.0.0.0", appConfig->port, oatpp::network::Address::IP_4});
+              componentAppConfig->tlsCertificateChainPath->c_str(),
+              componentAppConfig->tlsPrivateKeyPath->c_str());
+      result = oatpp::openssl::server::ConnectionProvider::createShared(config, {"0.0.0.0", componentAppConfig->port, oatpp::network::Address::IP_4});
     } else {
-      result = oatpp::network::tcp::server::ConnectionProvider::createShared({"0.0.0.0", appConfig->port, oatpp::network::Address::IP_4});
+      result = oatpp::network::tcp::server::ConnectionProvider::createShared({"0.0.0.0", componentAppConfig->port, oatpp::network::Address::IP_4});
     }
 
     return result;
@@ -140,8 +140,8 @@ public:
    */
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::ConnectionHandler>, serverConnectionHandler)("http", [] {
     OATPP_COMPONENT(std::shared_ptr<oatpp::web::server::HttpRouter>, router); // get Router component
-    OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, executor); // get Async executor component
-    auto handler = oatpp::web::server::AsyncHttpConnectionHandler::createShared(router, executor);
+    OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, componentExecutor); // get Async executor component
+    auto handler = oatpp::web::server::AsyncHttpConnectionHandler::createShared(router, componentExecutor);
     handler->addRequestInterceptor(std::make_shared<RedirectInterceptor>());
     return handler;
   }());
@@ -173,10 +173,10 @@ public:
    *  Create websocket connection handler
    */
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::ConnectionHandler>, websocketConnectionHandler)("websocket", [] {
-    OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, executor);
-    OATPP_COMPONENT(std::shared_ptr<Lobby>, lobby);
-    auto connectionHandler = oatpp::websocket::AsyncConnectionHandler::createShared(executor);
-    connectionHandler->setSocketInstanceListener(lobby);
+    OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, componentExecutor);
+    OATPP_COMPONENT(std::shared_ptr<Lobby>, componentLobby);
+    auto connectionHandler = oatpp::websocket::AsyncConnectionHandler::createShared(componentExecutor);
+    connectionHandler->setSocketInstanceListener(componentLobby);
     return connectionHandler;
   }());
 

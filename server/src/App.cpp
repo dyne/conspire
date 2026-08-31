@@ -96,7 +96,7 @@ Options:
   setupSignalHandlers();
 
   conspire::lifecycle::PidFile pidFile;
-  const std::string pidFilePath = appConfig->pidFilePath ? appConfig->pidFilePath->std_str() : "";
+  const std::string pidFilePath = appConfig->pidFilePath ? *appConfig->pidFilePath : "";
   if (!pidFile.create(pidFilePath)) {
     OATPP_LOGe("conspire", "Failed to create PID file: {}", pidFilePath);
     return; // Exit if PID file creation failed
