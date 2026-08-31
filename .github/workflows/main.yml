@@ -62,6 +62,8 @@ jobs:
     needs: [quality, supply-chain]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install container-contract tooling
+        run: sudo apt-get update && sudo apt-get install --yes ripgrep
       - name: Validate Docker contract without publishing
         run: ./scripts/container-smoke.sh --verify-only
 
