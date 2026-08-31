@@ -18,6 +18,7 @@ let CODE_FILE_CHUNK_DATA = 8;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 let socket = new WebSocket(urlWebsocket);
+let protocolModule = import(urlRoom + "/protocol.js");
 let peedId = null;
 let peerName = null;
 let peersMap = new Map();
@@ -603,7 +604,12 @@ socket.onclose = function(event) {
 
 // message received - show the message in div#messages
 socket.onmessage = function(event) {
-    onMessage(JSON.parse(event.data));
+    protocolModule.then(function(protocol) {
+        let message = protocol.parseProtocolMessage(event.data);
+        if(message) {
+            onMessage(message);
+        }
+    });
 }
 
 function onMessage(message) {

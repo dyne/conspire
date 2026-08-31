@@ -29,6 +29,7 @@
 
 #include "rooms/Lobby.hpp"
 #include "utils/Statistics.hpp"
+#include "utils/ServerBoundaries.hpp"
 
 #include "oatpp/web/protocol/http/outgoing/StreamingBody.hpp"
 #include "oatpp/web/server/api/ApiController.hpp"
@@ -95,7 +96,7 @@ public:
         (std::make_shared<ReadCallback>(file->subscribe()));
 
       auto response = OutgoingResponse::createShared(Status::CODE_200, body);
-      response->putHeader("content-disposition", "attachment; filename=\"" + file->getFileName() +"\"");
+      response->putHeader("content-disposition", "attachment; filename=\"" + conspire::boundaries::attachmentFilename(file->getFileName()->std_str()) +"\"");
 
       return _return(response);
     }

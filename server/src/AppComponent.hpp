@@ -29,6 +29,7 @@
 
 #include "rooms/Lobby.hpp"
 #include "dto/Config.hpp"
+#include "utils/ConfigValidation.hpp"
 #include "utils/Statistics.hpp"
 
 #include "oatpp-openssl/server/ConnectionProvider.hpp"
@@ -98,12 +99,11 @@ public:
       portText = m_cmdArgs.getNamedArgumentValue("--port", "8443");
     }
 
-    bool success;
-    auto port = oatpp::utils::Conversion::strToUInt32(portText, success);
-    if(!success || port > 65535) {
+    const auto port = conspire::config::parsePort(portText ? portText : "");
+    if(!port) {
       throw std::runtime_error("Invalid port!");
     }
-    config->port = (v_uint16) port;
+    config->port = *port;
 
     config->tlsPrivateKeyPath = std::getenv("TLS_FILE_PRIVATE_KEY");
     if(!config->tlsPrivateKeyPath) {

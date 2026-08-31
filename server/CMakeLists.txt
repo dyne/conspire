@@ -1,114 +1,118 @@
 cmake_minimum_required(VERSION 3.20)
-set(BUILD_SHARED_LIBS OFF)
-set(project_name canchat) ## rename your project here
+project(conspire LANGUAGES CXX)
 
-project(${project_name})
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(BUILD_SHARED_LIBS OFF)
 
-# Add local dependencies path
-set(DEPS_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/../build/deps")
-if(EXISTS "${DEPS_PREFIX}")
-    list(PREPEND CMAKE_PREFIX_PATH "${DEPS_PREFIX}")
-    message(STATUS "Using local dependencies from: ${DEPS_PREFIX}")
-    include_directories("${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp")
-    include_directories("${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp-openssl")
-    include_directories("${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp-websocket")
+set(CONSPIRE_VERSION "unknown" CACHE STRING "Conspire version string")
+set(CONSPIRE_DEPS_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/../build/deps" CACHE PATH
+    "Prefix containing the compatible oatpp 1.4.0 dependency set")
+option(CONSPIRE_ENABLE_COVERAGE "Instrument Conspire project targets for coverage" OFF)
+option(CONSPIRE_USE_CCACHE "Use ccache when it is available" ON)
+option(CONSPIRE_CORE_TESTS_ONLY "Build dependency-independent configuration tests without oatpp" OFF)
+
+if(CONSPIRE_USE_CCACHE)
+  find_program(CONSPIRE_CCACHE_PROGRAM ccache)
+  if(CONSPIRE_CCACHE_PROGRAM)
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CONSPIRE_CCACHE_PROGRAM}")
+    message(STATUS "Using ccache: ${CONSPIRE_CCACHE_PROGRAM}")
+  else()
+    message(STATUS "ccache not found; continuing without a compiler cache")
+  endif()
 endif()
 
-include_directories(src)
+if(BUILD_TESTING)
+  add_executable(conspire-core-test test/core_tests.cpp test/coverage_fixture.cpp)
+  target_include_directories(conspire-core-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  add_test(NAME conspire-core-unit COMMAND conspire-core-test)
+  if(CONSPIRE_ENABLE_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+      message(FATAL_ERROR "CONSPIRE_ENABLE_COVERAGE requires GCC or Clang")
+    endif()
+    target_compile_options(conspire-core-test PRIVATE --coverage -O0 -g)
+    target_link_options(conspire-core-test PRIVATE --coverage)
+    find_program(CONSPIRE_GCOV_PROGRAM gcov REQUIRED)
+    add_test(NAME conspire-core-coverage-gate
+      COMMAND "${CMAKE_COMMAND}"
+        -DGCOV=${CONSPIRE_GCOV_PROGRAM}
+        -DOBJECT_DIR=${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/conspire-core-test.dir
+        -DGCOV_INPUT=test/core_tests.cpp.gcno
+        -DSOURCE_FILES=ConfigValidation.hpp.gcov,ServerBoundaries.hpp.gcov
+        -DLINE_MINIMUM=70 -DBRANCH_MINIMUM=60 -DHELPER_LINE_MINIMUM=85
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/test/CheckCoverage.cmake")
+    add_test(NAME conspire-core-coverage-control
+      COMMAND "${CMAKE_COMMAND}"
+        -DGCOV=${CONSPIRE_GCOV_PROGRAM}
+        -DOBJECT_DIR=${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/conspire-core-test.dir
+        -DGCOV_INPUT=test/coverage_fixture.cpp.gcno
+        -DSOURCE_FILES=coverage_fixture.cpp.gcov
+        -DEXPECT_LINE_BELOW=80
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/test/CheckCoverage.cmake")
+    set_tests_properties(conspire-core-coverage-control PROPERTIES WILL_FAIL TRUE)
+  endif()
+endif()
 
-add_library(${project_name}-lib
-        src/AppComponent.hpp
-        src/controller/FileController.hpp
-        src/controller/RoomsController.hpp
-        src/controller/StaticController.hpp
-        src/controller/StatisticsController.hpp
-        src/rooms/File.cpp
-        src/rooms/File.hpp
-        src/rooms/Peer.cpp
-        src/rooms/Peer.hpp
-        src/rooms/Room.cpp
-        src/rooms/Room.hpp
-        src/rooms/Lobby.cpp
-        src/rooms/Lobby.hpp
-        src/utils/Nickname.cpp
-        src/utils/Nickname.hpp
-        src/utils/Statistics.cpp
-        src/utils/Statistics.hpp
-        src/dto/DTOs.hpp
-        src/dto/Config.hpp
-)
+if(NOT EXISTS "${CONSPIRE_DEPS_PREFIX}")
+  if(CONSPIRE_CORE_TESTS_ONLY AND BUILD_TESTING)
+    message(STATUS "Building dependency-independent core tests only; oatpp 1.4.0 prefix is not required for this target")
+    return()
+  endif()
+  message(FATAL_ERROR
+    "Compatible oatpp 1.4.0 prefix is required but was not found at '${CONSPIRE_DEPS_PREFIX}'. "
+    "Supply it with -DCONSPIRE_DEPS_PREFIX=/path/to/prefix. Public oatpp 1.3.x is incompatible with this source tree and is intentionally not fetched.")
+endif()
+list(PREPEND CMAKE_PREFIX_PATH "${CONSPIRE_DEPS_PREFIX}")
 
-## link libs
-
-find_package(oatpp              1.4.0 REQUIRED)
-find_package(oatpp-websocket    1.4.0 REQUIRED)
-find_package(oatpp-openssl      1.4.0 REQUIRED)
-
+find_package(oatpp 1.4.0 CONFIG REQUIRED)
+find_package(oatpp-websocket 1.4.0 CONFIG REQUIRED)
+find_package(oatpp-openssl 1.4.0 CONFIG REQUIRED)
 find_package(OpenSSL 1.1 REQUIRED)
 
-target_link_libraries(${project_name}-lib
+add_library(conspire-lib
+  src/AppComponent.hpp
+  src/controller/FileController.hpp
+  src/controller/RoomsController.hpp
+  src/controller/StaticController.hpp
+  src/controller/StatisticsController.hpp
+  src/rooms/File.cpp src/rooms/File.hpp
+  src/rooms/Peer.cpp src/rooms/Peer.hpp
+  src/rooms/Room.cpp src/rooms/Room.hpp
+  src/rooms/Lobby.cpp src/rooms/Lobby.hpp
+  src/utils/Nickname.cpp src/utils/Nickname.hpp
+  src/utils/ConfigValidation.hpp src/utils/ServerBoundaries.hpp
+  src/utils/Statistics.cpp src/utils/Statistics.hpp
+  src/dto/DTOs.hpp src/dto/Config.hpp)
+target_include_directories(conspire-lib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_definitions(conspire-lib PRIVATE
+  CERT_PEM_PATH="cert/privkey.pem" CERT_CRT_PATH="cert/fullchain.pem"
+  FRONT_PATH="front" CONSPIRE_VERSION="${CONSPIRE_VERSION}")
+target_link_libraries(conspire-lib
+  PUBLIC oatpp::oatpp oatpp::oatpp-websocket oatpp::oatpp-openssl
+  PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
-        # Oat++ libraries
-        PUBLIC oatpp::oatpp
-        PUBLIC oatpp::oatpp-test
-        PUBLIC oatpp::oatpp-websocket
-        PUBLIC oatpp::oatpp-openssl
+add_executable(conspire-exe src/App.cpp)
+target_link_libraries(conspire-exe PRIVATE conspire-lib)
 
-        # OpenSSL libraries
-        PUBLIC OpenSSL::SSL
-        PUBLIC OpenSSL::Crypto
-
-)
-
-# Add target-specific include directories for local dependencies
-if(EXISTS "${DEPS_PREFIX}")
-    target_include_directories(${project_name}-lib PRIVATE
-    "${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp"
-    "${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp-openssl"
-    "${DEPS_PREFIX}/include/oatpp-1.4.0/oatpp-websocket"
-    )
+if(CONSPIRE_ENABLE_COVERAGE)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    message(FATAL_ERROR "CONSPIRE_ENABLE_COVERAGE requires GCC or Clang")
+  endif()
+  foreach(target conspire-lib conspire-exe)
+    target_compile_options(${target} PRIVATE --coverage -O0 -g)
+    target_link_options(${target} PRIVATE --coverage)
+  endforeach()
 endif()
 
-#################################################################
-## define version and build paths
-
-# Set version from command line or default
-if(NOT DEFINED VERSION)
-    set(VERSION "unknown")
+if(BUILD_TESTING)
+  add_executable(conspire-test test/tests.cpp test/WSTest.cpp test/WSTest.hpp)
+  target_link_libraries(conspire-test PRIVATE conspire-lib oatpp::oatpp-test)
+  if(CONSPIRE_ENABLE_COVERAGE)
+    target_compile_options(conspire-test PRIVATE --coverage -O0 -g)
+    target_link_options(conspire-test PRIVATE --coverage)
+  endif()
+  add_test(NAME conspire-unit COMMAND conspire-test)
 endif()
-
-add_definitions(
-        -DCERT_PEM_PATH="cert/privkey.pem"
-        -DCERT_CRT_PATH="cert/fullchain.pem"
-        -DFRONT_PATH="front"
-        -DCONSPIRE_VERSION="${VERSION}"
-)
-
-#################################################################
-## add executables
-
-add_executable(${project_name}-exe
-        src/App.cpp
-)
-target_link_libraries(${project_name}-exe ${project_name}-lib)
-add_dependencies(${project_name}-exe ${project_name}-lib)
-
-add_executable(${project_name}-test
-        test/tests.cpp
-        test/WSTest.cpp
-        test/WSTest.hpp
-)
-target_link_libraries(${project_name}-test ${project_name}-lib)
-add_dependencies(${project_name}-test ${project_name}-lib)
-
-set_target_properties(${project_name}-lib ${project_name}-exe ${project_name}-test PROPERTIES
-        CXX_STANDARD 17
-        CXX_EXTENSIONS OFF
-        CXX_STANDARD_REQUIRED ON
-        LINKER_LANGUAGE CXX
-)
-
-enable_testing()
-add_test(tests ${project_name}-test)

@@ -25,6 +25,7 @@
  ***************************************************************************/
 
 #include "Room.hpp"
+#include "utils/ServerBoundaries.hpp"
 
 oatpp::String Room::getName() {
   return m_name;
@@ -88,11 +89,7 @@ void Room::goodbyePeer(const std::shared_ptr<Peer>& peer) {
 
 std::shared_ptr<Peer> Room::getPeerById(v_int64 peerId) {
   std::lock_guard<std::mutex> guard(m_peerByIdLock);
-  auto it = m_peerById.find(peerId);
-  if(it != m_peerById.end()) {
-    return it->second;
-  }
-  return nullptr;
+  return conspire::boundaries::findById(m_peerById, peerId);
 }
 
 void Room::removePeerById(v_int64 peerId) {
@@ -127,9 +124,7 @@ void Room::addHistoryMessage(const oatpp::Object<MessageDto>& message) {
 
   m_history.push_back(message);
 
-  while(m_history.size() > m_appConfig->maxRoomHistoryMessages) {
-    m_history.pop_front();
-  }
+  conspire::boundaries::retainLast(m_history, *m_appConfig->maxRoomHistoryMessages);
 
 }
 
@@ -173,11 +168,7 @@ std::shared_ptr<File> Room::shareFile(v_int64 hostPeerId, v_int64 clientFileId, 
 
 std::shared_ptr<File> Room::getFileById(v_int64 fileId) {
   std::lock_guard<std::mutex> guard(m_fileByIdLock);
-  auto it = m_fileById.find(fileId);
-  if(it != m_fileById.end()) {
-    return it->second;
-  }
-  return nullptr;
+  return conspire::boundaries::findById(m_fileById, fileId);
 }
 
 void Room::sendMessageAsync(const oatpp::Object<MessageDto>& message) {

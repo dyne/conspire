@@ -1,0 +1,9 @@
+{
+  "name": "conspire-quality-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:browser": "node --test test/*.test.mjs",
+    "coverage:browser": "node --experimental-test-coverage --test-coverage-lines=70 --test-coverage-branches=70 --test test/browser-protocol.test.mjs"
+  }
+}

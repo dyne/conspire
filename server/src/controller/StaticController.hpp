@@ -105,6 +105,17 @@ public:
 
   };
 
+  ENDPOINT_ASYNC("GET", "room/{roomId}/protocol.js", ProtocolJS) {
+    ENDPOINT_ASYNC_INIT(ProtocolJS)
+
+    Action act() override {
+      std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/protocol.js");
+      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      return _return(response);
+    }
+  };
+
 };
 
 #include OATPP_CODEGEN_END(ApiController) /// <-- End Code-Gen
