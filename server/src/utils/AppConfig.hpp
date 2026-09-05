@@ -34,7 +34,6 @@ inline oatpp::Object<ConfigDto> fromCommandLine(const oatpp::base::CommandLineAr
   if (!config->statisticsUrl) config->statisticsUrl = arguments.getNamedArgumentValue("--url-stats", "admin/stats.json");
   if (!config->statisticsUrl || !validStatsPath(*config->statisticsUrl)) throw std::runtime_error("Invalid statistics path!");
   config->pidFilePath = arguments.getNamedArgumentValue("--pid");
-  config->frontPath = arguments.getNamedArgumentValue("--front", "front");
   config->version = CONSPIRE_VERSION;
   return config;
 }

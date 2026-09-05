@@ -24,6 +24,20 @@ test('served pages expose the build-version title placeholder', async () => {
   assert.match(controller, /replaceLiteral\(page, "%%%CONSPIRE_TITLE%%%"/);
 });
 
+test('the server embeds its complete frontend instead of loading runtime files', async () => {
+  const [cmake, generator, controller] = await Promise.all([
+    readFile(new URL('../server/CMakeLists.txt', import.meta.url), 'utf8'),
+    readFile(new URL('../server/cmake/EmbedFrontend.cmake', import.meta.url), 'utf8'),
+    readFile(new URL('../server/src/controller/StaticController.hpp', import.meta.url), 'utf8'),
+  ]);
+  assert.match(cmake, /GLOB_RECURSE CONSPIRE_FRONTEND_ASSETS CONFIGURE_DEPENDS/);
+  assert.match(cmake, /EmbedFrontend\.cmake/);
+  assert.match(generator, /file\(GLOB_RECURSE frontend_assets/);
+  assert.match(controller, /findAsset\(path\)/);
+  assert.match(controller, /loadAsset\("style\.css"\)/);
+  assert.doesNotMatch(controller, /loadFromFile|frontPath/);
+});
+
 test('server admission and malformed-message guards remain explicit', async () => {
   const lobby = await readFile(new URL('../server/src/rooms/Lobby.cpp', import.meta.url), 'utf8');
   const room = await readFile(new URL('../server/src/rooms/Room.cpp', import.meta.url), 'utf8');

@@ -15,10 +15,9 @@ ENV EXTERNAL_ADDRESS=localhost \
     TLS_FILE_CERT_CHAIN=/run/certs/fullchain.pem \
     URL_STATS_PATH=admin/stats.json
 
-# Release automation supplies a verified binary and web assets from its build
-# stage. Certificates are operator-mounted at /run/certs and are never copied.
+# Release automation supplies a verified binary with its web assets embedded.
+# Certificates are operator-mounted at /run/certs and are never copied.
 COPY --chown=conspire:conspire conspire /app/conspire
-COPY --chown=conspire:conspire front /app/front
 
 USER conspire:conspire
 VOLUME ["/run/conspire"]

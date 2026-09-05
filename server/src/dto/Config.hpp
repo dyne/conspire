@@ -61,11 +61,6 @@ public:
    */
   DTO_FIELD(String, pidFilePath);
 
-    /**
-     * Path to frontend static files.
-     */
-    DTO_FIELD(String, frontPath);
-
   /**
    * Software version.
    */

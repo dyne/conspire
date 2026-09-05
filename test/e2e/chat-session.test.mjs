@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import WebSocket from 'ws';
@@ -73,9 +74,9 @@ function startConspire(port) {
   ]) delete environment[name];
 
   const child = spawn(binary, [
-    '--host', 'localhost', '--port', String(port), '--front', resolve(root, 'front'),
+    '--host', 'localhost', '--port', String(port),
   ], {
-    cwd: root,
+    cwd: tmpdir(),
     env: environment,
     stdio: ['ignore', 'pipe', 'pipe'],
   });

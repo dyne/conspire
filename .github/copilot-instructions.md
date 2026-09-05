@@ -35,11 +35,8 @@ server/src/
 
 ### Build System
 ```bash
-# Build dependencies and server (creates ./build/deps with local Oat++ build)
-make build/deps
-
-# Build server
-make conspire
+# Build vendored dependencies and server
+make
 
 # Run server
 ./conspire-x86_64 --host localhost --port 8080

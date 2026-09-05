@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -34,9 +35,9 @@ function startConspire(port) {
   ]) delete environment[name];
 
   const child = spawn(binary, [
-    '--host', 'localhost', '--port', String(port), '--front', resolve(root, 'front'),
+    '--host', 'localhost', '--port', String(port),
   ], {
-    cwd: root,
+    cwd: tmpdir(),
     env: environment,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -93,7 +94,7 @@ test('users chat through the browser UI and a newcomer receives history', async 
   test.setTimeout(45_000);
   const port = await reservePort();
   const origin = `http://localhost:${port}`;
-  const roomUrl = `${origin}/room/playwright-room`;
+  const roomUrl = `${origin}/room/reception`;
   const server = startConspire(port);
   const contexts = [];
   const pageErrors = [];
@@ -102,17 +103,38 @@ test('users chat through the browser UI and a newcomer receives history', async 
   try {
     await waitForServer(server, origin);
 
+    const trackPage = (page) => {
+      page.on('pageerror', (error) => pageErrors.push(error));
+      return page;
+    };
+
+    const firstContext = await browser.newContext();
+    contexts.push(firstContext);
+    const landing = trackPage(await firstContext.newPage());
+    await landing.goto(origin);
+    await expect(landing).toHaveTitle(`Conspire v${buildVersion} by Dyne.org`);
+    await expect(landing.locator('body')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(landing.getByRole('button', { name: 'Public Reception' })).toBeVisible();
+    await expect(landing.getByRole('button', { name: 'New Private Room' })).toBeVisible();
+
+    const firstPageOpened = firstContext.waitForEvent('page');
+    await landing.getByRole('button', { name: 'Public Reception' }).click();
+    const first = trackPage(await firstPageOpened);
+    await first.waitForLoadState();
+    await expect(first).toHaveURL(roomUrl);
+    await expect(first.locator('#chat_container')).toHaveCSS('background-color', 'rgb(66, 66, 66)');
+    await expect(first.getByRole('button', { name: 'Send', exact: true })).toBeVisible();
+    await expect(first.getByRole('button', { name: 'Share Files' })).toBeVisible();
+
     const openParticipant = async () => {
       const context = await browser.newContext();
       contexts.push(context);
-      const page = await context.newPage();
-      page.on('pageerror', (error) => pageErrors.push(error));
+      const page = trackPage(await context.newPage());
       await page.goto(roomUrl);
       await expect(page).toHaveTitle(`Conspire v${buildVersion} by Dyne.org`);
       return page;
     };
 
-    const first = await openParticipant();
     await expect(first.locator('#participants_toggle #participant_count')).toHaveText('1');
 
     const second = await openParticipant();
