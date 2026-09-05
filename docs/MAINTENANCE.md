@@ -5,8 +5,10 @@
 Conspire is a C++ oatpp server with a build-time embedded browser client. Clients connect
 directly over TLS/WebSockets; the landing page is separately served static
 content. The server process owns the embedded assets, ephemeral rooms, file streams, and the
-statistics endpoint. TLS private keys, release credentials, and deployment
-configuration are operator-owned inputs, not source or image assets.
+statistics endpoint. When configured, aggregate statistics history is atomically
+checkpointed to an operator-owned state path. TLS private keys, persistent
+state, release credentials, and deployment configuration are operator-owned
+inputs, not source or image assets.
 
 The main threat assumptions are hostile browser input, untrusted file names and
 sizes, malicious clients retaining connections, compromised package/action/image
@@ -71,6 +73,9 @@ advisory affects a pinned input.
   Dockerfile contract and record that a daemon was unavailable for image smoke.
 - Certificate errors: mount `privkey.pem` and `fullchain.pem` at `/run/certs`
   read-only; see the deployment guide for systemd paths.
+- Invalid statistics state: Conspire starts with empty in-memory statistics and
+  leaves the invalid file untouched. Move or repair it before restarting to
+  re-enable persistence at that path.
 - Before opening a PR: run every fresh-checkout command above, keep generated
   `dist/` and local certificates untracked, and update tests/documentation for
   observable behavior changes.

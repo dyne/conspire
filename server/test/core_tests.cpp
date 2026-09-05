@@ -39,6 +39,10 @@ int main() {
   assert(conspire::config::validStatsPath("admin/stats.json"));
   assert(!conspire::config::validStatsPath("../stats.json"));
   assert(!conspire::config::validStatsPath("/stats.json"));
+  assert(conspire::config::validStateFilePath("/var/lib/conspire/stats.json"));
+  assert(conspire::config::validStateFilePath("relative stats.json"));
+  assert(!conspire::config::validStateFilePath(""));
+  assert(!conspire::config::validStateFilePath("stats\n.json"));
   assert(conspire::boundaries::validRequestPath("/room/one"));
   assert(!conspire::boundaries::validRequestPath("//evil.test"));
   assert(!conspire::boundaries::validRequestPath("/room\r\none"));

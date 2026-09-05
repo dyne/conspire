@@ -33,6 +33,16 @@ inline oatpp::Object<ConfigDto> fromCommandLine(const oatpp::base::CommandLineAr
   config->statisticsUrl = std::getenv("URL_STATS_PATH");
   if (!config->statisticsUrl) config->statisticsUrl = arguments.getNamedArgumentValue("--url-stats", "admin/stats.json");
   if (!config->statisticsUrl || !validStatsPath(*config->statisticsUrl)) throw std::runtime_error("Invalid statistics path!");
+  config->statisticsStatePath = std::getenv("STATS_STATE_PATH");
+  if (!config->statisticsStatePath) {
+    config->statisticsStatePath = arguments.getNamedArgumentValue("--stats-state");
+  }
+  if (arguments.hasArgument("--stats-state") && !config->statisticsStatePath) {
+    throw std::runtime_error("Missing statistics state path!");
+  }
+  if (config->statisticsStatePath && !validStateFilePath(*config->statisticsStatePath)) {
+    throw std::runtime_error("Invalid statistics state path!");
+  }
   config->pidFilePath = arguments.getNamedArgumentValue("--pid");
   config->version = CONSPIRE_VERSION;
   return config;

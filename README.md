@@ -37,7 +37,7 @@ sources are built locally; the incompatible public oatpp 1.3 line is never
 substituted.
 
 ```sh
-docker run --read-only --tmpfs /run/conspire:uid=100,gid=101 \
+docker run --read-only -v conspire-state:/run/conspire \
   -v "$PWD/cert:/run/certs:ro" -p 8443:8443 ghcr.io/dyne/conspire:latest
 ```
 
@@ -177,7 +177,7 @@ mkdir cert \
   -keyout cert/privkey.pem   -out cert/test_cert.crt   \
   -subj "/C=NL/ST=Netherlands/L=Amsterdam/O=Dyne.org/CN=dyne.org" \
 && cat cert/test_cert.crt cert/privkey.pem > cert/fullchain.pem \
-&& docker run --read-only --tmpfs /run/conspire:uid=100,gid=101 \
+&& docker run --read-only -v conspire-state:/run/conspire \
   -v "$PWD/cert:/run/certs:ro" -p 8443:8443 ghcr.io/dyne/conspire:latest
 ```
 
@@ -219,6 +219,13 @@ Conspire exposes statistics at `/admin/stats.json` and serves its embedded
 [dashboard](dashboard/) at `/dashboard`. The dashboard uses the running
 server's configured statistics endpoint and visualizes peer activity, room
 usage, and system metrics.
+
+Native runs keep statistics in memory unless `--stats-state <path>` or the
+equivalent `STATS_STATE_PATH` environment variable is configured; the container
+image enables it at `/run/conspire/stats.json`. With persistence enabled,
+Conspire validates and restores the retained history at startup, checkpoints it
+atomically every minute, and saves once more on graceful shutdown. The state
+directory must be writable by the service user.
 
 ## 💼 License
 

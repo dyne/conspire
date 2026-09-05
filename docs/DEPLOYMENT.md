@@ -27,8 +27,8 @@ The landing page generates random room URLs and redirects users to Conspire.
 
 The container has no baked certificate or private key. Mount an operator-owned
 directory at `/run/certs:ro` containing `privkey.pem` and `fullchain.pem`, run
-the filesystem read-only, and give `/run/conspire` a writable tmpfs for the
-optional PID file:
+the filesystem read-only, and give `/run/conspire` a named volume for durable
+statistics state and the optional PID file:
 
 Build the image from the same verified CMake inputs used in review (not from an
 untracked `conspire` file):
@@ -42,7 +42,7 @@ currently unavailable in this checkout and public oatpp 1.3.x must not be used
 as a substitute.
 
 ```sh
-docker run --read-only --tmpfs /run/conspire:uid=100,gid=101 \
+docker run --read-only -v conspire-state:/run/conspire \
   -v /opt/conspire/cert:/run/certs:ro -p 8443:8443 \
   -e EXTERNAL_ADDRESS=your-domain.com -e EXTERNAL_PORT=8443 \
   ghcr.io/dyne/conspire:latest
@@ -103,6 +103,8 @@ Environment=EXTERNAL_ADDRESS=your-domain.com
 Environment=EXTERNAL_PORT=8443
 Environment=TLS_FILE_PRIVATE_KEY=cert/privkey.pem
 Environment=TLS_FILE_CERT_CHAIN=cert/fullchain.pem
+Environment=STATS_STATE_PATH=/var/lib/conspire/stats.json
+StateDirectory=conspire
 Restart=on-failure
 
 [Install]
@@ -130,6 +132,9 @@ sudo ufw allow 8443/tcp
 ### 5. Test
 
 Open `https://your-domain.com:8443` — you should see the Conspire interface.
+Statistics are checkpointed atomically every minute and during graceful
+shutdown. The service restores the retained history and cumulative counters
+from `/var/lib/conspire/stats.json` on its next start.
 
 ## Landing Page Integration
 

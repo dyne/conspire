@@ -42,6 +42,11 @@ public:
 
   DTO_FIELD(String, statisticsUrl);
 
+  /**
+   * Optional path used to persist statistics across process restarts.
+   */
+  DTO_FIELD(String, statisticsStatePath);
+
   DTO_FIELD(String, host);
   DTO_FIELD(UInt16, port);
   DTO_FIELD(Boolean, useTLS) = false;

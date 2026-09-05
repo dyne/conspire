@@ -31,10 +31,19 @@
 #include "oatpp/json/ObjectMapper.hpp"
 #include "oatpp/Types.hpp"
 
+#include <atomic>
 #include <chrono>
+#include <mutex>
+#include <string>
 
 class Statistics {
 public:
+
+  enum class StateLoadResult {
+    LOADED,
+    MISSING,
+    INVALID
+  };
 
   std::atomic<v_uint64> EVENT_FRONT_PAGE_LOADED   {0};          // On Frontpage Loaded
 
@@ -70,6 +79,8 @@ public:
 
   void takeSample();
   oatpp::String getJsonData();
+  StateLoadResult loadState(const std::string& path);
+  bool saveState(const std::string& path);
 
   /** Take one statistics sample. Scheduling and cancellation belong to an
    * owned lifecycle runner, not this component. */
