@@ -80,6 +80,7 @@ Options:
   --tls-key <path>         Path to TLS private key file (default: "cert/privkey.pem")
   --tls-chain <path>       Path to TLS certificate chain file (default: "cert/fullchain.pem")
   --url-stats <path>       Statistics endpoint path (default: admin/stats.json)
+  --stats-state <path>     Persist statistics to this file across restarts
   --pid <path>             Path to PID file to create
   --version                Show version information
   -h, --help               Show this help message
@@ -126,6 +127,20 @@ Options:
 
   OATPP_COMPONENT(std::shared_ptr<Lobby>, lobby);
   OATPP_COMPONENT(std::shared_ptr<Statistics>, statistics);
+  const std::string statisticsStatePath = appConfig->statisticsStatePath
+      ? *appConfig->statisticsStatePath : "";
+  bool statisticsPersistenceEnabled = !statisticsStatePath.empty();
+  if (statisticsPersistenceEnabled) {
+    const auto loadResult = statistics->loadState(statisticsStatePath);
+    if (loadResult == Statistics::StateLoadResult::LOADED) {
+      OATPP_LOGi("conspire", "Restored statistics state from {}", statisticsStatePath);
+    } else if (loadResult == Statistics::StateLoadResult::INVALID) {
+      OATPP_LOGw("conspire",
+          "Statistics state is invalid or unreadable; starting empty and preserving {}",
+          statisticsStatePath);
+      statisticsPersistenceEnabled = false;
+    }
+  }
   statistics->runStatIteration();
 
   std::thread serverThread([&server]{
@@ -134,16 +149,26 @@ Options:
 
   conspire::lifecycle::PeriodicRunner pingRunner;
   conspire::lifecycle::PeriodicRunner statisticsRunner;
+  conspire::lifecycle::PeriodicRunner statisticsPersistenceRunner;
   const bool pingStarted = pingRunner.start(std::chrono::seconds(30), [lobby] {
     lobby->runPingIteration();
   });
   const bool statisticsStarted = statisticsRunner.start(std::chrono::seconds(1), [statistics] {
     statistics->runStatIteration();
   });
-  if (!pingStarted || !statisticsStarted) {
+  const bool statisticsPersistenceStarted = !statisticsPersistenceEnabled ||
+      statisticsPersistenceRunner.start(std::chrono::minutes(1),
+          [statistics, statisticsStatePath] {
+            if (!statistics->saveState(statisticsStatePath)) {
+              OATPP_LOGw("conspire", "Failed to checkpoint statistics state to {}",
+                         statisticsStatePath);
+            }
+          });
+  if (!pingStarted || !statisticsStarted || !statisticsPersistenceStarted) {
     OATPP_LOGe("conspire", "Failed to start lifecycle workers");
     pingRunner.stop();
     statisticsRunner.stop();
+    statisticsPersistenceRunner.stop();
     server.stop();
     if (serverThread.joinable()) serverThread.join();
     connectionHandler->stop();
@@ -164,7 +189,8 @@ Options:
   OATPP_LOGi("conspire", "statistics URL={}", appConfig->getStatsUrl())
 
   // Wait for shutdown signal
-  while (g_shutdownSignal == 0 && !pingRunner.failed() && !statisticsRunner.failed()) {
+  while (g_shutdownSignal == 0 && !pingRunner.failed() && !statisticsRunner.failed() &&
+         !statisticsPersistenceRunner.failed()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
@@ -172,11 +198,18 @@ Options:
 
   // Each owned worker is woken and joined before components/environment die.
   pingRunner.stop();
-  statisticsRunner.stop();
+  statisticsPersistenceRunner.stop();
   server.stop();
   if (serverThread.joinable()) serverThread.join();
   connectionHandler->stop();
   executor->waitTasksFinished(std::chrono::seconds(5));
+  statisticsRunner.stop();
+  if (statisticsPersistenceEnabled) {
+    statistics->runStatIteration();
+    if (!statistics->saveState(statisticsStatePath)) {
+      OATPP_LOGw("conspire", "Failed to save statistics state to {}", statisticsStatePath);
+    }
+  }
   executor->stop();
   executor->join();
   pidFile.reset();

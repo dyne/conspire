@@ -30,6 +30,11 @@ inline bool validStatsPath(std::string_view path) {
   return conspire::boundaries::validRelativePath(path) && path.size() <= 128;
 }
 
+inline bool validStateFilePath(std::string_view path) {
+  return !path.empty() && path.size() <= 4096 &&
+         !conspire::boundaries::containsControl(path);
+}
+
 inline std::string canonicalBaseUrl(std::string_view host, std::uint16_t port, bool useTls) {
   const auto defaultPort = useTls ? 443 : 80;
   std::string url = useTls ? "https://" : "http://";

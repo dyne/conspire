@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import WebSocket from 'ws';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
@@ -224,6 +225,72 @@ test('real server serves its embedded dashboard and configured statistics path',
         { cause: scenarioError });
     }
     assert.deepEqual(exit, { code: 0, signal: null }, `Conspire output:\n${diagnostics}`);
+  });
+
+test('statistics survive a graceful process restart', { timeout: 30_000 }, async () => {
+  const stateDirectory = await mkdtemp(join(tmpdir(), 'conspire-statistics-e2e-'));
+  const statePath = join(stateDirectory, 'stats.json');
+  let activeServer;
+  let scenarioError;
+
+  try {
+    const firstPort = await reservePort();
+    const firstOrigin = `http://localhost:${firstPort}`;
+    activeServer = startConspire(firstPort, ['--stats-state', statePath]);
+    await waitForServer(activeServer, firstOrigin);
+    await fetch(`${firstOrigin}/`);
+    await fetch(`${firstOrigin}/`);
+    assert.deepEqual(await stopConspire(activeServer), { code: 0, signal: null });
+    activeServer = undefined;
+
+    const savedBeforeRestart = JSON.parse(await readFile(statePath, 'utf8'));
+    assert(savedBeforeRestart.length > 0);
+    const beforeRestart = savedBeforeRestart.at(-1);
+    assert(beforeRestart.ev_front_page_loaded >= 2);
+
+    const secondPort = await reservePort();
+    const secondOrigin = `http://localhost:${secondPort}`;
+    activeServer = startConspire(secondPort, ['--stats-state', statePath]);
+    await waitForServer(activeServer, secondOrigin);
+    const restored = await (await fetch(`${secondOrigin}/admin/stats.json`)).json();
+    assert(restored.length > 0);
+    assert(restored.at(-1).ev_front_page_loaded >= beforeRestart.ev_front_page_loaded);
+    assert(restored.some((point) => point.timestamp === beforeRestart.timestamp));
+  } catch (error) {
+    scenarioError = error;
+  }
+
+  if (activeServer) {
+    try {
+      const exit = await stopConspire(activeServer);
+      assert.deepEqual(exit, { code: 0, signal: null });
+    } catch (error) {
+      scenarioError ??= error;
+    }
+  }
+  await rm(stateDirectory, { recursive: true, force: true });
+
+  if (scenarioError) throw scenarioError;
+});
+
+test('invalid statistics state is preserved without blocking startup',
+  { timeout: 30_000 }, async () => {
+    const stateDirectory = await mkdtemp(join(tmpdir(), 'conspire-invalid-statistics-e2e-'));
+    const statePath = join(stateDirectory, 'stats.json');
+    const invalidState = '{not valid json';
+    await writeFile(statePath, invalidState);
+    const port = await reservePort();
+    const origin = `http://localhost:${port}`;
+    const server = startConspire(port, ['--stats-state', statePath]);
+
+    try {
+      await waitForServer(server, origin);
+      assert.deepEqual(await stopConspire(server), { code: 0, signal: null });
+      assert.equal(await readFile(statePath, 'utf8'), invalidState);
+    } finally {
+      if (server.child.exitCode === null) await stopConspire(server);
+      await rm(stateDirectory, { recursive: true, force: true });
+    }
   });
 
 test('real server broadcasts chat messages and supplies room history', { timeout: 30_000 }, async () => {

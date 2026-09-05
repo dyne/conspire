@@ -13,7 +13,8 @@ ENV EXTERNAL_ADDRESS=localhost \
     EXTERNAL_PORT=8443 \
     TLS_FILE_PRIVATE_KEY=/run/certs/privkey.pem \
     TLS_FILE_CERT_CHAIN=/run/certs/fullchain.pem \
-    URL_STATS_PATH=admin/stats.json
+    URL_STATS_PATH=admin/stats.json \
+    STATS_STATE_PATH=/run/conspire/stats.json
 
 # Release automation supplies a verified binary with its web assets embedded.
 # Certificates are operator-mounted at /run/certs and are never copied.
