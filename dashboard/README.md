@@ -16,16 +16,18 @@ A real-time dashboard for visualizing Conspire P2P statistics and metrics.
 
 ### Basic Usage
 
-Open `index.html` in a web browser. The dashboard will automatically fetch data from the default stats endpoint:
+Open `/dashboard` on a running Conspire server. The dashboard is embedded in
+the binary and automatically fetches that server's configured statistics
+endpoint. For example:
 ```
-https://conspire.dyne.org:8443/admin/stats.json
+https://conspire.dyne.org:8443/dashboard
 ```
 
 ### Custom Stats URL
 
 You can specify a custom stats URL using the `statsUrl` parameter:
 ```
-index.html?statsUrl=https://your-conspire-server.com:8443/admin/stats.json
+/dashboard?statsUrl=https://your-conspire-server.com:8443/admin/stats.json
 ```
 
 ### CORS Issues & Solutions
@@ -58,7 +60,7 @@ For local development, start Chrome with disabled web security:
 google-chrome --disable-web-security --user-data-dir="/tmp/chrome_dev"
 ```
 
-### Local Development
+### Standalone Development
 
 Start a local web server in the dashboard directory:
 ```bash
@@ -66,7 +68,8 @@ cd dashboard
 python3 -m http.server 8000
 ```
 
-Then open http://localhost:8000 in your browser.
+Then open `http://localhost:8000` in your browser and provide a reachable
+localhost statistics endpoint through the `statsUrl` query parameter.
 
 ## Data Format
 

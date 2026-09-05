@@ -1,5 +1,5 @@
 // Conspire P2P Dashboard Data Configuration
-const DEFAULT_STATS_URL = 'https://conspire.dyne.org:8443/admin/stats.json';
+const DEFAULT_STATS_URL = globalThis.ConspireDashboardConfig?.statsUrl ?? '/admin/stats.json';
 let statsData = [];
 let charts = {}; // Store chart instances for updating
 

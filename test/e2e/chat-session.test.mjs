@@ -66,7 +66,7 @@ async function reservePort() {
   return port;
 }
 
-function startConspire(port) {
+function startConspire(port, extraArguments = []) {
   const environment = { ...process.env };
   for (const name of [
     'EXTERNAL_ADDRESS', 'EXTERNAL_PORT', 'TLS_FILE_PRIVATE_KEY',
@@ -74,7 +74,7 @@ function startConspire(port) {
   ]) delete environment[name];
 
   const child = spawn(binary, [
-    '--host', 'localhost', '--port', String(port),
+    '--host', 'localhost', '--port', String(port), ...extraArguments,
   ], {
     cwd: tmpdir(),
     env: environment,
@@ -174,6 +174,57 @@ async function stopConspire(server) {
   return withTimeout(server.exit, 7_000, 'Timed out stopping Conspire',
     () => server.child.kill('SIGKILL'));
 }
+
+test('real server serves its embedded dashboard and configured statistics path',
+  { timeout: 30_000 }, async () => {
+    const port = await reservePort();
+    const origin = `http://localhost:${port}`;
+    const server = startConspire(port, ['--url-stats', 'metrics/live.json']);
+    let scenarioError;
+
+    try {
+      await waitForServer(server, origin);
+      const [page, pageWithSlash, stylesheet, script, sample, statistics] = await Promise.all([
+        fetch(`${origin}/dashboard`),
+        fetch(`${origin}/dashboard/`),
+        fetch(`${origin}/dashboard/style.css`),
+        fetch(`${origin}/dashboard/app.js`),
+        fetch(`${origin}/dashboard/sample-stats.json`),
+        fetch(`${origin}/metrics/live.json`),
+      ]);
+
+      assert.equal(page.status, 200);
+      assert.equal(pageWithSlash.status, 200);
+      assert.match(page.headers.get('content-type') ?? '', /^text\/html/);
+      assert.match(await page.text(), /<title>Conspire ve2e by Dyne\.org<\/title>/);
+      assert.match(stylesheet.headers.get('content-type') ?? '', /^text\/css/);
+      assert.match(await stylesheet.text(), /\.dashboard-grid/);
+      assert.match(script.headers.get('content-type') ?? '', /^text\/javascript/);
+      assert.match(await script.text(),
+        /ConspireDashboardConfig = \{statsUrl: "\/metrics\/live\.json"\}/);
+      assert.match(sample.headers.get('content-type') ?? '', /^application\/json/);
+      assert(Array.isArray(await sample.json()));
+      const points = await statistics.json();
+      assert(Array.isArray(points));
+      assert(points.length > 0);
+    } catch (error) {
+      scenarioError = error;
+    }
+
+    let exit;
+    try {
+      exit = await stopConspire(server);
+    } catch (error) {
+      scenarioError ??= error;
+    }
+
+    const diagnostics = server.getOutput();
+    if (scenarioError) {
+      throw new Error(`${scenarioError.message}\nConspire output:\n${diagnostics}`,
+        { cause: scenarioError });
+    }
+    assert.deepEqual(exit, { code: 0, signal: null }, `Conspire output:\n${diagnostics}`);
+  });
 
 test('real server broadcasts chat messages and supplies room history', { timeout: 30_000 }, async () => {
   const port = await reservePort();

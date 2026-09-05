@@ -215,7 +215,10 @@ For deploying Conspire on a server with TLS certificates and a custom landing pa
 
 ## 📊 Monitoring
 
-Conspire exposes statistics at `/admin/stats.json`. The included [dashboard](dashboard/) provides real-time visualization of peer activity, room usage, and system metrics.
+Conspire exposes statistics at `/admin/stats.json` and serves its embedded
+[dashboard](dashboard/) at `/dashboard`. The dashboard uses the running
+server's configured statistics endpoint and visualizes peer activity, room
+usage, and system metrics.
 
 ## 💼 License
 

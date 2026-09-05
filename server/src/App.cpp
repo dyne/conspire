@@ -124,12 +124,14 @@ Options:
   /* Create server which takes provided TCP connections and passes them to HTTP connection handler */
   oatpp::network::Server server(connectionProvider, connectionHandler);
 
+  OATPP_COMPONENT(std::shared_ptr<Lobby>, lobby);
+  OATPP_COMPONENT(std::shared_ptr<Statistics>, statistics);
+  statistics->runStatIteration();
+
   std::thread serverThread([&server]{
     server.run();
   });
 
-  OATPP_COMPONENT(std::shared_ptr<Lobby>, lobby);
-  OATPP_COMPONENT(std::shared_ptr<Statistics>, statistics);
   conspire::lifecycle::PeriodicRunner pingRunner;
   conspire::lifecycle::PeriodicRunner statisticsRunner;
   const bool pingStarted = pingRunner.start(std::chrono::seconds(30), [lobby] {

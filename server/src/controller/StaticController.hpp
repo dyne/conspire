@@ -105,6 +105,89 @@ public:
     }
   };
 
+  ENDPOINT_ASYNC("GET", "dashboard", Dashboard) {
+    ENDPOINT_ASYNC_INIT(Dashboard)
+
+    Action act() override {
+      auto response = controller->createResponse(Status::CODE_200,
+          controller->renderPage(controller->loadAsset("dashboard/index.html"),
+                                 controller->m_config->version));
+      response->putHeader(Header::CONTENT_TYPE, "text/html");
+      response->putHeader("Content-Security-Policy",
+          "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; "
+          "style-src 'self' 'unsafe-inline'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; "
+          "base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Referrer-Policy", "no-referrer");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "dashboard/", DashboardSlash) {
+    ENDPOINT_ASYNC_INIT(DashboardSlash)
+
+    Action act() override {
+      auto response = controller->createResponse(Status::CODE_200,
+          controller->renderPage(controller->loadAsset("dashboard/index.html"),
+                                 controller->m_config->version));
+      response->putHeader(Header::CONTENT_TYPE, "text/html");
+      response->putHeader("Content-Security-Policy",
+          "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; "
+          "style-src 'self' 'unsafe-inline'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; "
+          "base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Referrer-Policy", "no-referrer");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "dashboard/style.css", DashboardCSS) {
+    ENDPOINT_ASYNC_INIT(DashboardCSS)
+
+    Action act() override {
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("dashboard/style.css"));
+      response->putHeader(Header::CONTENT_TYPE, "text/css");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "dashboard/app.js", DashboardJS) {
+    ENDPOINT_ASYNC_INIT(DashboardJS)
+
+    Action act() override {
+      oatpp::data::stream::BufferOutputStream stream;
+      const auto statsPath = conspire::boundaries::javascriptString(
+          "/" + *controller->m_config->statisticsUrl);
+      stream << "globalThis.ConspireDashboardConfig = {statsUrl: "
+             << statsPath.c_str() << "};\n\n";
+      stream << controller->loadAsset("dashboard/app.js");
+
+      auto response = controller->createResponse(Status::CODE_200, stream.toString());
+      response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "dashboard/sample-stats.json", DashboardSampleStats) {
+    ENDPOINT_ASYNC_INIT(DashboardSampleStats)
+
+    Action act() override {
+      auto response = controller->createResponse(Status::CODE_200,
+          controller->loadAsset("dashboard/sample-stats.json"));
+      response->putHeader(Header::CONTENT_TYPE, "application/json");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
   ENDPOINT_ASYNC("GET", "room/{roomId}", ChatHTML) {
 
     ENDPOINT_ASYNC_INIT(ChatHTML)

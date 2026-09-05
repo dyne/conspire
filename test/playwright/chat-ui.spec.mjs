@@ -110,6 +110,19 @@ test('users chat through the browser UI and a newcomer receives history', async 
 
     const firstContext = await browser.newContext();
     contexts.push(firstContext);
+    await firstContext.route('https://cdn.jsdelivr.net/**', (route) => route.fulfill({
+      contentType: 'text/javascript',
+      body: 'globalThis.Chart = class { constructor() { globalThis.__chartCount = (globalThis.__chartCount ?? 0) + 1; } destroy() {} };',
+    }));
+
+    const dashboard = trackPage(await firstContext.newPage());
+    const dashboardResponse = await dashboard.goto(`${origin}/dashboard`);
+    expect(dashboardResponse?.status()).toBe(200);
+    await expect(dashboard).toHaveTitle(`Conspire v${buildVersion} by Dyne.org`);
+    await expect(dashboard.locator('.chart-container')).toHaveCount(4);
+    await expect(dashboard.locator('#stats-url')).toHaveText(`${origin}/admin/stats.json`);
+    await expect.poll(() => dashboard.evaluate(() => globalThis.__chartCount ?? 0)).toBe(4);
+
     const landing = trackPage(await firstContext.newPage());
     await landing.goto(origin);
     await expect(landing).toHaveTitle(`Conspire v${buildVersion} by Dyne.org`);

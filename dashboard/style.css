@@ -80,7 +80,7 @@
   --color-info-rgb: 98, 108, 113;
 
   /* Typography */
-  --font-family-base: "FKGroteskNeue", "Geist", "Inter", -apple-system,
+  --font-family-base: "Geist", "Inter", -apple-system,
     BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-family-mono: "Berkeley Mono", ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, monospace;
@@ -729,12 +729,6 @@ select.form-control {
 /* Dark mode specifics */
 [data-color-scheme="dark"] .btn--outline {
   border: 1px solid var(--color-border-secondary);
-}
-
-@font-face {
-  font-family: 'FKGroteskNeue';
-  src: url('https://r2cdn.perplexity.ai/fonts/FKGroteskNeue.woff2')
-    format('woff2');
 }
 
 /* END PERPLEXITY DESIGN SYSTEM */
