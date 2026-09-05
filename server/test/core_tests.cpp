@@ -43,6 +43,10 @@ int main() {
   assert(conspire::config::validStateFilePath("relative stats.json"));
   assert(!conspire::config::validStateFilePath(""));
   assert(!conspire::config::validStateFilePath("stats\n.json"));
+  assert(conspire::config::validLoopbackHost("127.0.0.1"));
+  assert(conspire::config::validLoopbackHost("::1"));
+  assert(conspire::config::validLoopbackHost("localhost"));
+  assert(!conspire::config::validLoopbackHost("control.example"));
   assert(conspire::boundaries::validRequestPath("/room/one"));
   assert(!conspire::boundaries::validRequestPath("//evil.test"));
   assert(!conspire::boundaries::validRequestPath("/room\r\none"));

@@ -35,7 +35,7 @@ function startConspire(port) {
   ]) delete environment[name];
 
   const child = spawn(binary, [
-    '--host', 'localhost', '--port', String(port),
+    '--host', 'localhost', '--port', String(port), '--no-tor',
   ], {
     cwd: tmpdir(),
     env: environment,
@@ -129,6 +129,7 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await expect(landing.locator('body')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await expect(landing.getByRole('button', { name: 'Public Reception' })).toBeVisible();
     await expect(landing.getByRole('button', { name: 'New Private Room' })).toBeVisible();
+    await expect(landing.getByRole('link', { name: 'Tor hidden service' })).toHaveCount(0);
 
     const firstPageOpened = firstContext.waitForEvent('page');
     await landing.getByRole('button', { name: 'Public Reception' }).click();

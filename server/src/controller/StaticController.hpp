@@ -51,10 +51,19 @@ private:
     return {asset.data(), static_cast<v_buff_size>(asset.size())};
   }
 
-  static std::string renderPage(oatpp::String file, const oatpp::String& version) {
+  static std::string renderPage(oatpp::String file, const oatpp::String& version,
+                                const oatpp::String& onionBaseUrl = nullptr) {
     std::string page = *file;
     const auto title = conspire::boundaries::pageTitle(version ? *version : "unknown");
     conspire::boundaries::replaceLiteral(page, "%%%CONSPIRE_TITLE%%%", title);
+    std::string onionButton;
+    if (onionBaseUrl) {
+      onionButton = "<a id=\"tor-hidden-service\" class=\"button\" href=\"" +
+          conspire::boundaries::htmlText(*onionBaseUrl) +
+          "\" target=\"_blank\" rel=\"noopener noreferrer\">Tor hidden service</a>";
+    }
+    conspire::boundaries::replaceLiteral(page,
+        "%%%TOR_HIDDEN_SERVICE_BUTTON%%%", onionButton);
     return page;
   }
 public:
@@ -70,7 +79,8 @@ public:
     Action act() override {
       ++ controller->m_statistics->EVENT_FRONT_PAGE_LOADED;
       auto response = controller->createResponse(Status::CODE_200,
-          controller->renderPage(controller->loadAsset("index.html"), controller->m_config->version));
+          controller->renderPage(controller->loadAsset("index.html"),
+              controller->m_config->version, controller->m_config->getOnionBaseUrl()));
       response->putHeader(Header::CONTENT_TYPE, "text/html");
       response->putHeader("Content-Security-Policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
       response->putHeader("X-Content-Type-Options", "nosniff");
@@ -218,7 +228,10 @@ public:
 
       oatpp::data::stream::BufferOutputStream stream;
 
-      const auto baseUrl = *controller->m_config->getWebsocketBaseUrl();
+      const auto requestHost = request->getHeader(Header::HOST);
+      OATPP_ASSERT_HTTP(requestHost && controller->m_config->isAllowedRequestHost(*requestHost),
+                        Status::CODE_400, "Invalid host");
+      const auto baseUrl = *controller->m_config->getWebsocketBaseUrlForHost(*requestHost);
       const auto encodedRoom = conspire::boundaries::urlPathSegment(*roomId);
       const auto websocketUrl = conspire::boundaries::javascriptString(baseUrl + "/api/ws/room/" + encodedRoom);
       const auto roomUrl = conspire::boundaries::javascriptString("/room/" + encodedRoom);

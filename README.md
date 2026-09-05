@@ -89,9 +89,25 @@ TLS is opt-in. Pass `--tls` together with certificate paths when it is needed:
   --tls-key cert/privkey.pem --tls-chain cert/fullchain.pem
 ```
 
+At startup Conspire also probes `/run/tor/control`, then the loopback control
+port `127.0.0.1:9051`. If Tor offers SAFECOOKIE (or permission-protected NULL
+authentication), Conspire registers a v3 onion service on public port 80. The
+homepage then exposes a **Tor hidden service** button and requests through that
+hostname use an onion-safe WebSocket origin. The returned ED25519 key is stored
+at `--tor-key`; by default it is `onion.key` beside `--stats-state`, or
+`conspire-onion.key` in the working directory when no state path is configured.
+Use `--no-tor` to disable probing. With clearnet TLS, `--tor-backend-port`
+(default 8080) is a separate plaintext listener bound only to `127.0.0.1`.
+
+Tor registration is best-effort: an absent or inaccessible daemon is logged and
+does not prevent the clearnet server from starting. See the
+[deployment guide](docs/DEPLOYMENT.md#tor-onion-service) for ControlSocket and
+service-account configuration.
+
 The real-process tests start this native binary on isolated localhost ports.
 The protocol test connects three WebSocket clients, verifies broadcast and room
-history, and checks clean shutdown. The Playwright test drives the served UI in
+history, exercises SAFECOOKIE/ADD_ONION against a fake Tor controller, verifies
+stable onion identity across restart, and checks clean shutdown. The Playwright test drives the served UI in
 three independent browser contexts and verifies the versioned title,
 participants, message delivery, and history without TLS:
 

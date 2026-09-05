@@ -1,16 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createServer } from 'node:net';
+import { request as httpRequest } from 'node:http';
+import { createHmac, randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import WebSocket from 'ws';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const binary = resolve(root, process.env.CONSPIRE_E2E_BINARY ?? 'build/native-gcc/server/conspire-exe');
 const messageCode = Object.freeze({ info: 0, peerJoined: 1, peerMessage: 3 });
+const execFileAsync = promisify(execFile);
 
 function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
@@ -71,11 +75,15 @@ function startConspire(port, extraArguments = []) {
   const environment = { ...process.env };
   for (const name of [
     'EXTERNAL_ADDRESS', 'EXTERNAL_PORT', 'TLS_FILE_PRIVATE_KEY',
-    'TLS_FILE_CERT_CHAIN', 'URL_STATS_PATH',
+    'TLS_FILE_CERT_CHAIN', 'URL_STATS_PATH', 'STATS_STATE_PATH',
+    'TOR_CONTROL_SOCKET', 'TOR_CONTROL_HOST', 'TOR_CONTROL_PORT',
+    'TOR_BACKEND_PORT', 'TOR_VIRTUAL_PORT', 'TOR_KEY_PATH',
   ]) delete environment[name];
 
+  const torConfigured = extraArguments.includes('--tor-control-port');
   const child = spawn(binary, [
-    '--host', 'localhost', '--port', String(port), ...extraArguments,
+    '--host', 'localhost', '--port', String(port),
+    ...(torConfigured ? [] : ['--no-tor']), ...extraArguments,
   ], {
     cwd: tmpdir(),
     env: environment,
@@ -106,8 +114,8 @@ async function waitForServer(server, origin) {
   }, 10_000);
 }
 
-async function connectClient(url, origin) {
-  const socket = new WebSocket(url, { origin });
+async function connectClient(url, origin, headers = undefined) {
+  const socket = new WebSocket(url, { origin, headers });
   const messages = [];
   const socketErrors = [];
   socket.on('message', (payload) => {
@@ -147,6 +155,91 @@ async function connectClient(url, origin) {
     socket.once('unexpected-response', onUnexpectedResponse);
   });
   return { socket, messages, socketErrors };
+}
+
+async function requestText(port, path, headers = {}) {
+  return new Promise((resolveRequest, rejectRequest) => {
+    const request = httpRequest({
+      host: '127.0.0.1', port, path, headers,
+    }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolveRequest({
+        status: response.statusCode,
+        headers: response.headers,
+        body: Buffer.concat(chunks).toString('utf8'),
+      }));
+    });
+    request.once('error', rejectRequest);
+    request.end();
+  });
+}
+
+async function startFakeTor(cookiePath) {
+  const serviceId = 'a'.repeat(56);
+  const privateKey = `ED25519-V3:${'A'.repeat(86)}==`;
+  const cookie = randomBytes(32);
+  await writeFile(cookiePath, cookie, { mode: 0o600 });
+  const commands = [];
+  const connections = new Set();
+  const server = createServer((socket) => {
+    connections.add(socket);
+    socket.once('close', () => connections.delete(socket));
+    let buffered = '';
+    socket.on('data', (chunk) => {
+      buffered += chunk.toString('utf8');
+      while (buffered.includes('\r\n')) {
+        const lineEnd = buffered.indexOf('\r\n');
+        const command = buffered.slice(0, lineEnd);
+        buffered = buffered.slice(lineEnd + 2);
+        commands.push(command);
+        if (command === 'PROTOCOLINFO 1') {
+          socket.write(`250-PROTOCOLINFO 1\r\n250-AUTH METHODS=SAFECOOKIE COOKIEFILE="${cookiePath}"\r\n250-VERSION Tor="test"\r\n250 OK\r\n`);
+        } else if (command.startsWith('AUTHCHALLENGE SAFECOOKIE ')) {
+          const clientNonce = Buffer.from(command.slice('AUTHCHALLENGE SAFECOOKIE '.length), 'hex');
+          const serverNonce = randomBytes(32);
+          const message = Buffer.concat([cookie, clientNonce, serverNonce]);
+          const serverHash = createHmac('sha256',
+            'Tor safe cookie authentication server-to-controller hash')
+            .update(message).digest('hex').toUpperCase();
+          socket.expectedClientHash = createHmac('sha256',
+            'Tor safe cookie authentication controller-to-server hash')
+            .update(message).digest('hex').toUpperCase();
+          socket.write(`250 AUTHCHALLENGE SERVERHASH=${serverHash} SERVERNONCE=${serverNonce.toString('hex').toUpperCase()}\r\n`);
+        } else if (command === `AUTHENTICATE ${socket.expectedClientHash}`) {
+          socket.write('250 OK\r\n');
+        } else if (command.startsWith('ADD_ONION NEW:ED25519-V3 ')) {
+          socket.write(`250-ServiceID=${serviceId}\r\n250-PrivateKey=${privateKey}\r\n250 OK\r\n`);
+        } else if (command.startsWith(`ADD_ONION ${privateKey} `)) {
+          socket.write(`250-ServiceID=${serviceId}\r\n250 OK\r\n`);
+        } else if (command === `DEL_ONION ${serviceId}`) {
+          socket.write('250 OK\r\n');
+        } else if (command === 'QUIT') {
+          socket.end();
+        } else {
+          socket.write('510 Unrecognized command\r\n');
+        }
+      }
+    });
+  });
+  await new Promise((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(0, '127.0.0.1', resolveListen);
+  });
+  const address = server.address();
+  assert(address && typeof address === 'object');
+  return {
+    port: address.port,
+    serviceId,
+    privateKey,
+    commands,
+    close: async () => {
+      for (const connection of connections) connection.destroy();
+      await new Promise((resolveClose, rejectClose) => server.close(
+        (error) => error ? rejectClose(error) : resolveClose(),
+      ));
+    },
+  };
 }
 
 async function waitForMessage(client, description, predicate) {
@@ -225,6 +318,165 @@ test('real server serves its embedded dashboard and configured statistics path',
         { cause: scenarioError });
     }
     assert.deepEqual(exit, { code: 0, signal: null }, `Conspire output:\n${diagnostics}`);
+  });
+
+test('Tor ADD_ONION identity persists and onion Host/Origin drive the frontend',
+  { timeout: 30_000 }, async () => {
+    const stateDirectory = await mkdtemp(join(tmpdir(), 'conspire-tor-e2e-'));
+    const keyPath = join(stateDirectory, 'onion.key');
+    const cookiePath = join(stateDirectory, 'control.authcookie');
+    const controlSocket = join(stateDirectory, 'missing-control.sock');
+    const fakeTor = await startFakeTor(cookiePath);
+    const onionHost = `${fakeTor.serviceId}.onion`;
+    const onionOrigin = `http://${onionHost}`;
+    let activeServer;
+    let scenarioError;
+
+    const torArguments = [
+      '--tor-control-socket', controlSocket,
+      '--tor-control-host', '127.0.0.1',
+      '--tor-control-port', String(fakeTor.port),
+      '--tor-key', keyPath,
+    ];
+
+    try {
+      const firstPort = await reservePort();
+      activeServer = startConspire(firstPort, torArguments);
+      await waitForServer(activeServer, `http://localhost:${firstPort}`);
+      await waitUntil('first ADD_ONION command', () =>
+        fakeTor.commands.find((command) => command.startsWith('ADD_ONION ')));
+
+      const homepage = await requestText(firstPort, '/', { Host: onionHost });
+      assert.equal(homepage.status, 200);
+      assert.match(homepage.body, />Tor hidden service<\/a>/);
+      assert.match(homepage.body, new RegExp(`href="${onionOrigin}"`));
+
+      const chatScript = await requestText(firstPort, '/room/tor-room/chat.js', {
+        Host: onionHost,
+      });
+      assert.equal(chatScript.status, 200);
+      assert.match(chatScript.body,
+        new RegExp(`urlWebsocket: "ws://${onionHost}:80/api/ws/room/tor-room"`));
+
+      const onionClient = await connectClient(
+        `ws://127.0.0.1:${firstPort}/api/ws/room/tor-room/`, onionOrigin,
+        { Host: onionHost },
+      );
+      await waitForMessage(onionClient, 'onion-origin peer onboarding',
+        (message) => message.code === messageCode.info);
+      await closeClient(onionClient);
+
+      assert.deepEqual(await stopConspire(activeServer), { code: 0, signal: null });
+      activeServer = undefined;
+      assert(fakeTor.commands.includes(`DEL_ONION ${fakeTor.serviceId}`));
+      assert.equal((await readFile(keyPath, 'utf8')).trim(), fakeTor.privateKey);
+      assert.equal((await stat(keyPath)).mode & 0o077, 0);
+      assert(fakeTor.commands.includes(
+        `ADD_ONION NEW:ED25519-V3 Port=80,127.0.0.1:${firstPort}`));
+
+      const secondPort = await reservePort();
+      activeServer = startConspire(secondPort, torArguments);
+      await waitForServer(activeServer, `http://localhost:${secondPort}`);
+      await waitUntil('persistent-key ADD_ONION command', () =>
+        fakeTor.commands.find((command) =>
+          command.startsWith(`ADD_ONION ${fakeTor.privateKey} `)));
+      assert(fakeTor.commands.includes(
+        `ADD_ONION ${fakeTor.privateKey} Port=80,127.0.0.1:${secondPort}`));
+      assert.deepEqual(await stopConspire(activeServer), { code: 0, signal: null });
+      activeServer = undefined;
+
+      const invalidKey = 'not-a-tor-key\n';
+      await writeFile(keyPath, invalidKey, { mode: 0o600 });
+      const thirdPort = await reservePort();
+      activeServer = startConspire(thirdPort, torArguments);
+      await waitForServer(activeServer, `http://localhost:${thirdPort}`);
+      assert.equal(fakeTor.commands.filter(
+        (command) => command.startsWith('ADD_ONION ')).length, 2);
+      assert.match(activeServer.getOutput(), /Tor onion key is invalid or unreadable/);
+      assert.deepEqual(await stopConspire(activeServer), { code: 0, signal: null });
+      activeServer = undefined;
+      assert.equal(await readFile(keyPath, 'utf8'), invalidKey);
+    } catch (error) {
+      scenarioError = error;
+    }
+
+    if (activeServer) {
+      try {
+        await stopConspire(activeServer);
+      } catch (error) {
+        scenarioError ??= error;
+      }
+    }
+    await fakeTor.close();
+    await rm(stateDirectory, { recursive: true, force: true });
+    if (scenarioError) throw scenarioError;
+  });
+
+test('TLS mode exposes a separate loopback HTTP backend for onion port 80',
+  { timeout: 30_000 }, async () => {
+    const stateDirectory = await mkdtemp(join(tmpdir(), 'conspire-tor-tls-e2e-'));
+    const certificatePath = join(stateDirectory, 'certificate.pem');
+    const privateKeyPath = join(stateDirectory, 'private-key.pem');
+    const cookiePath = join(stateDirectory, 'control.authcookie');
+    const onionKeyPath = join(stateDirectory, 'onion.key');
+    const controlSocket = join(stateDirectory, 'missing-control.sock');
+    let fakeTor;
+    let server;
+    let scenarioError;
+
+    try {
+      await execFileAsync('openssl', [
+        'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+        '-subj', '/CN=localhost', '-keyout', privateKeyPath,
+        '-out', certificatePath,
+      ]);
+      fakeTor = await startFakeTor(cookiePath);
+      const tlsPort = await reservePort();
+      const backendPort = await reservePort();
+      const onionHost = `${fakeTor.serviceId}.onion`;
+      server = startConspire(tlsPort, [
+        '--tls', '--tls-key', privateKeyPath, '--tls-chain', certificatePath,
+        '--tor-control-socket', controlSocket,
+        '--tor-control-host', '127.0.0.1',
+        '--tor-control-port', String(fakeTor.port),
+        '--tor-key', onionKeyPath,
+        '--tor-backend-port', String(backendPort),
+      ]);
+
+      await waitUntil('Tor loopback HTTP backend', async () => {
+        if (server.getProcessError()) throw server.getProcessError();
+        if (server.child.exitCode !== null) {
+          throw new Error(`server exited with ${server.child.exitCode}`);
+        }
+        const response = await requestText(backendPort, '/', { Host: onionHost });
+        return response.status === 200;
+      }, 10_000);
+      assert(fakeTor.commands.includes(
+        `ADD_ONION NEW:ED25519-V3 Port=80,127.0.0.1:${backendPort}`));
+
+      const onionClient = await connectClient(
+        `ws://127.0.0.1:${backendPort}/api/ws/room/tls-tor-room/`,
+        `http://${onionHost}`, { Host: onionHost },
+      );
+      await waitForMessage(onionClient, 'TLS-mode onion peer onboarding',
+        (message) => message.code === messageCode.info);
+      await closeClient(onionClient);
+      assert.deepEqual(await stopConspire(server), { code: 0, signal: null });
+      server = undefined;
+    } catch (error) {
+      scenarioError = error;
+    }
+
+    if (server) {
+      try {
+        await stopConspire(server);
+      } catch (error) {
+        scenarioError ??= error;
+      }
+    }
+    if (fakeTor) await fakeTor.close();
+    await rm(stateDirectory, { recursive: true, force: true });
+    if (scenarioError) throw scenarioError;
   });
 
 test('statistics survive a graceful process restart', { timeout: 30_000 }, async () => {

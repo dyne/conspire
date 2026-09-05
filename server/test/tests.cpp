@@ -2,6 +2,7 @@
 #include "WSTest.hpp"
 #include "utils/AppConfig.hpp"
 #include "utils/Statistics.hpp"
+#include "utils/TorControl.hpp"
 
 #include "oatpp-test/UnitTest.hpp"
 #include <cassert>
@@ -19,6 +20,12 @@ void runConfigTests() {
   unsetenv("TLS_FILE_CERT_CHAIN");
   unsetenv("URL_STATS_PATH");
   unsetenv("STATS_STATE_PATH");
+  unsetenv("TOR_CONTROL_SOCKET");
+  unsetenv("TOR_CONTROL_HOST");
+  unsetenv("TOR_CONTROL_PORT");
+  unsetenv("TOR_BACKEND_PORT");
+  unsetenv("TOR_VIRTUAL_PORT");
+  unsetenv("TOR_KEY_PATH");
 
   setenv("TLS_FILE_PRIVATE_KEY", "/missing/key.pem", 1);
   setenv("TLS_FILE_CERT_CHAIN", "/missing/chain.pem", 1);
@@ -33,6 +40,25 @@ void runConfigTests() {
   assert(*plainConfig->getCanonicalBaseUrl() == "http://localhost:8080");
   assert(*plainConfig->getWebsocketBaseUrl() == "ws://localhost:8080");
   assert(!plainConfig->statisticsStatePath);
+  assert(plainConfig->torEnabled);
+  assert(plainConfig->torControlSocket &&
+         *plainConfig->torControlSocket == "/run/tor/control");
+  assert(plainConfig->torControlHost && *plainConfig->torControlHost == "127.0.0.1");
+  assert(plainConfig->torControlPort && *plainConfig->torControlPort == 9051);
+  assert(plainConfig->torBackendPort && *plainConfig->torBackendPort == 8080);
+  assert(plainConfig->torVirtualPort && *plainConfig->torVirtualPort == 80);
+  assert(plainConfig->torKeyPath && *plainConfig->torKeyPath == "conspire-onion.key");
+
+  plainConfig->onionHost = std::string(56, 'a') + ".onion";
+  const auto onionHost = std::string(56, 'a') + ".onion";
+  assert(plainConfig->isAllowedRequestHost("localhost:8080"));
+  assert(plainConfig->isAllowedRequestHost(onionHost));
+  assert(!plainConfig->isAllowedRequestHost("attacker.test"));
+  assert(*plainConfig->getOnionBaseUrl() == "http://" + onionHost);
+  assert(*plainConfig->getWebsocketBaseUrlForHost(onionHost) ==
+         "ws://" + onionHost + ":80");
+  assert(plainConfig->isAllowedOrigin("http://" + onionHost, false));
+  assert(!plainConfig->isAllowedOrigin("http://attacker.test", false));
 
   const char* persistentArguments[] = {
       "conspire", "--stats-state", "/var/lib/conspire/stats.json"};
@@ -40,6 +66,8 @@ void runConfigTests() {
       oatpp::base::CommandLineArguments(3, persistentArguments));
   assert(persistentConfig->statisticsStatePath &&
          *persistentConfig->statisticsStatePath == "/var/lib/conspire/stats.json");
+  assert(persistentConfig->torKeyPath &&
+         *persistentConfig->torKeyPath == "/var/lib/conspire/onion.key");
 
   const char* missingStatePathArguments[] = {"conspire", "--stats-state"};
   bool missingStatePathRejected = false;
@@ -64,6 +92,28 @@ void runConfigTests() {
   assert(tlsConfig->tlsCertificateChainPath && *tlsConfig->tlsCertificateChainPath == "test-chain.pem");
   assert(*tlsConfig->getCanonicalBaseUrl() == "https://localhost:8443");
   assert(*tlsConfig->getWebsocketBaseUrl() == "wss://localhost:8443");
+  assert(tlsConfig->torBackendPort && *tlsConfig->torBackendPort == 8080);
+
+  const char* torArguments[] = {
+      "conspire", "--no-tor", "--tor-control-host", "localhost",
+      "--tor-control-port", "19051", "--tor-backend-port", "18080",
+      "--tor-virtual-port", "8088", "--tor-key", "/tmp/conspire.key"};
+  const auto torConfig = conspire::config::fromCommandLine(
+      oatpp::base::CommandLineArguments(12, torArguments));
+  assert(!torConfig->torEnabled);
+  assert(*torConfig->torControlHost == "localhost");
+  assert(*torConfig->torControlPort == 19051);
+  assert(*torConfig->torBackendPort == 18080);
+  assert(*torConfig->torVirtualPort == 8088);
+  assert(*torConfig->torKeyPath == "/tmp/conspire.key");
+
+  assert(conspire::tor::validServiceId(std::string(56, 'a')));
+  assert(!conspire::tor::validServiceId(std::string(55, 'a')));
+  assert(!conspire::tor::validServiceId(std::string(56, '1')));
+  assert(conspire::tor::validPrivateKey(
+      "ED25519-V3:" + std::string(86, 'A') + "=="));
+  assert(!conspire::tor::validPrivateKey("ED25519-V3:QUFBQQ=="));
+  assert(!conspire::tor::validPrivateKey("RSA1024:QUFBQQ=="));
 }
 
 void runStatisticsPersistenceTests() {

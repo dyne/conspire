@@ -66,7 +66,7 @@ public:
       OATPP_ASSERT_HTTP(roomName && conspire::boundaries::validRoomId(*roomName), Status::CODE_400, "Invalid room id");
       const auto origin = request->getHeader("Origin");
       const bool developmentOverride = std::getenv("CONSPIRE_ALLOW_DEV_ORIGIN") != nullptr;
-      OATPP_ASSERT_HTTP(origin && conspire::boundaries::allowedOrigin(*origin, *controller->appConfig->getCanonicalBaseUrl(), developmentOverride),
+      OATPP_ASSERT_HTTP(origin && controller->appConfig->isAllowedOrigin(*origin, developmentOverride),
                         Status::CODE_403, "Invalid origin");
       auto nickname = Nickname::random();
 

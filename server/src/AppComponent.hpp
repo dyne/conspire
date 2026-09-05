@@ -63,12 +63,11 @@ private:
 
     std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>& request) override {
       auto host = request->getHeader(oatpp::web::protocol::http::Header::HOST);
-      auto siteHost = componentAppConfig->getHostString();
       const auto path = request->getStartingLine().path.toString();
       if(!host || !conspire::boundaries::validHost(*host) || !conspire::boundaries::validRequestPath(*path)) {
         return OutgoingResponse::createShared(oatpp::web::protocol::http::Status::CODE_400, nullptr);
       }
-      if(!host || host != siteHost) {
+      if(!componentAppConfig->isAllowedRequestHost(*host)) {
         auto response = OutgoingResponse::createShared(oatpp::web::protocol::http::Status::CODE_301, nullptr);
         response->putHeader("Location", componentAppConfig->getCanonicalBaseUrl() + path);
         response->putHeader("Cache-Control", "no-store");

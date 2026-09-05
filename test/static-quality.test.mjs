@@ -24,6 +24,17 @@ test('served pages expose the build-version title placeholder', async () => {
   assert.match(controller, /replaceLiteral\(page, "%%%CONSPIRE_TITLE%%%"/);
 });
 
+test('the landing page has a build-time-safe onion-service insertion point', async () => {
+  const [html, controller] = await Promise.all([
+    readFile(new URL('../front/index.html', import.meta.url), 'utf8'),
+    readFile(new URL('../server/src/controller/StaticController.hpp', import.meta.url), 'utf8'),
+  ]);
+  assert.match(html, /%%%TOR_HIDDEN_SERVICE_BUTTON%%%/);
+  assert.match(controller, /getOnionBaseUrl\(\)/);
+  assert.match(controller, />Tor hidden service<\/a>/);
+  assert.match(controller, /htmlText\(\*onionBaseUrl\)/);
+});
+
 test('the server embeds its complete frontend and dashboard instead of loading runtime files', async () => {
   const [cmake, generator, controller] = await Promise.all([
     readFile(new URL('../server/CMakeLists.txt', import.meta.url), 'utf8'),

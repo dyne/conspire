@@ -28,7 +28,7 @@ The landing page generates random room URLs and redirects users to Conspire.
 The container has no baked certificate or private key. Mount an operator-owned
 directory at `/run/certs:ro` containing `privkey.pem` and `fullchain.pem`, run
 the filesystem read-only, and give `/run/conspire` a named volume for durable
-statistics state and the optional PID file:
+statistics state, the onion identity key, and the optional PID file:
 
 Build the image from the same verified CMake inputs used in review (not from an
 untracked `conspire` file):
@@ -91,12 +91,13 @@ Create `/etc/systemd/system/conspire.service`:
 ```ini
 [Unit]
 Description=Conspire - Ephemeral Anonymous Chat
-After=network.target
+After=network.target tor.service
 
 [Service]
 Type=simple
 User=conspire
 Group=conspire
+SupplementaryGroups=debian-tor
 WorkingDirectory=/opt/conspire
 ExecStart=/opt/conspire/conspire --tls
 Environment=EXTERNAL_ADDRESS=your-domain.com
@@ -104,6 +105,7 @@ Environment=EXTERNAL_PORT=8443
 Environment=TLS_FILE_PRIVATE_KEY=cert/privkey.pem
 Environment=TLS_FILE_CERT_CHAIN=cert/fullchain.pem
 Environment=STATS_STATE_PATH=/var/lib/conspire/stats.json
+Environment=TOR_KEY_PATH=/var/lib/conspire/onion.key
 StateDirectory=conspire
 Restart=on-failure
 
@@ -135,6 +137,45 @@ Open `https://your-domain.com:8443` — you should see the Conspire interface.
 Statistics are checkpointed atomically every minute and during graceful
 shutdown. The service restores the retained history and cumulative counters
 from `/var/lib/conspire/stats.json` on its next start.
+
+## Tor onion service
+
+Conspire automatically tries a Tor Unix control socket first and
+`127.0.0.1:9051` second. A typical Debian/Ubuntu Tor configuration in
+`/etc/tor/torrc` is:
+
+```text
+ControlSocket /run/tor/control
+ControlSocketsGroupWritable 1
+CookieAuthentication 1
+CookieAuthFileGroupReadable 1
+```
+
+Restart Tor after changing `torrc`, add the `conspire` service account to the
+Tor control-socket group (commonly `debian-tor`), and keep the
+`SupplementaryGroups` setting in the systemd unit. Conspire prefers SAFECOOKIE;
+it deliberately refuses deprecated COOKIE-only authentication. A
+permission-protected control socket advertising NULL authentication is also
+supported.
+
+On first registration Tor returns an ED25519-V3 private key. Conspire writes it
+atomically with mode 0600 to `TOR_KEY_PATH`/`--tor-key` and reuses it after
+restart, preserving the onion address. An invalid or unreadable existing key is
+left untouched and disables Tor integration for that run. On graceful shutdown
+Conspire sends `DEL_ONION`; the saved identity remains available for the next
+start, but Tor does not advertise a dead backend while Conspire is stopped.
+
+The public onion service defaults to port 80. In the TLS deployment above Tor
+forwards it to a second plaintext HTTP listener at `127.0.0.1:8080`; only the
+clearnet TLS port needs a firewall rule. Change these with
+`TOR_VIRTUAL_PORT`/`--tor-virtual-port` and
+`TOR_BACKEND_PORT`/`--tor-backend-port`. Without `--tls`, Tor forwards to the
+existing HTTP listener instead.
+
+To use a non-default control endpoint, set `TOR_CONTROL_SOCKET`,
+`TOR_CONTROL_HOST`, or `TOR_CONTROL_PORT` (equivalent CLI options are listed by
+`conspire --help`). TCP control is restricted to a loopback host. Use
+`--no-tor` when onion registration is intentionally disabled.
 
 ## Landing Page Integration
 
@@ -210,6 +251,12 @@ For infrastructure-as-code deployment, see [conspire-infra](https://github.com/s
 | `EXTERNAL_PORT` | 8080 (8443 with `--tls`) | HTTP/WebSocket port |
 | `TLS_FILE_PRIVATE_KEY` | — | Private key path, read only with `--tls` |
 | `TLS_FILE_CERT_CHAIN` | — | Certificate-chain path, read only with `--tls` |
+| `TOR_CONTROL_SOCKET` | `/run/tor/control` | Preferred Tor Unix control socket |
+| `TOR_CONTROL_HOST` | `127.0.0.1` | Loopback Tor control fallback host |
+| `TOR_CONTROL_PORT` | `9051` | Loopback Tor control fallback port |
+| `TOR_KEY_PATH` | Beside statistics state, otherwise working directory | Persistent ED25519-V3 onion key |
+| `TOR_BACKEND_PORT` | `8080` | Loopback-only plaintext backend when TLS is active |
+| `TOR_VIRTUAL_PORT` | `80` | Public onion-service port |
 
 For a local certificate-free smoke test, run `./conspire` without TLS options
 and open <http://localhost:8080>. Use `./conspire --tls` for the certificate
