@@ -13,7 +13,7 @@ test('shipped HTML keeps executable behavior in external modules', async () => {
 });
 
 test('served pages expose the build-version title placeholder', async () => {
-  for (const file of ['front/index.html', 'front/chat/index.html']) {
+  for (const file of ['front/index.html', 'front/chat/index.html', 'dashboard/index.html']) {
     const html = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
     assert.match(html, /<title>%%%CONSPIRE_TITLE%%%<\/title>/, file);
   }
@@ -24,17 +24,22 @@ test('served pages expose the build-version title placeholder', async () => {
   assert.match(controller, /replaceLiteral\(page, "%%%CONSPIRE_TITLE%%%"/);
 });
 
-test('the server embeds its complete frontend instead of loading runtime files', async () => {
+test('the server embeds its complete frontend and dashboard instead of loading runtime files', async () => {
   const [cmake, generator, controller] = await Promise.all([
     readFile(new URL('../server/CMakeLists.txt', import.meta.url), 'utf8'),
     readFile(new URL('../server/cmake/EmbedFrontend.cmake', import.meta.url), 'utf8'),
     readFile(new URL('../server/src/controller/StaticController.hpp', import.meta.url), 'utf8'),
   ]);
   assert.match(cmake, /GLOB_RECURSE CONSPIRE_FRONTEND_ASSETS CONFIGURE_DEPENDS/);
+  assert.match(cmake, /GLOB_RECURSE CONSPIRE_DASHBOARD_ASSETS CONFIGURE_DEPENDS/);
   assert.match(cmake, /EmbedFrontend\.cmake/);
-  assert.match(generator, /file\(GLOB_RECURSE frontend_assets/);
+  assert.match(generator, /register_asset_directory\("\$\{FRONTEND_DIR\}" ""\)/);
+  assert.match(generator, /register_asset_directory\("\$\{DASHBOARD_DIR\}" "dashboard\/"\)/);
   assert.match(controller, /findAsset\(path\)/);
   assert.match(controller, /loadAsset\("style\.css"\)/);
+  assert.match(controller, /"dashboard", Dashboard/);
+  assert.match(controller, /loadAsset\("dashboard\/index\.html"\)/);
+  assert.match(controller, /ConspireDashboardConfig = \{statsUrl:/);
   assert.doesNotMatch(controller, /loadFromFile|frontPath/);
 });
 

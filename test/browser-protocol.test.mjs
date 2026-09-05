@@ -67,6 +67,9 @@ test('dashboard keeps hostile strings out of HTML sinks and does not proxy stati
   assert.match(dashboard, /safeStatsUrl/);
   assert.match(dashboard, /MAX_STATS_BYTES/);
   assert.match(dashboard, /validStats\(data\)/);
+  assert.match(dashboard, /ConspireDashboardConfig\?\.statsUrl/);
+  assert.match(html, /href="\/dashboard\/style\.css"/);
+  assert.match(html, /src="\/dashboard\/app\.js"/);
   assert.doesNotMatch(html, /\sonclick=/);
 });
 

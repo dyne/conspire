@@ -1,19 +1,31 @@
 cmake_minimum_required(VERSION 3.20)
 
-foreach(required FRONTEND_DIR OUTPUT_HEADER OUTPUT_SOURCE)
+foreach(required FRONTEND_DIR DASHBOARD_DIR OUTPUT_HEADER OUTPUT_SOURCE)
   if(NOT DEFINED ${required})
     message(FATAL_ERROR "${required} is required")
   endif()
 endforeach()
 
-file(GLOB_RECURSE frontend_assets
-  RELATIVE "${FRONTEND_DIR}"
-  LIST_DIRECTORIES false
-  "${FRONTEND_DIR}/*")
-list(SORT frontend_assets)
-if(NOT frontend_assets)
-  message(FATAL_ERROR "No frontend assets found in ${FRONTEND_DIR}")
-endif()
+set(embedded_paths "")
+set(embedded_files "")
+
+macro(register_asset_directory directory prefix)
+  file(GLOB_RECURSE discovered_assets
+    RELATIVE "${directory}"
+    LIST_DIRECTORIES false
+    "${directory}/*")
+  list(SORT discovered_assets)
+  if(NOT discovered_assets)
+    message(FATAL_ERROR "No assets found in ${directory}")
+  endif()
+  foreach(discovered_path IN LISTS discovered_assets)
+    list(APPEND embedded_paths "${prefix}${discovered_path}")
+    list(APPEND embedded_files "${directory}/${discovered_path}")
+  endforeach()
+endmacro()
+
+register_asset_directory("${FRONTEND_DIR}" "")
+register_asset_directory("${DASHBOARD_DIR}" "dashboard/")
 
 set(header [=[#pragma once
 
@@ -41,12 +53,16 @@ struct AssetEntry {
 ]=])
 set(entries "")
 
-foreach(relative_path IN LISTS frontend_assets)
+list(LENGTH embedded_paths asset_count)
+math(EXPR last_asset_index "${asset_count} - 1")
+foreach(asset_index RANGE 0 ${last_asset_index})
+  list(GET embedded_paths ${asset_index} relative_path)
+  list(GET embedded_files ${asset_index} source_path)
   if(NOT relative_path MATCHES "^[A-Za-z0-9._/-]+$")
-    message(FATAL_ERROR "Frontend asset path cannot be embedded safely: ${relative_path}")
+    message(FATAL_ERROR "Asset path cannot be embedded safely: ${relative_path}")
   endif()
 
-  file(READ "${FRONTEND_DIR}/${relative_path}" asset_hex HEX)
+  file(READ "${source_path}" asset_hex HEX)
   string(LENGTH "${asset_hex}" hex_length)
   math(EXPR asset_size "${hex_length} / 2")
   string(MAKE_C_IDENTIFIER "frontend_${relative_path}" symbol)
