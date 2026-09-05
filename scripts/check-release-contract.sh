@@ -23,8 +23,13 @@ if rg -q 'CONSPIRE_OATPP_1_4_PREFIX' "$workflow"; then
 fi
 preview="$(make --no-print-directory -C "$root" -n conspire \
   CONSPIRE_DEPS_PREFIX=/verified/oatpp-1.4-prefix VERSION=contract-test)"
-grep -Fq 'ninja -C build conspire-exe' <<<"$preview"
-grep -Fq 'cp build/conspire-exe conspire-x86_64' <<<"$preview"
+grep -Fq './scripts/build-vendored-oatpp.sh' <<<"$preview"
+grep -Fq 'ninja -C "build" conspire-exe' <<<"$preview"
+grep -Fq 'cp "build/conspire-exe" conspire-x86_64' <<<"$preview"
+if grep -Fq 'CONSPIRE_DEPS_PREFIX must name' "$makefile"; then
+  printf '%s\n' 'default Make target still rejects the vendored dependency prefix' >&2
+  exit 1
+fi
 if grep -Fq 'canchat-exe' "$makefile"; then
   printf '%s\n' 'release Make target still refers to the retired canchat-exe artifact' >&2
   exit 1

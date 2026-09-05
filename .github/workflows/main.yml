@@ -154,6 +154,7 @@ jobs:
       - name: Build verified release binary
         if: ${{ steps.semver.outputs.bump != 'none' }}
         env:
+          CMAKE_TOOLCHAIN_FILE: /opt/dyne/gcc-musl/settings.cmake
           CONSPIRE_DEPS_PREFIX: ${{ github.workspace }}/build/deps
         run: |
           test -f "$CONSPIRE_DEPS_PREFIX/lib/cmake/oatpp-1.4.0/oatppConfig.cmake"
