@@ -25,7 +25,8 @@ preview="$(make --no-print-directory -C "$root" -n conspire \
   CONSPIRE_DEPS_PREFIX=/verified/oatpp-1.4-prefix VERSION=contract-test)"
 grep -Fq './scripts/build-vendored-oatpp.sh' <<<"$preview"
 grep -Fq 'ninja -C "build" conspire-exe' <<<"$preview"
-grep -Fq 'cp "build/conspire-exe" conspire-x86_64' <<<"$preview"
+grep -Fq 'install -m 0755 "build/conspire-exe" "conspire-x86_64.new"' <<<"$preview"
+grep -Fq 'mv "conspire-x86_64.new" "conspire-x86_64"' <<<"$preview"
 if grep -Fq 'CONSPIRE_DEPS_PREFIX must name' "$makefile"; then
   printf '%s\n' 'default Make target still rejects the vendored dependency prefix' >&2
   exit 1

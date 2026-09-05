@@ -65,13 +65,10 @@ curl -sL https://api.github.com/repos/dyne/conspire/releases/latest | \
 
 chmod +x conspire-x86_64
 mv conspire-x86_64 conspire
-
-# Download frontend assets
-VERSION=$(curl -sL https://api.github.com/repos/dyne/conspire/releases/latest | grep tag_name | cut -d'"' -f4)
-curl -sL "https://github.com/dyne/conspire/archive/${VERSION}.tar.gz" | tar xz
-mv conspire-${VERSION#v}/front .
-rm -rf conspire-${VERSION#v}
 ```
+
+The release binary contains the complete version-matched frontend; no separate
+web-asset download or runtime `front/` directory is required.
 
 ### 2. TLS Certificates
 

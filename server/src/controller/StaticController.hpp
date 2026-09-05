@@ -27,6 +27,7 @@
 #ifndef StaticController_hpp
 #define StaticController_hpp
 
+#include "EmbeddedFrontend.hpp"
 #include "dto/Config.hpp"
 #include "utils/ServerBoundaries.hpp"
 #include "oatpp/web/server/api/ApiController.hpp"
@@ -44,10 +45,10 @@ private:
   OATPP_COMPONENT(std::shared_ptr<Statistics>, m_statistics);
 private:
 
-  static oatpp::String loadFile(const char* filename) {
-    auto buffer = oatpp::String::loadFromFile(filename);
-    OATPP_ASSERT_HTTP(buffer, Status::CODE_404, "File Not Found:(");
-    return buffer;
+  static oatpp::String loadAsset(std::string_view path) {
+    const auto asset = conspire::frontend::findAsset(path);
+    OATPP_ASSERT_HTTP(!asset.empty(), Status::CODE_404, "Asset Not Found:(");
+    return {asset.data(), static_cast<v_buff_size>(asset.size())};
   }
 
   static std::string renderPage(oatpp::String file, const oatpp::String& version) {
@@ -68,10 +69,8 @@ public:
 
     Action act() override {
       ++ controller->m_statistics->EVENT_FRONT_PAGE_LOADED;
-      std::string filePath = controller->m_config->frontPath->c_str() + std::string("/index.html");
-      auto fileCache = controller->loadFile(filePath.c_str());
       auto response = controller->createResponse(Status::CODE_200,
-                                                  controller->renderPage(fileCache, controller->m_config->version));
+          controller->renderPage(controller->loadAsset("index.html"), controller->m_config->version));
       response->putHeader(Header::CONTENT_TYPE, "text/html");
       response->putHeader("Content-Security-Policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
       response->putHeader("X-Content-Type-Options", "nosniff");
@@ -80,12 +79,25 @@ public:
       return _return(response);
     }  };
 
+  ENDPOINT_ASYNC("GET", "style.css", RootCSS) {
+    ENDPOINT_ASYNC_INIT(RootCSS)
+
+    Action act() override {
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("style.css"));
+      response->putHeader(Header::CONTENT_TYPE, "text/css");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
   ENDPOINT_ASYNC("GET", "lobby.js", LobbyJS) {
     ENDPOINT_ASYNC_INIT(LobbyJS)
 
     Action act() override {
-      const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/lobby.js");
-      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("lobby.js"));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
       response->putHeader("X-Content-Type-Options", "nosniff");
       response->putHeader("Cache-Control", "no-store");
@@ -100,8 +112,8 @@ public:
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
       OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
-      std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/index.html");
-      auto text = controller->renderPage(controller->loadFile(filePath.c_str()), controller->m_config->version);
+      auto text = controller->renderPage(controller->loadAsset("chat/index.html"),
+                                         controller->m_config->version);
       conspire::boundaries::replaceLiteral(text, "%%%ROOM_ID%%%", conspire::boundaries::urlPathSegment(*roomId));
       auto response = controller->createResponse(Status::CODE_200, text);
       response->putHeader(Header::CONTENT_TYPE, "text/html");
@@ -119,8 +131,7 @@ public:
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
       OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
-      std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/chat.js");
-      auto fileCache = controller->loadFile(filePath.c_str());
+      auto fileCache = controller->loadAsset("chat/chat.js");
 
       oatpp::data::stream::BufferOutputStream stream;
 
@@ -146,8 +157,8 @@ public:
     ENDPOINT_ASYNC_INIT(ProtocolJS)
 
     Action act() override {
-      std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/protocol.js");
-      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("chat/protocol.js"));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
       response->putHeader("X-Content-Type-Options", "nosniff");
       response->putHeader("Cache-Control", "no-store");
@@ -161,8 +172,8 @@ public:
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
       OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
-      const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/format.js");
-      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("chat/format.js"));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
       response->putHeader("X-Content-Type-Options", "nosniff");
       response->putHeader("Cache-Control", "no-store");
@@ -176,8 +187,8 @@ public:
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
       OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
-      const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/state.js");
-      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("chat/state.js"));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
       response->putHeader("X-Content-Type-Options", "nosniff");
       response->putHeader("Cache-Control", "no-store");
@@ -191,8 +202,8 @@ public:
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
       OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
-      const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/ui.js");
-      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("chat/ui.js"));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
       response->putHeader("X-Content-Type-Options", "nosniff");
       response->putHeader("Cache-Control", "no-store");
@@ -206,8 +217,8 @@ public:
     Action act() override {
       const auto roomId = request->getPathVariable("roomId");
       OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
-      const std::string filePath = controller->m_config->frontPath->c_str() + std::string("/chat/chat.css");
-      auto response = controller->createResponse(Status::CODE_200, controller->loadFile(filePath.c_str()));
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("chat/chat.css"));
       response->putHeader(Header::CONTENT_TYPE, "text/css");
       response->putHeader("X-Content-Type-Options", "nosniff");
       response->putHeader("Cache-Control", "no-store");

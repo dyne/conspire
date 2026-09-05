@@ -2,9 +2,9 @@
 
 ## Architecture and trust boundaries
 
-Conspire is a C++ oatpp server with a static browser client. Clients connect
+Conspire is a C++ oatpp server with a build-time embedded browser client. Clients connect
 directly over TLS/WebSockets; the landing page is separately served static
-content. The server process owns ephemeral rooms, file streams, and the
+content. The server process owns the embedded assets, ephemeral rooms, file streams, and the
 statistics endpoint. TLS private keys, release credentials, and deployment
 configuration are operator-owned inputs, not source or image assets.
 

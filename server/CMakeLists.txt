@@ -115,7 +115,27 @@ if(CONSPIRE_HAS_NATIVE_DEPS)
   find_package(oatpp-openssl 1.4.0 CONFIG REQUIRED)
   find_package(OpenSSL 1.1 REQUIRED)
 
+  set(CONSPIRE_FRONTEND_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../front")
+  file(GLOB_RECURSE CONSPIRE_FRONTEND_ASSETS CONFIGURE_DEPENDS
+    LIST_DIRECTORIES false "${CONSPIRE_FRONTEND_DIR}/*")
+  set(CONSPIRE_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+  set(CONSPIRE_EMBEDDED_FRONTEND_HPP "${CONSPIRE_GENERATED_DIR}/EmbeddedFrontend.hpp")
+  set(CONSPIRE_EMBEDDED_FRONTEND_CPP "${CONSPIRE_GENERATED_DIR}/EmbeddedFrontend.cpp")
+  add_custom_command(
+    OUTPUT "${CONSPIRE_EMBEDDED_FRONTEND_HPP}" "${CONSPIRE_EMBEDDED_FRONTEND_CPP}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CONSPIRE_GENERATED_DIR}"
+    COMMAND "${CMAKE_COMMAND}"
+      "-DFRONTEND_DIR=${CONSPIRE_FRONTEND_DIR}"
+      "-DOUTPUT_HEADER=${CONSPIRE_EMBEDDED_FRONTEND_HPP}"
+      "-DOUTPUT_SOURCE=${CONSPIRE_EMBEDDED_FRONTEND_CPP}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFrontend.cmake"
+    DEPENDS ${CONSPIRE_FRONTEND_ASSETS}
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFrontend.cmake"
+    COMMENT "Embedding frontend assets"
+    VERBATIM)
+
   add_library(conspire-lib
+  "${CONSPIRE_EMBEDDED_FRONTEND_CPP}"
   src/AppComponent.hpp
   src/controller/FileController.hpp
   src/controller/RoomsController.hpp
@@ -129,10 +149,11 @@ if(CONSPIRE_HAS_NATIVE_DEPS)
   src/utils/AppConfig.hpp src/utils/ConfigValidation.hpp src/utils/ServerBoundaries.hpp src/utils/Lifecycle.hpp
   src/utils/Statistics.cpp src/utils/Statistics.hpp
   src/dto/DTOs.hpp src/dto/Config.hpp)
-  target_include_directories(conspire-lib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_include_directories(conspire-lib PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CONSPIRE_GENERATED_DIR}")
   target_compile_definitions(conspire-lib PUBLIC
   CERT_PEM_PATH="cert/privkey.pem" CERT_CRT_PATH="cert/fullchain.pem"
-  FRONT_PATH="front" CONSPIRE_VERSION="${CONSPIRE_VERSION}")
+  CONSPIRE_VERSION="${CONSPIRE_VERSION}")
   target_link_libraries(conspire-lib
   PUBLIC oatpp::oatpp oatpp::oatpp-websocket oatpp::oatpp-openssl
   PRIVATE OpenSSL::SSL OpenSSL::Crypto)

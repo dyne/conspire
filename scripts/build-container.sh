@@ -21,6 +21,5 @@ cmake -S "$root" -B "$build_dir" -G Ninja \
   -DCONSPIRE_DEPS_PREFIX="$prefix"
 cmake --build "$build_dir" --target conspire-exe
 install -m 0755 "$build_dir/server/conspire-exe" "$context/conspire"
-cp -a "$root/front" "$context/front"
 docker build --pull=false --tag "$tag" --file "$root/Dockerfile" "$context"
 printf '%s\n' "built deterministic runtime context and image: $tag"

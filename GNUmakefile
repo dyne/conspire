@@ -10,6 +10,8 @@ BUILD_DIR ?= build
 CONSPIRE_DEPS_PREFIX ?= $(abspath $(BUILD_DIR)/deps-$(TARGET))
 CONSPIRE_VENDOR_BUILD_DIR ?= $(abspath $(BUILD_DIR)/vendor-oatpp-$(TARGET))
 STRIP ?= $(if $(strip $(CMAKE_TOOLCHAIN_FILE)),$(DYNE_MUSL_ROOT)/bin/$(TARGET)-strip,strip)
+ARTIFACT := conspire-$(OUTPUT)
+ARTIFACT_TEMP := $(ARTIFACT).new
 
 DESTDIR ?= /
 PREFIX ?= usr/local
@@ -32,15 +34,15 @@ conspire: deps
 		$(if $(strip $(CMAKE_TOOLCHAIN_FILE)),-DCMAKE_TOOLCHAIN_FILE="$(CMAKE_TOOLCHAIN_FILE)",) \
 		-DCONSPIRE_DEPS_PREFIX="$(CONSPIRE_DEPS_PREFIX)" -DCONSPIRE_VERSION="$(VERSION)"
 	ninja -C "$(BUILD_DIR)" conspire-exe
-	cp "$(BUILD_DIR)/conspire-exe" conspire-$(OUTPUT)
-	"$(STRIP)" conspire-$(OUTPUT)
+	install -m 0755 "$(BUILD_DIR)/conspire-exe" "$(ARTIFACT_TEMP)"
+	"$(STRIP)" "$(ARTIFACT_TEMP)"
+	mv "$(ARTIFACT_TEMP)" "$(ARTIFACT)"
 
 clean:
-	rm -rf "$(BUILD_DIR)" "conspire-$(OUTPUT)"
+	rm -rf "$(BUILD_DIR)" "$(ARTIFACT)" "$(ARTIFACT_TEMP)"
 
 install:
-	install -m 0755 conspire-$(OUTPUT) $(DESTDIR)$(PREFIX)/bin/conspire-$(OUTPUT)
-	install -d -m 0755 $(DESTDIR)$(PREFIX)/share/conspire
-	cp -ra front $(DESTDIR)$(PREFIX)/share/conspire
+	install -d -m 0755 $(DESTDIR)$(PREFIX)/bin
+	install -m 0755 "$(ARTIFACT)" $(DESTDIR)$(PREFIX)/bin/"$(ARTIFACT)"
 
 .PHONY: all deps conspire clean install

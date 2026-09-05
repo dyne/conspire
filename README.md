@@ -30,8 +30,11 @@ CONSPIRE_DEPS_PREFIX="$PWD/build/deps" ./scripts/build-container.sh
 ```
 
 It writes only ignored `build/` and `dist/container-*` outputs and builds the
-runtime image from that deterministic context. The committed oatpp 1.4 sources
-are built locally; the incompatible public oatpp 1.3 line is never substituted.
+runtime image from that deterministic context. The complete `front/` tree is
+embedded into the executable's read-only data at build time, so the runtime
+image cannot contain stale or mismatched web assets. The committed oatpp 1.4
+sources are built locally; the incompatible public oatpp 1.3 line is never
+substituted.
 
 ```sh
 docker run --read-only --tmpfs /run/conspire:uid=100,gid=101 \
@@ -74,6 +77,10 @@ open <http://localhost:8080>:
 ```bash
 ./build/native-gcc/server/conspire-exe
 ```
+
+The executable serves its build-time frontend from embedded read-only data and
+does not need a `front/` directory at runtime. Rebuild the binary after changing
+anything under `front/`.
 
 TLS is opt-in. Pass `--tls` together with certificate paths when it is needed:
 
