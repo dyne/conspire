@@ -20,13 +20,15 @@ body {
     margin: 0 0 50px 0;
 }
 
-input {
+input,
+.button {
     font-size: 36px;
     padding: 14px 20px;
     margin: 0 0 20px 0;
 }
 
-input {
+input,
+.button {
     display: inline;
     border: none;
     outline: none;
@@ -39,13 +41,16 @@ input {
     background-color: #448AFF;
     color: white;
     text-transform: uppercase;
+    text-decoration: none;
 }
 
-input:hover {
+input:hover,
+.button:hover {
     background-color: #2979FF;
 }
 
-input:active {
+input:active,
+.button:active {
     background-color: #2979FF;
 }
 

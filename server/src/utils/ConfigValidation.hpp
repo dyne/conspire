@@ -35,6 +35,10 @@ inline bool validStateFilePath(std::string_view path) {
          !conspire::boundaries::containsControl(path);
 }
 
+inline bool validLoopbackHost(std::string_view host) {
+  return host == "127.0.0.1" || host == "::1" || host == "localhost";
+}
+
 inline std::string canonicalBaseUrl(std::string_view host, std::uint16_t port, bool useTls) {
   const auto defaultPort = useTls ? 443 : 80;
   std::string url = useTls ? "https://" : "http://";

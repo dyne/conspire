@@ -31,6 +31,7 @@
 
 #include "./AppComponent.hpp"
 #include "utils/Lifecycle.hpp"
+#include "utils/TorControl.hpp"
 
 #include "oatpp/network/Server.hpp"
 
@@ -38,6 +39,7 @@
 #include <csignal>
 #include <thread>
 #include <chrono>
+#include <memory>
 
 // The handler is deliberately limited to assigning a sig_atomic_t. Logging,
 // cleanup, and joining happen in run(), where ordinary C++ is safe.
@@ -81,6 +83,18 @@ Options:
   --tls-chain <path>       Path to TLS certificate chain file (default: "cert/fullchain.pem")
   --url-stats <path>       Statistics endpoint path (default: admin/stats.json)
   --stats-state <path>     Persist statistics to this file across restarts
+  --no-tor                 Disable automatic Tor onion-service registration
+  --tor-control-socket <path>
+                           Tor ControlSocket (default: /run/tor/control)
+  --tor-control-host <host>
+                           Loopback fallback control host (default: 127.0.0.1)
+  --tor-control-port <port>
+                           Loopback fallback control port (default: 9051)
+  --tor-key <path>         Persistent ED25519-V3 onion key file
+  --tor-backend-port <port>
+                           Loopback HTTP port used with clearnet TLS (default: 8080)
+  --tor-virtual-port <port>
+                           Public onion-service port (default: 80)
   --pid <path>             Path to PID file to create
   --version                Show version information
   -h, --help               Show this help message
@@ -125,6 +139,44 @@ Options:
   /* Create server which takes provided TCP connections and passes them to HTTP connection handler */
   oatpp::network::Server server(connectionProvider, connectionHandler);
 
+  conspire::tor::OnionService onionService;
+  std::shared_ptr<oatpp::network::ServerConnectionProvider> torConnectionProvider;
+  std::unique_ptr<oatpp::network::Server> torServer;
+  if (appConfig->torEnabled) {
+    try {
+      if (appConfig->useTLS) {
+        torConnectionProvider =
+            oatpp::network::tcp::server::ConnectionProvider::createShared(
+                {"127.0.0.1", appConfig->torBackendPort,
+                 oatpp::network::Address::IP_4});
+      }
+      conspire::tor::Options torOptions;
+      torOptions.controlSocket = *appConfig->torControlSocket;
+      torOptions.controlHost = *appConfig->torControlHost;
+      torOptions.controlPort = *appConfig->torControlPort;
+      torOptions.keyPath = *appConfig->torKeyPath;
+      torOptions.targetPort = *appConfig->torBackendPort;
+      torOptions.virtualPort = *appConfig->torVirtualPort;
+      std::string torError;
+      if (onionService.start(torOptions, torError)) {
+        appConfig->onionHost = onionService.hostname();
+        if (torConnectionProvider) {
+          torServer = std::make_unique<oatpp::network::Server>(
+              torConnectionProvider, connectionHandler);
+        }
+        OATPP_LOGi("conspire", "Tor hidden service registered at {} via {}",
+                   appConfig->getOnionBaseUrl(), onionService.controlEndpoint())
+      } else {
+        torConnectionProvider.reset();
+        OATPP_LOGw("conspire", "Tor integration unavailable: {}", torError)
+      }
+    } catch (const std::exception& exception) {
+      onionService.stop();
+      torConnectionProvider.reset();
+      OATPP_LOGw("conspire", "Tor integration unavailable: {}", exception.what())
+    }
+  }
+
   OATPP_COMPONENT(std::shared_ptr<Lobby>, lobby);
   OATPP_COMPONENT(std::shared_ptr<Statistics>, statistics);
   const std::string statisticsStatePath = appConfig->statisticsStatePath
@@ -146,6 +198,10 @@ Options:
   std::thread serverThread([&server]{
     server.run();
   });
+  std::thread torServerThread;
+  if (torServer) {
+    torServerThread = std::thread([&torServer] { torServer->run(); });
+  }
 
   conspire::lifecycle::PeriodicRunner pingRunner;
   conspire::lifecycle::PeriodicRunner statisticsRunner;
@@ -169,6 +225,9 @@ Options:
     pingRunner.stop();
     statisticsRunner.stop();
     statisticsPersistenceRunner.stop();
+    onionService.stop();
+    if (torServer) torServer->stop();
+    if (torServerThread.joinable()) torServerThread.join();
     server.stop();
     if (serverThread.joinable()) serverThread.join();
     connectionHandler->stop();
@@ -187,6 +246,9 @@ Options:
 
   OATPP_LOGi("conspire", "canonical base URL={}", appConfig->getCanonicalBaseUrl())
   OATPP_LOGi("conspire", "statistics URL={}", appConfig->getStatsUrl())
+  if (appConfig->onionHost) {
+    OATPP_LOGi("conspire", "Tor hidden service URL={}", appConfig->getOnionBaseUrl())
+  }
 
   // Wait for shutdown signal
   while (g_shutdownSignal == 0 && !pingRunner.failed() && !statisticsRunner.failed() &&
@@ -199,6 +261,9 @@ Options:
   // Each owned worker is woken and joined before components/environment die.
   pingRunner.stop();
   statisticsPersistenceRunner.stop();
+  onionService.stop();
+  if (torServer) torServer->stop();
+  if (torServerThread.joinable()) torServerThread.join();
   server.stop();
   if (serverThread.joinable()) serverThread.join();
   connectionHandler->stop();

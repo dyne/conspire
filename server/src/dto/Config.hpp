@@ -33,6 +33,8 @@
 #include "oatpp/data/stream/BufferStream.hpp"
 #include "utils/ConfigValidation.hpp"
 
+#include <string_view>
+
 #include OATPP_CODEGEN_BEGIN(DTO)
 
 class ConfigDto : public oatpp::DTO {
@@ -50,6 +52,15 @@ public:
   DTO_FIELD(String, host);
   DTO_FIELD(UInt16, port);
   DTO_FIELD(Boolean, useTLS) = false;
+
+  DTO_FIELD(Boolean, torEnabled) = true;
+  DTO_FIELD(String, torControlSocket);
+  DTO_FIELD(String, torControlHost);
+  DTO_FIELD(UInt16, torControlPort);
+  DTO_FIELD(String, torKeyPath);
+  DTO_FIELD(UInt16, torBackendPort);
+  DTO_FIELD(UInt16, torVirtualPort);
+  DTO_FIELD(String, onionHost);
 
   /**
    * Path to TLS private key file.
@@ -109,6 +120,47 @@ public:
 
   oatpp::String getStatsUrl() {
     return getCanonicalBaseUrl() + "/" + statisticsUrl;
+  }
+
+  oatpp::String getOnionHostString() const {
+    if (!onionHost) return nullptr;
+    std::string value = *onionHost;
+    if (torVirtualPort && *torVirtualPort != 80) {
+      value += ":" + std::to_string(*torVirtualPort);
+    }
+    return value;
+  }
+
+  oatpp::String getOnionBaseUrl() const {
+    if (!onionHost) return nullptr;
+    return conspire::config::canonicalBaseUrl(*onionHost,
+        torVirtualPort ? *torVirtualPort : 80, false);
+  }
+
+  bool isAllowedRequestHost(std::string_view requestHost) {
+    if (requestHost == std::string_view(*getHostString())) return true;
+    const auto onion = getOnionHostString();
+    return onion && requestHost == std::string_view(*onion);
+  }
+
+  bool isOnionRequestHost(std::string_view requestHost) const {
+    const auto onion = getOnionHostString();
+    return onion && requestHost == std::string_view(*onion);
+  }
+
+  oatpp::String getWebsocketBaseUrlForHost(std::string_view requestHost) {
+    if (isOnionRequestHost(requestHost)) {
+      return conspire::config::websocketBaseUrl(*onionHost,
+          torVirtualPort ? *torVirtualPort : 80, false);
+    }
+    return getWebsocketBaseUrl();
+  }
+
+  bool isAllowedOrigin(std::string_view origin, bool developmentOverride) {
+    if (conspire::boundaries::allowedOrigin(origin, *getCanonicalBaseUrl(),
+                                             developmentOverride)) return true;
+    const auto onion = getOnionBaseUrl();
+    return onion && origin == std::string_view(*onion);
   }
 
 };
