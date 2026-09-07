@@ -1,5 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 import { humanFileSize } from './format.js';
+import { createFileChunkMessage } from './protocol.js';
 import { createChatState } from './state.js';
 
 const { urlWebsocket, urlRoom } = globalThis.ConspireChatConfig;
@@ -14,7 +15,6 @@ let CODE_PEER_IS_TYPING = 5;
 
 let CODE_FILE_SHARE = 6;
 let CODE_FILE_REQUEST_CHUNK = 7;
-let CODE_FILE_CHUNK_DATA = 8;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -475,22 +475,10 @@ function sendFileChunks(message) {
             reader.onloadend = function () {
 
                 let data = btoa(reader.result);
-
-                let chunkData = {
-                    serverFileId: chunkInfo.serverFileId,
-                    subscriberId: chunkInfo.subscriberId,
-                    data: data
-                }
-
-                let message = {
-                    peerId: peerId,
-                    code: CODE_FILE_CHUNK_DATA,
-                    files: [chunkData]
-                }
-
-                socketSendNextData(JSON.stringify(message));
-
                 let chunkSize = posEnd - chunkInfo.chunkPosition;
+                socketSendNextData(JSON.stringify(
+                    createFileChunkMessage(chunkInfo, data, chunkSize)));
+
                 let sentLabel = document.getElementById("file_served_" + chunkInfo.serverFileId);
                 let sent = parseInt(sentLabel.getAttribute("amount-sent")) + chunkSize;
                 let spin = parseInt(sentLabel.getAttribute("progress-spin")) + 1;

@@ -25,6 +25,19 @@ export function roomFileUrl(roomUrl, serverFileId) {
   return `${roomUrl.replace(/\/$/, '')}/file/${encodeURIComponent(String(serverFileId))}`;
 }
 
+export function createFileChunkMessage(request, data, chunkSize) {
+  return {
+    code: MessageCode.FILE_CHUNK_DATA,
+    files: [{
+      serverFileId: request.serverFileId,
+      subscriberId: request.subscriberId,
+      chunkPosition: request.chunkPosition,
+      chunkSize,
+      data,
+    }],
+  };
+}
+
 export function humanFileSize(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
   const units = ['B', 'kB', 'MB', 'GB', 'TB', 'PB'];

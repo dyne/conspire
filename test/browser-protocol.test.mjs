@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MessageCode, humanFileSize, parseProtocolMessage, roomFileUrl } from '../front/chat/protocol.js';
+import {
+  MessageCode,
+  createFileChunkMessage,
+  humanFileSize,
+  parseProtocolMessage,
+  roomFileUrl,
+} from '../front/chat/protocol.js';
 import { createChatState } from '../front/chat/state.js';
 import { humanFileSize as formatFileSize } from '../front/chat/format.js';
 import { readFile } from 'node:fs/promises';
@@ -26,6 +32,25 @@ test('file URLs and file sizes are deterministic at boundaries', () => {
   assert.equal(humanFileSize(-1), '0 B');
 });
 
+test('file chunk replies preserve the requested transfer coordinates', () => {
+  const request = {
+    serverFileId: 12,
+    subscriberId: 34,
+    chunkPosition: 4096,
+    chunkSize: 4096,
+  };
+  assert.deepEqual(createFileChunkMessage(request, 'YWJj', 3), {
+    code: MessageCode.FILE_CHUNK_DATA,
+    files: [{
+      serverFileId: 12,
+      subscriberId: 34,
+      chunkPosition: 4096,
+      chunkSize: 3,
+      data: 'YWJj',
+    }],
+  });
+});
+
 test('chat state and formatting modules are isolated from the DOM', () => {
   const first = createChatState();
   const second = createChatState();
@@ -41,6 +66,7 @@ test('the shipped chat receive path imports and validates the protocol module', 
   const chat = await readFile(new URL('../front/chat/chat.js', import.meta.url), 'utf8');
   assert.match(chat, /import\(urlRoom \+ "\/protocol\.js"\)/);
   assert.match(chat, /protocol\.parseProtocolMessage\(event\.data\)/);
+  assert.match(chat, /createFileChunkMessage\(chunkInfo, data, chunkSize\)/);
   assert.doesNotMatch(chat, /onMessage\(JSON\.parse\(event\.data\)\)/);
 });
 
@@ -51,6 +77,7 @@ test('room module imports have explicit matching server routes', async () => {
     readFile(new URL('../server/src/controller/StaticController.hpp', import.meta.url), 'utf8'),
   ]);
   assert.match(chat, /from '\.\/format\.js'/);
+  assert.match(chat, /from '\.\/protocol\.js'/);
   assert.match(chat, /from '\.\/state\.js'/);
   assert.match(ui, /from '\.\/chat\.js'/);
   for (const route of ['format.js', 'state.js', 'chat.js', 'ui.js', 'protocol.js']) {
