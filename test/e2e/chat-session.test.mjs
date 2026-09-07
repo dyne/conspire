@@ -10,10 +10,18 @@ import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import WebSocket from 'ws';
+import { createFileChunkMessage } from '../../front/chat/protocol.js';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const binary = resolve(root, process.env.CONSPIRE_E2E_BINARY ?? 'build/native-gcc/server/conspire-exe');
-const messageCode = Object.freeze({ info: 0, peerJoined: 1, peerMessage: 3 });
+const messageCode = Object.freeze({
+  info: 0,
+  peerJoined: 1,
+  peerMessage: 3,
+  peerFile: 4,
+  fileShare: 6,
+  fileRequestChunk: 7,
+});
 const execFileAsync = promisify(execFile);
 
 function delay(milliseconds) {
@@ -168,6 +176,24 @@ async function requestText(port, path, headers = {}) {
         status: response.statusCode,
         headers: response.headers,
         body: Buffer.concat(chunks).toString('utf8'),
+      }));
+    });
+    request.once('error', rejectRequest);
+    request.end();
+  });
+}
+
+async function requestBuffer(port, path, headers = {}) {
+  return new Promise((resolveRequest, rejectRequest) => {
+    const request = httpRequest({
+      host: '127.0.0.1', port, path, headers,
+    }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolveRequest({
+        status: response.statusCode,
+        headers: response.headers,
+        body: Buffer.concat(chunks),
       }));
     });
     request.once('error', rejectRequest);
@@ -612,3 +638,178 @@ test('real server broadcasts chat messages and supplies room history', { timeout
   }
   assert.deepEqual(exit, { code: 0, signal: null }, `Conspire output:\n${diagnostics}`);
 });
+
+test('real server transfers file contents without disconnecting either peer',
+  { timeout: 30_000 }, async () => {
+    const port = await reservePort();
+    const origin = `http://localhost:${port}`;
+    const room = 'e2e-file-room';
+    const websocketUrl = `ws://localhost:${port}/api/ws/room/${room}/`;
+    const server = startConspire(port);
+    const clients = [];
+    const contents = Buffer.alloc(64 * 1024);
+    for (let index = 0; index < contents.length; index += 1) contents[index] = index % 251;
+    let scenarioError;
+
+    try {
+      await waitForServer(server, origin);
+      const offerer = await connectClient(websocketUrl, origin);
+      clients.push(offerer);
+      await waitForMessage(offerer, 'file offerer onboarding',
+        (message) => message.code === messageCode.info);
+
+      const downloader = await connectClient(websocketUrl, origin);
+      clients.push(downloader);
+      await waitForMessage(downloader, 'file downloader onboarding',
+        (message) => message.code === messageCode.info);
+
+      let responseError;
+      offerer.socket.on('message', (payload) => {
+        try {
+          const message = JSON.parse(payload.toString());
+          if (message.code !== messageCode.fileRequestChunk) return;
+          const request = message.files[0];
+          const chunk = contents.subarray(
+            request.chunkPosition, request.chunkPosition + request.chunkSize);
+          offerer.socket.send(JSON.stringify(createFileChunkMessage(
+            request, chunk.toString('base64'), chunk.length)));
+        } catch (error) {
+          responseError = error;
+        }
+      });
+
+      await sendJson(offerer, {
+        code: messageCode.fileShare,
+        files: [{ clientFileId: 1, name: 'transfer.bin', size: contents.length }],
+      });
+      const shared = await waitForMessage(downloader, 'shared file announcement',
+        (message) => message.code === messageCode.peerFile);
+      const response = await fetch(
+        `${origin}/room/${room}/file/${shared.files[0].serverFileId}`);
+      assert.equal(response.status, 200);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), contents);
+      assert.ifError(responseError);
+      assert.equal(offerer.socket.readyState, WebSocket.OPEN);
+      assert.equal(downloader.socket.readyState, WebSocket.OPEN);
+      assert.equal(offerer.messages.filter(
+        (message) => message.code === messageCode.fileRequestChunk).length, 16);
+    } catch (error) {
+      scenarioError = error;
+    }
+
+    for (const client of clients.reverse()) {
+      try {
+        await closeClient(client);
+      } catch (error) {
+        scenarioError ??= error;
+      }
+    }
+
+    let exit;
+    try {
+      exit = await stopConspire(server);
+    } catch (error) {
+      scenarioError ??= error;
+    }
+
+    const diagnostics = server.getOutput();
+    if (scenarioError) {
+      throw new Error(`${scenarioError.message}\nConspire output:\n${diagnostics}`,
+        { cause: scenarioError });
+    }
+    assert.deepEqual(exit, { code: 0, signal: null }, `Conspire output:\n${diagnostics}`);
+  });
+
+test('real server transfers from a clearnet offerer to an onion downloader',
+  { timeout: 30_000 }, async () => {
+    const stateDirectory = await mkdtemp(join(tmpdir(), 'conspire-file-tor-e2e-'));
+    const keyPath = join(stateDirectory, 'onion.key');
+    const cookiePath = join(stateDirectory, 'control.authcookie');
+    const controlSocket = join(stateDirectory, 'missing-control.sock');
+    const fakeTor = await startFakeTor(cookiePath);
+    const onionHost = `${fakeTor.serviceId}.onion`;
+    const onionOrigin = `http://${onionHost}`;
+    const port = await reservePort();
+    const clearnetOrigin = `http://localhost:${port}`;
+    const room = 'e2e-mixed-file-room';
+    const websocketPath = `/api/ws/room/${room}/`;
+    const server = startConspire(port, [
+      '--tor-control-socket', controlSocket,
+      '--tor-control-host', '127.0.0.1',
+      '--tor-control-port', String(fakeTor.port),
+      '--tor-key', keyPath,
+    ]);
+    const clients = [];
+    const contents = Buffer.from('conspire mixed clearnet and onion transfer');
+    let scenarioError;
+
+    try {
+      await waitForServer(server, clearnetOrigin);
+      await waitUntil('file-transfer ADD_ONION command', () =>
+        fakeTor.commands.find((command) => command.startsWith('ADD_ONION ')));
+
+      const offerer = await connectClient(
+        `ws://localhost:${port}${websocketPath}`, clearnetOrigin);
+      clients.push(offerer);
+      await waitForMessage(offerer, 'mixed file offerer onboarding',
+        (message) => message.code === messageCode.info);
+
+      const downloader = await connectClient(
+        `ws://127.0.0.1:${port}${websocketPath}`, onionOrigin, { Host: onionHost });
+      clients.push(downloader);
+      await waitForMessage(downloader, 'mixed file downloader onboarding',
+        (message) => message.code === messageCode.info);
+
+      let responseError;
+      offerer.socket.on('message', (payload) => {
+        try {
+          const message = JSON.parse(payload.toString());
+          if (message.code !== messageCode.fileRequestChunk) return;
+          const request = message.files[0];
+          const chunk = contents.subarray(
+            request.chunkPosition, request.chunkPosition + request.chunkSize);
+          offerer.socket.send(JSON.stringify(createFileChunkMessage(
+            request, chunk.toString('base64'), chunk.length)));
+        } catch (error) {
+          responseError = error;
+        }
+      });
+
+      await sendJson(offerer, {
+        code: messageCode.fileShare,
+        files: [{ clientFileId: 1, name: 'mixed.txt', size: contents.length }],
+      });
+      const shared = await waitForMessage(downloader, 'mixed shared file announcement',
+        (message) => message.code === messageCode.peerFile);
+      const response = await requestBuffer(port,
+        `/room/${room}/file/${shared.files[0].serverFileId}`, { Host: onionHost });
+      assert.equal(response.status, 200);
+      assert.deepEqual(response.body, contents);
+      assert.ifError(responseError);
+      assert.equal(offerer.socket.readyState, WebSocket.OPEN);
+      assert.equal(downloader.socket.readyState, WebSocket.OPEN);
+    } catch (error) {
+      scenarioError = error;
+    }
+
+    for (const client of clients.reverse()) {
+      try {
+        await closeClient(client);
+      } catch (error) {
+        scenarioError ??= error;
+      }
+    }
+    try {
+      const exit = await stopConspire(server);
+      assert.deepEqual(exit, { code: 0, signal: null });
+    } catch (error) {
+      scenarioError ??= error;
+    }
+    await fakeTor.close();
+    await rm(stateDirectory, { recursive: true, force: true });
+
+    if (scenarioError) {
+      throw new Error(`${scenarioError.message}\nConspire output:\n${server.getOutput()}`,
+        { cause: scenarioError });
+    }
+  });
