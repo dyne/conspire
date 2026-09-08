@@ -936,7 +936,7 @@ select.form-control {
     box-shadow: var(--shadow-md);
 }
 
-.chart-container h3 {
+.chart-container h2 {
     font-size: var(--font-size-xl);
     margin-bottom: var(--space-12);
     color: var(--color-text);
@@ -975,7 +975,7 @@ canvas {
         min-height: 250px;
     }
     
-    .chart-container h3 {
+    .chart-container h2 {
         font-size: var(--font-size-lg);
         margin-bottom: var(--space-8);
     }

@@ -4,6 +4,14 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import {
+  applyFontScale,
+  computedToken,
+  focusNext,
+  newSurfaceContext,
+  saveStableSurfaceScreenshot,
+  surfaceMatrix,
+} from './surface-fixtures.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const binary = resolve(root, process.env.CONSPIRE_E2E_BINARY ?? 'build/native-gcc/server/conspire-exe');
@@ -108,7 +116,7 @@ test('users chat through the browser UI and a newcomer receives history', async 
       return page;
     };
 
-    const firstContext = await browser.newContext();
+    const firstContext = await newSurfaceContext(browser, surfaceMatrix.desktop);
     contexts.push(firstContext);
     await firstContext.route('https://cdn.jsdelivr.net/**', (route) => route.fulfill({
       contentType: 'text/javascript',
@@ -122,6 +130,8 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await expect(dashboard.locator('.chart-container')).toHaveCount(4);
     await expect(dashboard.locator('#stats-url')).toHaveText(`${origin}/admin/stats.json`);
     await expect.poll(() => dashboard.evaluate(() => globalThis.__chartCount ?? 0)).toBe(4);
+    await dashboard.getByRole('button', { name: 'Refresh Data' }).focus();
+    await expect(dashboard.getByRole('button', { name: 'Refresh Data' })).toHaveCSS('box-shadow', /rgba?\(/);
 
     const landing = trackPage(await firstContext.newPage());
     await landing.goto(origin);
@@ -130,15 +140,31 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await expect(landing.getByRole('button', { name: 'Public Reception' })).toBeVisible();
     await expect(landing.getByRole('button', { name: 'New Private Room' })).toBeVisible();
     await expect(landing.getByRole('link', { name: 'Tor hidden service' })).toHaveCount(0);
+    expect(await computedToken(landing, 'body', 'font-family')).toContain('system-ui');
+    await saveStableSurfaceScreenshot(landing, 'landing-desktop-light');
 
+    expect(await focusNext(landing)).toBe('public-room-button');
+    await expect(landing.getByRole('button', { name: 'Public Reception' })).toBeFocused();
+    await expect(landing.getByRole('button', { name: 'Public Reception' })).toHaveCSS('outline-style', 'solid');
     const firstPageOpened = firstContext.waitForEvent('page');
-    await landing.getByRole('button', { name: 'Public Reception' }).click();
+    await landing.keyboard.press('Enter');
     const first = trackPage(await firstPageOpened);
     await first.waitForLoadState();
     await expect(first).toHaveURL(roomUrl);
     await expect(first.locator('#chat_container')).toHaveCSS('background-color', 'rgb(66, 66, 66)');
     await expect(first.getByRole('button', { name: 'Send', exact: true })).toBeVisible();
     await expect(first.getByRole('button', { name: 'Share Files' })).toBeVisible();
+    await first.getByRole('button', { name: 'Send', exact: true }).focus();
+    await expect(first.getByRole('button', { name: 'Send', exact: true })).toHaveCSS('outline-style', 'solid');
+
+    const compactContext = await newSurfaceContext(browser, surfaceMatrix.compact);
+    contexts.push(compactContext);
+    const compactLanding = trackPage(await compactContext.newPage());
+    await compactLanding.goto(origin);
+    await applyFontScale(compactLanding, surfaceMatrix.compact.fontScale);
+    await expect(compactLanding.getByRole('main')).toBeVisible();
+    await expect(compactLanding.getByRole('button', { name: 'Public Reception' })).toBeVisible();
+    await saveStableSurfaceScreenshot(compactLanding, 'landing-compact-light-reduced-motion-200-font');
 
     const openParticipant = async () => {
       const context = await browser.newContext();
