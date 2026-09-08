@@ -106,6 +106,12 @@ test('dashboard keeps hostile strings out of HTML sinks and does not proxy stati
   assert.match(dashboard, /ConspireDashboardConfig\?\.statsUrl/);
   assert.match(html, /href="\/dashboard\/style\.css"/);
   assert.match(html, /src="\/dashboard\/app\.js"/);
+  assert.match(html, /src="\/dashboard\/vendor\/chart\.umd\.min\.js"/);
+  assert.doesNotMatch(html, /cdn\.jsdelivr|https:\/\/.*chart/i);
+  assert.doesNotMatch(dashboard, /\balert\s*\(/);
+  assert.match(dashboard, /MAX_STATS_POINTS/);
+  assert.match(dashboard, /Intl\.DateTimeFormat/);
+  assert.match(dashboard, /renderSemanticChart/);
   assert.doesNotMatch(html, /\sonclick=/);
   assert.doesNotMatch(html, /\sstyle=/);
 });

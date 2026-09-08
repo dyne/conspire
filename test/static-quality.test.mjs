@@ -39,7 +39,7 @@ test('production pages expose truthful metadata and a navigable landmark outline
   assert.match(landing, /<header[\s>][\s\S]*<main[\s>]/);
   assert.match(chat, /<header\s+id="chat_status"[\s>][\s\S]*<main\s+id="chat_main"[\s>][\s\S]*<aside\s+id="chat_participants"[\s>][\s\S]*<footer\s+id="chat_input_container"/);
   assert.match(dashboard, /<main\s+class="dashboard-grid"[\s>]/);
-  assert.equal((dashboard.match(/<h2>/g) ?? []).length, 4);
+  assert.equal((dashboard.match(/<h2\b/g) ?? []).length, 4);
   assert.doesNotMatch(dashboard, /<h3>.*Activity|<h3>Communication|<h3>System Metrics/);
 });
 
@@ -92,7 +92,26 @@ test('the server embeds its complete frontend and dashboard instead of loading r
   assert.match(controller, /"dashboard", Dashboard/);
   assert.match(controller, /loadAsset\("dashboard\/index\.html"\)/);
   assert.match(controller, /ConspireDashboardConfig = \{statsUrl:/);
+  assert.match(controller, /dashboard\/vendor\/chart\.umd\.min\.js/);
+  assert.match(controller, /script-src 'self';/);
+  assert.doesNotMatch(controller, /cdn\.jsdelivr/);
   assert.doesNotMatch(controller, /loadFromFile|frontPath/);
+});
+
+test('dashboard exposes an equivalent semantic representation for every chart', async () => {
+  const [html, app, readme] = await Promise.all([
+    readFile(new URL('../dashboard/index.html', import.meta.url), 'utf8'),
+    readFile(new URL('../dashboard/app.js', import.meta.url), 'utf8'),
+    readFile(new URL('../dashboard/README.md', import.meta.url), 'utf8'),
+  ]);
+  assert.equal((html.match(/class="chart-data"/g) ?? []).length, 4);
+  assert.equal((html.match(/aria-hidden="true"/g) ?? []).length, 4);
+  assert.match(html, /id="dashboard-status"[\s\S]*role="status"/);
+  assert.match(app, /formatTimestamp/);
+  assert.match(app, /formatValue/);
+  assert.match(app, /METRICS\.forEach\(renderSemanticChart\)/);
+  assert.doesNotMatch(app, /loadSampleData|Sample Data \(Demo Mode\)/);
+  assert.match(readme, /Chart\.js 4\.4\.7/);
 });
 
 test('all production surfaces consume the embedded shared design primitives', async () => {

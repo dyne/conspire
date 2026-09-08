@@ -118,18 +118,18 @@ test('users chat through the browser UI and a newcomer receives history', async 
 
     const firstContext = await newSurfaceContext(browser, surfaceMatrix.desktop);
     contexts.push(firstContext);
-    await firstContext.route('https://cdn.jsdelivr.net/**', (route) => route.fulfill({
-      contentType: 'text/javascript',
-      body: 'globalThis.Chart = class { constructor() { globalThis.__chartCount = (globalThis.__chartCount ?? 0) + 1; } destroy() {} };',
-    }));
-
     const dashboard = trackPage(await firstContext.newPage());
     const dashboardResponse = await dashboard.goto(`${origin}/dashboard`);
     expect(dashboardResponse?.status()).toBe(200);
     await expect(dashboard).toHaveTitle(`Conspire v${buildVersion} by Dyne.org`);
     await expect(dashboard.locator('.chart-container')).toHaveCount(4);
+    await expect(dashboard.locator('.chart-data table')).toHaveCount(4);
+    await dashboard.locator('#peer-chart-data summary').click();
+    await expect(dashboard.getByRole('table')).toHaveCount(1);
+    await expect(dashboard.getByRole('status')).toContainText('statistics records loaded');
+    await expect(dashboard.locator('#peer-chart-data summary')).toBeVisible();
     await expect(dashboard.locator('#stats-url')).toHaveText(`${origin}/admin/stats.json`);
-    await expect.poll(() => dashboard.evaluate(() => globalThis.__chartCount ?? 0)).toBe(4);
+    await expect.poll(() => dashboard.evaluate(() => Object.keys(Chart.instances).length)).toBe(4);
     await dashboard.getByRole('button', { name: 'Refresh Data' }).focus();
     await expect(dashboard.getByRole('button', { name: 'Refresh Data' })).toHaveCSS('box-shadow', /rgba?\(/);
 

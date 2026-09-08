@@ -1,133 +1,48 @@
 # Conspire P2P Dashboard
 
-A real-time dashboard for visualizing Conspire P2P statistics and metrics.
+The embedded dashboard displays four groups of statistics from the Conspire
+server: peer activity, room activity, communication, and system metrics. Each
+visual chart has a matching summary and keyboard-accessible data table.
 
-## Features
+## Use
 
-- **Dynamic Data Loading**: Fetches stats data from online JSON endpoints
-- **Multiple Data Sources**: Supports remote URLs, local JSON files, CORS proxies, and demo data
-- **Real-time Visualizations**: Interactive charts showing peer activity, room usage, communication patterns, and system metrics
-- **Responsive Design**: Works on desktop and mobile devices
-- **CORS Handling**: Comprehensive solutions for cross-origin request issues
-- **Error Handling**: Graceful handling of network errors with retry functionality and helpful solutions
-- **Customizable Data Source**: Configurable stats URL via URL parameters
+Open `/dashboard` on a running Conspire server. It loads that server's
+configured statistics endpoint. A custom source may be supplied with a
+`statsUrl` query parameter:
 
-## Usage
-
-### Basic Usage
-
-Open `/dashboard` on a running Conspire server. The dashboard is embedded in
-the binary and automatically fetches that server's configured statistics
-endpoint. For example:
 ```
-https://conspire.dyne.org:8443/dashboard
+/dashboard?statsUrl=https://example.invalid/admin/stats.json
 ```
 
-### Custom Stats URL
+Statistics URLs must use HTTPS. `http` is allowed only for localhost during
+development. The dashboard fetches the selected endpoint directly; it does not
+use a CORS proxy. A remote endpoint must therefore be same-origin or explicitly
+allow the dashboard origin through CORS.
 
-You can specify a custom stats URL using the `statsUrl` parameter:
-```
-/dashboard?statsUrl=https://your-conspire-server.com:8443/admin/stats.json
-```
+Use **Load JSON File** to inspect a local JSON file. Files and remote responses
+are limited to 1 MiB. The dashboard accepts at most 1,000 records. Loading,
+empty data, invalid data, failures, and successful loads are announced in the
+dashboard status region with the appropriate recovery action.
 
-### CORS Issues & Solutions
+## Data format
 
-The dashboard fetches the selected endpoint directly; it does not use a public CORS proxy. Serve it from the same origin as the statistics endpoint, or configure that endpoint to permit the dashboard origin. Statistics URLs must be HTTPS (or localhost HTTP for development), responses are capped at 1 MiB, and data must match the documented numeric schema.
+Records must have numeric timestamps (microseconds) and numeric event fields.
+The dashboard requires `timestamp`, `ev_peer_connected`, and
+`ev_peer_disconnected`; the remaining values populate the corresponding chart
+when present.
 
-#### Option 1: Use CORS Proxy
-Click the "Try CORS Proxy" button in the error dialog to route requests through a public CORS proxy service.
-
-#### Option 2: Load Local JSON File  
-1. Click "Load JSON File" button
-2. Select a JSON file from your computer (use `sample-stats.json` for testing)
-3. The dashboard will display data from your local file
-
-#### Option 3: Use Sample Data
-Click "Load Sample Data" to see the dashboard with demonstration data.
-
-#### Option 4: Server-side Solutions
-- **Same Origin**: Host the dashboard on the same server as the stats API
-- **CORS Headers**: Configure your server to include CORS headers:
-  ```
-  Access-Control-Allow-Origin: *
-  Access-Control-Allow-Methods: GET, OPTIONS
-  Access-Control-Allow-Headers: Content-Type
-  ```
-
-#### Option 5: Development Mode (Local Only)
-For local development, start Chrome with disabled web security:
-```bash
-google-chrome --disable-web-security --user-data-dir="/tmp/chrome_dev"
-```
-
-### Standalone Development
-
-Start a local web server in the dashboard directory:
-```bash
-cd dashboard
-python3 -m http.server 8000
-```
-
-Then open `http://localhost:8000` in your browser and provide a reachable
-localhost statistics endpoint through the `statsUrl` query parameter.
-
-## Data Format
-
-The dashboard expects JSON data in the following format:
 ```json
-[
-  {
-    "timestamp": 1759175878080771,
-    "ev_front_page_loaded": 1,
-    "ev_peer_connected": 11,
-    "ev_peer_disconnected": 9,
-    "ev_peer_zombie_dropped": 5,
-    "ev_peer_send_message": 4,
-    "ev_peer_share_file": 2,
-    "ev_room_created": 6,
-    "ev_room_deleted": 4,
-    "file_served_bytes": 468185
-  }
-]
+[{"timestamp":1759175878080771,"ev_peer_connected":11,"ev_peer_disconnected":9}]
 ```
 
-## Charts
+## Offline delivery and browser policy
 
-The dashboard displays four main visualizations:
+Chart.js 4.4.7 is vendored at `dashboard/vendor/chart.umd.min.js` from the
+official Chart.js distribution (MIT license in the adjacent license file). It
+is embedded into the native binary at build time and served with immutable cache
+semantics. The dashboard's CSP permits scripts only from the same origin; native
+builds never fetch frontend dependencies.
 
-1. **Peer Activity**: Tracks peer connections, disconnections, and zombie drops
-2. **Room Activity**: Shows room creation and deletion patterns
-3. **Communication**: Displays message sending and file sharing activity
-4. **System Metrics**: Combines front page loads and data served metrics
-
-## Error Handling
-
-- **Network Errors**: Displays error messages with retry functionality
-- **Invalid Data**: Validates JSON format and data structure
-- **Loading States**: Shows loading indicators during data fetch
-
-## Refresh Functionality
-
-Use the "Refresh Data" button to manually reload the latest statistics, or call `refreshDashboard()` programmatically.
-
-## Browser Compatibility
-
-The dashboard uses modern JavaScript features (async/await, fetch API) and requires:
-- Chrome 55+
-- Firefox 52+
-- Safari 10.1+
-- Edge 79+
-
-## Customization
-
-### Colors
-Chart colors are defined in the `colors` array in `app.js` and follow the design system.
-
-### Styling
-Dashboard styling uses CSS custom properties (variables) defined in `style.css` with support for light/dark mode themes.
-
-### Adding New Metrics
-To add new metrics:
-1. Ensure the data is present in the JSON response
-2. Add new datasets to the appropriate chart configuration
-3. Assign colors from the `colors` array
+For local static inspection, serve this directory with any HTTP server and use
+a localhost statistics endpoint. Browser requests still enforce the same URL,
+size, schema, and CORS policy as the embedded dashboard.
