@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>%%%CONSPIRE_TITLE%%%</title>
     <link rel="stylesheet" href="/dashboard/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/dashboard/vendor/chart.umd.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -15,40 +15,63 @@
             <div class="dashboard-controls">
                 <p class="stats-url">Data source: <code id="stats-url"></code></p>
                 <div class="control-buttons">
-                    <input class="hidden-input" type="file" id="jsonFileInput" accept=".json">
+                    <input class="hidden-input" type="file" id="jsonFileInput" accept=".json" aria-describedby="file-input-help">
+                    <span id="file-input-help" class="visually-hidden">Select a JSON statistics file no larger than 1 MiB.</span>
                     <button type="button" id="load-file-button" class="load-file-btn">Load JSON File</button>
                     <button type="button" id="refresh-button" class="refresh-btn">Refresh Data</button>
                 </div>
             </div>
         </header>
 
-        <main class="dashboard-grid">
-            <section class="chart-container">
-                <h2>Peer Activity</h2>
+        <div id="dashboard-status" class="dashboard-status" role="status" aria-live="polite" aria-atomic="true" tabindex="-1" hidden></div>
+
+        <main class="dashboard-grid" aria-describedby="dashboard-status">
+            <section class="chart-container" aria-labelledby="peer-chart-title">
+                <h2 id="peer-chart-title">Peer Activity</h2>
+                <p id="peer-chart-summary" class="chart-summary">Waiting for dashboard data.</p>
                 <div class="chart-viewport">
-                    <canvas id="peerChart"></canvas>
+                    <canvas id="peerChart" aria-hidden="true"></canvas>
                 </div>
+                <details class="chart-data" id="peer-chart-data">
+                    <summary>View Peer Activity data table</summary>
+                    <div class="chart-table-wrap"><table><caption>Peer Activity values by timestamp</caption><thead></thead><tbody></tbody></table></div>
+                </details>
             </section>
 
-            <section class="chart-container">
-                <h2>Room Activity</h2>
+            <section class="chart-container" aria-labelledby="room-chart-title">
+                <h2 id="room-chart-title">Room Activity</h2>
+                <p id="room-chart-summary" class="chart-summary">Waiting for dashboard data.</p>
                 <div class="chart-viewport">
-                    <canvas id="roomChart"></canvas>
+                    <canvas id="roomChart" aria-hidden="true"></canvas>
                 </div>
+                <details class="chart-data" id="room-chart-data">
+                    <summary>View Room Activity data table</summary>
+                    <div class="chart-table-wrap"><table><caption>Room Activity values by timestamp</caption><thead></thead><tbody></tbody></table></div>
+                </details>
             </section>
 
-            <section class="chart-container">
-                <h2>Communication</h2>
+            <section class="chart-container" aria-labelledby="communication-chart-title">
+                <h2 id="communication-chart-title">Communication</h2>
+                <p id="communication-chart-summary" class="chart-summary">Waiting for dashboard data.</p>
                 <div class="chart-viewport">
-                    <canvas id="communicationChart"></canvas>
+                    <canvas id="communicationChart" aria-hidden="true"></canvas>
                 </div>
+                <details class="chart-data" id="communication-chart-data">
+                    <summary>View Communication data table</summary>
+                    <div class="chart-table-wrap"><table><caption>Communication values by timestamp</caption><thead></thead><tbody></tbody></table></div>
+                </details>
             </section>
 
-            <section class="chart-container">
-                <h2>System Metrics</h2>
+            <section class="chart-container" aria-labelledby="system-chart-title">
+                <h2 id="system-chart-title">System Metrics</h2>
+                <p id="system-chart-summary" class="chart-summary">Waiting for dashboard data.</p>
                 <div class="chart-viewport">
-                    <canvas id="systemChart"></canvas>
+                    <canvas id="systemChart" aria-hidden="true"></canvas>
                 </div>
+                <details class="chart-data" id="system-chart-data">
+                    <summary>View System Metrics data table</summary>
+                    <div class="chart-table-wrap"><table><caption>System Metrics values by timestamp</caption><thead></thead><tbody></tbody></table></div>
+                </details>
             </section>
         </main>
     </div>

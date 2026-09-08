@@ -137,7 +137,7 @@ public:
                                  controller->m_config->version));
       response->putHeader(Header::CONTENT_TYPE, "text/html");
       response->putHeader("Content-Security-Policy",
-          "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; "
+          "default-src 'self'; script-src 'self'; "
           "style-src 'self' 'unsafe-inline'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; "
           "base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
       response->putHeader("X-Content-Type-Options", "nosniff");
@@ -156,7 +156,7 @@ public:
                                  controller->m_config->version));
       response->putHeader(Header::CONTENT_TYPE, "text/html");
       response->putHeader("Content-Security-Policy",
-          "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; "
+          "default-src 'self'; script-src 'self'; "
           "style-src 'self' 'unsafe-inline'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; "
           "base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
       response->putHeader("X-Content-Type-Options", "nosniff");
@@ -194,6 +194,19 @@ public:
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
       response->putHeader("X-Content-Type-Options", "nosniff");
       response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "dashboard/vendor/chart.umd.min.js", DashboardChartJS) {
+    ENDPOINT_ASYNC_INIT(DashboardChartJS)
+
+    Action act() override {
+      auto response = controller->createResponse(
+          Status::CODE_200, controller->loadAsset("dashboard/vendor/chart.umd.min.js"));
+      response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "public, max-age=31536000, immutable");
       return _return(response);
     }
   };

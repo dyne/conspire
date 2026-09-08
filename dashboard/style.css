@@ -811,6 +811,7 @@ select.form-control {
     background: var(--color-primary-active);
 }
 
+.refresh-btn:focus,
 .refresh-btn:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
@@ -875,33 +876,21 @@ select.form-control {
     transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
-.dashboard-grid.is-loading {
-    opacity: 0.5;
-}
-
-.dashboard-grid.is-error {
-    opacity: 0.3;
-}
-
-.dashboard-message {
-    padding: var(--space-20);
-    margin: var(--space-20) 0;
-}
-
-.dashboard-message--loading {
-    margin: 0;
-    text-align: center;
-    color: var(--color-text-secondary);
-}
-
-.dashboard-message--error {
-    color: var(--color-error);
-    background: rgba(var(--color-error-rgb), 0.08);
-    border: 1px solid rgba(var(--color-error-rgb), 0.2);
+.dashboard-status {
+    margin-block: var(--space-16);
+    padding: var(--space-16);
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-base);
 }
 
-.dashboard-error-action {
+.dashboard-status p { margin: 0; }
+.dashboard-status--warning { color: var(--color-warning); border-color: var(--color-warning); }
+.dashboard-status--error { color: var(--color-error); border-color: var(--color-error); }
+.dashboard-status--success { color: var(--color-success); border-color: var(--color-success); }
+
+.dashboard-status-action {
     margin-top: var(--space-10);
     padding: var(--space-8) var(--space-16);
     border: none;
@@ -911,11 +900,11 @@ select.form-control {
     cursor: pointer;
 }
 
-.dashboard-error-action:hover {
+.dashboard-status-action:hover {
     filter: brightness(0.9);
 }
 
-.dashboard-error-action:focus-visible {
+.dashboard-status-action:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);
 }
@@ -943,6 +932,21 @@ select.form-control {
     text-align: center;
     flex-shrink: 0;
 }
+
+.chart-summary {
+    margin: var(--space-8) 0 var(--space-12);
+    color: var(--color-text-secondary);
+}
+
+.chart-data { margin-top: var(--space-12); }
+.chart-data summary { cursor: pointer; color: var(--color-text); font-weight: 600; }
+.chart-data summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.chart-table-wrap { overflow-x: auto; margin-top: var(--space-8); }
+.chart-data table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.chart-data th, .chart-data td { padding: var(--space-8); text-align: start; border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+.chart-data th { color: var(--color-text); }
+.chart-data td { color: var(--color-text-secondary); }
+.chart-data caption { caption-side: top; text-align: start; padding-bottom: var(--space-8); color: var(--color-text-secondary); }
 
 .chart-container > div {
     flex: 1;
