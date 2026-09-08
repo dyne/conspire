@@ -98,6 +98,7 @@ test('dashboard keeps hostile strings out of HTML sinks and does not proxy stati
   assert.match(html, /href="\/dashboard\/style\.css"/);
   assert.match(html, /src="\/dashboard\/app\.js"/);
   assert.doesNotMatch(html, /\sonclick=/);
+  assert.doesNotMatch(html, /\sstyle=/);
 });
 
 test('room UI registers CSP-compatible handlers from an external script', async () => {

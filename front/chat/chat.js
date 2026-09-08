@@ -309,7 +309,7 @@ function createParticipantElement(peer) {
     peerElem.setAttribute("peer_id", peer.peerId);
     peerElem.className = "participant";
     if(peer.peerId == peerId) {
-        peerElem.style.backgroundColor = "#E0F7FA";
+        peerElem.classList.add("participant_self");
     } else {
         peerElem.classList.add("peer_style_" + (peer.peerId % bulbColorsNumber));
     }

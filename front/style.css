@@ -1,12 +1,14 @@
+@import url("/design-system.css");
+
 body {
     margin: 40px auto;
     max-width: 700px;
     line-height: 1.6;
     font-size: 18px;
-    color: #444;
-    background-color: white;
+    color: var(--ds-color-landing-text);
+    background-color: var(--ds-color-white);
     padding: 0 10px;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    font-family: var(--ds-font-sans);
     text-rendering: optimizeLegibility;
     /* Enables kerning and ligatures etc. */
     -webkit-font-smoothing: antialiased;
@@ -22,49 +24,42 @@ body {
 
 input,
 .button {
-    font-size: 36px;
-    padding: 14px 20px;
-    margin: 0 0 20px 0;
-}
-
-input,
-.button {
     display: inline;
     border: none;
     outline: none;
     padding: 9px 20px;
     cursor: pointer;
     margin: 0 0 10px 0;
-    font-size: 16px;
+    font-size: var(--ds-font-size-lg);
     font-weight: bold;
-    border-radius: 3px;
-    background-color: #448AFF;
-    color: white;
+    border-radius: var(--ds-radius-compact);
+    background-color: var(--ds-color-action);
+    color: var(--ds-color-white);
     text-transform: uppercase;
     text-decoration: none;
 }
 
 input:hover,
 .button:hover {
-    background-color: #2979FF;
+    background-color: var(--ds-color-action-active);
 }
 
 input:active,
 .button:active {
-    background-color: #2979FF;
+    background-color: var(--ds-color-action-active);
 }
 
 .dark-mode {
-    background-color: black;
-    color: white;
-    accent-color: #58a6ff;
+    background-color: var(--ds-color-black);
+    color: var(--ds-color-white);
+    accent-color: var(--ds-color-dark-link);
 
     a:link {
-        color: #58a6ff;
+        color: var(--ds-color-dark-link);
     }
 
     a:visited {
-        color: #3f84e4;
+        color: var(--ds-color-dark-link-visited);
     }
 }
 
@@ -78,13 +73,7 @@ code,
 kbd,
 samp,
 pre {
-    font-family:
-        ui-monospace,
-        SFMono-Regular,
-        Consolas,
-        'Liberation Mono',
-        Menlo,
-        monospace;
+    font-family: var(--ds-font-mono);
     /* 1 */
     font-size: 1em;
     /* 2 */

@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-08T00:00:00+02:00",
+  "title": "Design System: Conspire",
+  "extensions": {
+    "colorMeta": {
+      "white": {
+        "role": "neutral",
+        "displayName": "White",
+        "canonical": "#ffffff",
+        "tonalRamp": ["oklch(15% 0 0)", "oklch(27% 0 0)", "oklch(39% 0 0)", "oklch(51% 0 0)", "oklch(63% 0 0)", "oklch(75% 0 0)", "oklch(87% 0 0)", "oklch(100% 0 0)"]
+      },
+      "warm-white": {
+        "role": "neutral",
+        "displayName": "Warm White",
+        "canonical": "rgba(252, 252, 249, 1)",
+        "tonalRamp": ["oklch(15% 0.006 95)", "oklch(27% 0.006 95)", "oklch(39% 0.006 95)", "oklch(51% 0.006 95)", "oklch(63% 0.006 95)", "oklch(75% 0.006 95)", "oklch(87% 0.006 95)", "oklch(98% 0.006 95)"]
+      },
+      "warm-surface": {
+        "role": "neutral",
+        "displayName": "Warm Surface",
+        "canonical": "rgba(255, 255, 253, 1)",
+        "tonalRamp": ["oklch(15% 0.004 95)", "oklch(27% 0.004 95)", "oklch(39% 0.004 95)", "oklch(51% 0.004 95)", "oklch(63% 0.004 95)", "oklch(75% 0.004 95)", "oklch(87% 0.004 95)", "oklch(99% 0.004 95)"]
+      },
+      "dark-text": {
+        "role": "neutral",
+        "displayName": "Dark Text",
+        "canonical": "rgba(19, 52, 59, 1)",
+        "tonalRamp": ["oklch(15% 0.035 205)", "oklch(27% 0.035 205)", "oklch(39% 0.035 205)", "oklch(51% 0.035 205)", "oklch(63% 0.035 205)", "oklch(75% 0.035 205)", "oklch(87% 0.025 205)", "oklch(95% 0.012 205)"]
+      },
+      "muted-text": {
+        "role": "neutral",
+        "displayName": "Muted Text",
+        "canonical": "rgba(98, 108, 113, 1)",
+        "tonalRamp": ["oklch(15% 0.015 220)", "oklch(27% 0.015 220)", "oklch(39% 0.015 220)", "oklch(51% 0.015 220)", "oklch(63% 0.015 220)", "oklch(75% 0.015 220)", "oklch(87% 0.012 220)", "oklch(95% 0.008 220)"]
+      },
+      "landing-text": {
+        "role": "neutral",
+        "displayName": "Landing Text",
+        "canonical": "#444444",
+        "tonalRamp": ["oklch(15% 0 0)", "oklch(27% 0 0)", "oklch(39% 0 0)", "oklch(51% 0 0)", "oklch(63% 0 0)", "oklch(75% 0 0)", "oklch(87% 0 0)", "oklch(95% 0 0)"]
+      },
+      "bright-blue": {
+        "role": "primary",
+        "displayName": "Bright Blue",
+        "canonical": "#448aff",
+        "tonalRamp": ["oklch(15% 0.11 260)", "oklch(27% 0.14 260)", "oklch(39% 0.17 260)", "oklch(51% 0.19 260)", "oklch(63% 0.18 260)", "oklch(75% 0.14 260)", "oklch(87% 0.08 260)", "oklch(95% 0.035 260)"]
+      },
+      "bright-blue-active": {
+        "role": "primary",
+        "displayName": "Bright Blue Active",
+        "canonical": "#2979ff",
+        "tonalRamp": ["oklch(15% 0.12 260)", "oklch(27% 0.15 260)", "oklch(39% 0.18 260)", "oklch(51% 0.2 260)", "oklch(63% 0.19 260)", "oklch(75% 0.15 260)", "oklch(87% 0.085 260)", "oklch(95% 0.04 260)"]
+      },
+      "teal": {
+        "role": "primary",
+        "displayName": "Teal",
+        "canonical": "rgba(33, 128, 141, 1)",
+        "tonalRamp": ["oklch(15% 0.055 205)", "oklch(27% 0.07 205)", "oklch(39% 0.085 205)", "oklch(51% 0.095 205)", "oklch(63% 0.09 205)", "oklch(75% 0.07 205)", "oklch(87% 0.04 205)", "oklch(95% 0.02 205)"]
+      },
+      "teal-hover": {
+        "role": "primary",
+        "displayName": "Teal Hover",
+        "canonical": "rgba(29, 116, 128, 1)",
+        "tonalRamp": ["oklch(15% 0.055 205)", "oklch(27% 0.07 205)", "oklch(39% 0.085 205)", "oklch(51% 0.095 205)", "oklch(63% 0.085 205)", "oklch(75% 0.065 205)", "oklch(87% 0.038 205)", "oklch(95% 0.018 205)"]
+      },
+      "graphite": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "canonical": "#424242",
+        "tonalRamp": ["oklch(15% 0 0)", "oklch(27% 0 0)", "oklch(39% 0 0)", "oklch(51% 0 0)", "oklch(63% 0 0)", "oklch(75% 0 0)", "oklch(87% 0 0)", "oklch(95% 0 0)"]
+      },
+      "deep-graphite": {
+        "role": "neutral",
+        "displayName": "Deep Graphite",
+        "canonical": "#212121",
+        "tonalRamp": ["oklch(12% 0 0)", "oklch(24% 0 0)", "oklch(36% 0 0)", "oklch(48% 0 0)", "oklch(60% 0 0)", "oklch(72% 0 0)", "oklch(84% 0 0)", "oklch(95% 0 0)"]
+      },
+      "input-graphite": {
+        "role": "neutral",
+        "displayName": "Input Graphite",
+        "canonical": "#383838",
+        "tonalRamp": ["oklch(14% 0 0)", "oklch(26% 0 0)", "oklch(38% 0 0)", "oklch(50% 0 0)", "oklch(62% 0 0)", "oklch(74% 0 0)", "oklch(86% 0 0)", "oklch(95% 0 0)"]
+      },
+      "success-green": {
+        "role": "tertiary",
+        "displayName": "Success Green",
+        "canonical": "#00ff00",
+        "tonalRamp": ["oklch(15% 0.12 142)", "oklch(27% 0.16 142)", "oklch(39% 0.2 142)", "oklch(51% 0.24 142)", "oklch(63% 0.27 142)", "oklch(75% 0.24 142)", "oklch(87% 0.14 142)", "oklch(95% 0.07 142)"]
+      },
+      "alert-red": {
+        "role": "tertiary",
+        "displayName": "Alert Red",
+        "canonical": "#ff0000",
+        "tonalRamp": ["oklch(15% 0.1 29)", "oklch(27% 0.15 29)", "oklch(39% 0.2 29)", "oklch(51% 0.24 29)", "oklch(63% 0.25 29)", "oklch(75% 0.2 29)", "oklch(87% 0.11 29)", "oklch(95% 0.05 29)"]
+      },
+      "warning-orange": {
+        "role": "tertiary",
+        "displayName": "Warning Orange",
+        "canonical": "rgba(168, 75, 47, 1)",
+        "tonalRamp": ["oklch(15% 0.07 40)", "oklch(27% 0.1 40)", "oklch(39% 0.13 40)", "oklch(51% 0.15 40)", "oklch(63% 0.14 40)", "oklch(75% 0.11 40)", "oklch(87% 0.06 40)", "oklch(95% 0.03 40)"]
+      },
+      "self-cyan": {
+        "role": "tertiary",
+        "displayName": "Self Cyan",
+        "canonical": "#e0f7fa",
+        "tonalRamp": ["oklch(15% 0.04 205)", "oklch(27% 0.05 205)", "oklch(39% 0.06 205)", "oklch(51% 0.07 205)", "oklch(63% 0.065 205)", "oklch(75% 0.05 205)", "oklch(87% 0.03 205)", "oklch(95% 0.018 205)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Dashboard page title on wide screens." },
+      "headline": { "displayName": "Headline", "purpose": "Major headings and narrow dashboard title." },
+      "title": { "displayName": "Title", "purpose": "Section and card anchors." },
+      "body": { "displayName": "Body", "purpose": "Controls, dashboard content, and compact chat copy." },
+      "reading": { "displayName": "Reading", "purpose": "Long-form public landing copy." },
+      "label": { "displayName": "Operational Label", "purpose": "Identity, status, timestamps, paths, and transfer progress." }
+    },
+    "shadows": [
+      { "name": "status-separation", "value": "0 2px 4px rgba(0, 0, 0, 0.2)", "purpose": "Separates the fixed chat status bar from scrolling history." },
+      { "name": "dashboard-rest", "value": "0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02)", "purpose": "Minimal chart-card separation." },
+      { "name": "dashboard-hover", "value": "0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -1px rgba(0, 0, 0, 0.02)", "purpose": "Restrained chart-card hover feedback." }
+    ],
+    "motion": [
+      { "name": "fast", "value": "150ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Dashboard color and focus feedback; equivalent chat feedback uses 150ms." },
+      { "name": "normal", "value": "250ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Dashboard cards and controls." },
+      { "name": "drawer", "value": "250ms ease-out", "purpose": "Mobile participant drawer and typing-chip collapse." },
+      { "name": "participant", "value": "300ms ease-out", "purpose": "Participant join and leave height collapse." }
+    ],
+    "breakpoints": [
+      { "name": "tiny-chat", "value": "380px" },
+      { "name": "small-dashboard", "value": "480px" },
+      { "name": "mobile", "value": "768px" },
+      { "name": "desktop-chat", "value": "769px" },
+      { "name": "container-lg", "value": "1024px" },
+      { "name": "container-xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Landing Primary Action",
+      "kind": "button",
+      "refersTo": "landing-action",
+      "description": "Primary entry into a public or private room.",
+      "html": "<button class=\"ds-landing-action\" type=\"button\">PUBLIC RECEPTION</button>",
+      "css": ".ds-landing-action { background:#448aff; color:#fff; border:0; padding:9px 20px; border-radius:3px; font:700 16px/1.5 system-ui,-apple-system,sans-serif; text-transform:uppercase; cursor:pointer; } .ds-landing-action:hover,.ds-landing-action:active { background:#2979ff; } .ds-landing-action:focus-visible { outline:2px solid #2979ff; outline-offset:2px; }"
+    },
+    {
+      "name": "Chat Send Action",
+      "kind": "button",
+      "refersTo": "chat-send",
+      "description": "Primary room action with a full-width touch target.",
+      "html": "<button class=\"ds-chat-send\" type=\"button\">Send</button>",
+      "css": ".ds-chat-send { min-width:140px; height:44px; border:0; border-radius:4px; background:#448aff; color:#fff; font:500 14px/1 system-ui,-apple-system,sans-serif; cursor:pointer; transition:background-color 150ms; } .ds-chat-send:hover,.ds-chat-send:active { background:#2979ff; } .ds-chat-send:focus-visible { outline:2px solid #fff; outline-offset:2px; }"
+    },
+    {
+      "name": "Chat Secondary Action",
+      "kind": "button",
+      "refersTo": "chat-secondary",
+      "description": "Secondary room action for file selection.",
+      "html": "<div class=\"ds-chat-canvas\"><button class=\"ds-chat-secondary\" type=\"button\">Share Files</button></div>",
+      "css": ".ds-chat-canvas { display:inline-block; padding:12px; background:#383838; } .ds-chat-secondary { min-width:140px; height:44px; border:0; border-radius:4px; background:rgba(255,255,255,.15); color:#fff; font:500 14px/1 system-ui,-apple-system,sans-serif; cursor:pointer; transition:background-color 150ms; } .ds-chat-secondary:hover,.ds-chat-secondary:active { background:rgba(255,255,255,.25); } .ds-chat-secondary:focus-visible { outline:2px solid #fff; outline-offset:2px; }"
+    },
+    {
+      "name": "Chat Composer",
+      "kind": "input",
+      "refersTo": "chat-input",
+      "description": "Borderless message field nested in a translucent graphite surface.",
+      "html": "<div class=\"ds-chat-composer\"><textarea aria-label=\"Message\" placeholder=\"Type a message\"></textarea></div>",
+      "css": ".ds-chat-composer { width:320px; min-height:60px; padding:8px; border-radius:4px; background:rgba(255,255,255,.1); } .ds-chat-composer textarea { width:100%; min-height:52px; padding:0; resize:none; border:0; outline:0; background:transparent; color:#fff; font:400 14px/1.5 system-ui,-apple-system,sans-serif; } .ds-chat-composer textarea::placeholder { color:rgba(255,255,255,.5); } .ds-chat-composer:focus-within { outline:2px solid #448aff; outline-offset:2px; }"
+    },
+    {
+      "name": "Participant Row",
+      "kind": "custom",
+      "description": "Compact ephemeral identity row; cyan denotes the current participant.",
+      "html": "<div class=\"ds-participant\"><span>Ada</span></div>",
+      "css": ".ds-participant { width:220px; height:32px; padding:0 8px 0 16px; border-radius:3px; background:#e0f7fa; color:#212121; overflow:hidden; font:400 13px/32px ui-monospace,SFMono-Regular,Consolas,monospace; transition:height 300ms ease-out,opacity 300ms ease-out; } .ds-participant:hover { filter:brightness(.97); } .ds-participant:focus-visible { outline:2px solid #448aff; outline-offset:2px; }"
+    },
+    {
+      "name": "Shared File Tile",
+      "kind": "custom",
+      "description": "Room attachment with a bright download action and monospace transfer metadata.",
+      "html": "<div class=\"ds-file-tile\"><a href=\"#\">notes.txt</a><p>Size: 1.2 MB</p></div>",
+      "css": ".ds-file-tile { display:inline-block; padding-bottom:6px; border-radius:4px; background:rgba(255,255,255,.05); overflow:hidden; } .ds-file-tile a { display:block; min-height:44px; padding:8px 12px; background:#448aff; color:#fff; border-radius:4px 4px 0 0; text-align:center; text-decoration:none; font:400 13px/28px system-ui,-apple-system,sans-serif; } .ds-file-tile a:hover,.ds-file-tile a:active { background:#2979ff; } .ds-file-tile a:focus-visible { outline:2px solid #fff; outline-offset:-4px; } .ds-file-tile p { margin:0 10px; color:rgba(255,255,255,.7); font:400 12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; }"
+    },
+    {
+      "name": "Dashboard Primary Action",
+      "kind": "button",
+      "refersTo": "dashboard-primary",
+      "description": "Primary monitoring action using the dashboard's semantic tokens.",
+      "html": "<button class=\"ds-dashboard-primary\" type=\"button\">Refresh Data</button>",
+      "css": ".ds-dashboard-primary { background:var(--color-primary,rgba(33,128,141,1)); color:var(--color-btn-primary-text,rgba(252,252,249,1)); border:0; padding:6px 12px; border-radius:6px; font:500 12px/1.5 var(--font-family-base,system-ui,sans-serif); cursor:pointer; transition:background-color 250ms cubic-bezier(.16,1,.3,1); } .ds-dashboard-primary:hover { background:var(--color-primary-hover,rgba(29,116,128,1)); } .ds-dashboard-primary:active { background:var(--color-primary-active,rgba(26,104,115,1)); } .ds-dashboard-primary:focus-visible { outline:0; box-shadow:0 0 0 3px rgba(33,128,141,.4); }"
+    },
+    {
+      "name": "Dashboard Chart Card",
+      "kind": "card",
+      "refersTo": "dashboard-card",
+      "description": "Responsive analytical container with restrained structural depth.",
+      "html": "<article class=\"ds-chart-card\"><h3>Peer Activity</h3><div class=\"ds-chart-placeholder\" aria-label=\"Chart preview\"></div></article>",
+      "css": ".ds-chart-card { width:360px; padding:16px; border:1px solid var(--color-card-border,rgba(94,82,64,.12)); border-radius:12px; background:var(--color-surface,rgba(255,255,253,1)); color:var(--color-text,rgba(19,52,59,1)); box-shadow:0 1px 3px rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.02); transition:box-shadow 250ms cubic-bezier(.16,1,.3,1); } .ds-chart-card:hover { box-shadow:0 4px 6px -1px rgba(0,0,0,.04),0 2px 4px -1px rgba(0,0,0,.02); } .ds-chart-card h3 { margin:0 0 12px; text-align:center; font:550 18px/1.2 var(--font-family-base,system-ui,sans-serif); } .ds-chart-placeholder { height:150px; border:1px solid rgba(33,128,141,.12); border-radius:8px; background:rgba(33,128,141,.05); }"
+    },
+    {
+      "name": "Connection Status",
+      "kind": "chip",
+      "description": "Minimal lowercase connection state for the chat status bar.",
+      "html": "<div class=\"ds-status-canvas\"><span class=\"ds-connection-status\">online</span></div>",
+      "css": ".ds-status-canvas { display:inline-block; padding:12px 16px; background:#424242; } .ds-connection-status { color:#00ff00; opacity:.7; text-shadow:0 0 2px #00ff00; font:400 13px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Relay",
+    "overview": "Conspire should feel like civic infrastructure that happens to be intimate: direct enough to trust, restrained enough to disappear, and durable enough to use under pressure. Its visual language is deliberately low-ornament. Familiar controls, candid status text, and compact system typography keep attention on the room and its participants rather than on the interface.\n\nThe current implementation contains three legitimate surface modes. Landing is a narrow, readable invitation with bright blue actions. Chat is a full-viewport graphite workspace optimized for continuous conversation and file exchange. Dashboard is a warmer analytical surface built from cream, slate, and teal tokens with automatic dark mode. New work should share typography, plainspoken control behavior, compact radii, and explicit state communication while selecting the mode appropriate to the task.\n\nThe system is flat by default. Tonal contrast, borders, and adjacency establish hierarchy; shallow shadows are structural exceptions for the chat status bar, mobile overlays, and dashboard chart containers. Shared primitive values live in front/design-system.css; landing, chat, and dashboard styles import that layer and retain their task-specific semantic and component rules. The software is embedded into the server binary, so the source assets in front/ and dashboard/ are the visual source of truth.",
+    "keyCharacteristics": [
+      "Civic, clear, and durable rather than promotional.",
+      "Privacy-first language with no identity theater or decorative surveillance cues.",
+      "System and monospace type that loads locally and remains legible under constrained conditions.",
+      "Bright blue for direct room actions, teal for analytical actions, and graphite for the live room shell.",
+      "Compact corners, large touch targets, and visible operational states.",
+      "Three explicit surface modes built on one plainspoken foundation."
+    ],
+    "rules": [
+      { "name": "The Two Accents Rule", "body": "Use bright blue for entering, sending, or receiving in the communication surfaces; use teal for dashboard operations and analytical state. Do not interchange them casually.", "section": "colors" },
+      { "name": "The Signal Means State Rule", "body": "Pure green and pure red are reserved for live connection or removal states. Never use them as decoration.", "section": "colors" },
+      { "name": "The Pastel Identity Rule", "body": "The chat's eighteen pale participant swatches are ephemeral differentiation, not brand colors. They may identify participants inside a room but must not escape into navigation, marketing, or status semantics.", "section": "colors" },
+      { "name": "The Local Type Rule", "body": "Core communication must remain fully usable without a font network request.", "section": "typography" },
+      { "name": "The Monospace Is Evidence Rule", "body": "Use monospace for identity, status, timestamps, paths, URLs, and transfer progress—not for decorative atmosphere.", "section": "typography" },
+      { "name": "The Surface Chooses the Grid Rule", "body": "Do not force a single page grid across all modes. Share rhythm and component behavior, then use the spatial model that matches reading, conversation, or monitoring.", "section": "layout" },
+      { "name": "The Primitive Once Rule", "body": "Reusable color, type, spacing, radius, shadow, motion, and breakpoint values belong in front/design-system.css; surface styles may alias them into local semantic roles but must not redefine the literals.", "section": "layout" },
+      { "name": "The Composer Stays Reachable Rule", "body": "In chat mode, history absorbs available height while status and input areas remain visible. Preserve safe-area padding on mobile.", "section": "layout" },
+      { "name": "The Flat by Default Rule", "body": "Start with background contrast and borders. Add a shadow only when it explains stacking, scroll separation, or interaction.", "section": "elevation" },
+      { "name": "The Small Radius Rule", "body": "Controls should read as tools, not toys. Keep action radii between 3px and 8px; reserve 12px for larger containers and full rounding for status chips.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do choose Landing, Chat, or Dashboard mode explicitly before composing a new surface.",
+      "Do use system typography and native semantic controls for core communication.",
+      "Do preserve visible focus, active, loading, offline, and error states.",
+      "Do keep chat actions at least 40px high on narrow screens and 44px by default.",
+      "Do use bright blue for communication actions and teal for analytical actions.",
+      "Do keep participant colors ephemeral and local to the room.",
+      "Do bind chart chrome and dashboard state to semantic CSS custom properties."
+    ],
+    "donts": [
+      "Don't merge the three surface modes into an undifferentiated palette or layout.",
+      "Don't add ornamental shadows, gradients, glass effects, or oversized radii.",
+      "Don't use green, red, or participant pastels as decorative brand accents.",
+      "Don't rely on remote fonts for essential readability.",
+      "Don't hide focus by removing outlines without an equally visible replacement.",
+      "Don't place static design values in JavaScript when the same role can live in CSS tokens.",
+      "Don't treat current inline styles and duplicate declarations as preferred patterns; they are implementation debt, not design doctrine."
+    ]
+  }
+}
