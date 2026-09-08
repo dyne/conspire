@@ -49,6 +49,7 @@
             height: 100dvh;
             overflow: hidden;
             font-family: var(--ds-font-sans);
+            caret-color: var(--ds-color-white);
         }
 
         #chat_container {
@@ -105,6 +106,7 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            min-block-size: 40px;
         }
 
         .control-icon { width: 18px; height: 18px; fill: currentColor; }
@@ -140,6 +142,8 @@
             overflow-x: hidden;
             padding: 10px 0 20px;
             -webkit-overflow-scrolling: touch;
+            scrollbar-color: rgba(255, 255, 255, 0.65) var(--ds-color-graphite);
+            scrollbar-width: thin;
         }
 
         /* Who's typing indicator */
@@ -159,7 +163,10 @@
             margin: 0 4px 0 0;
             background-color: rgba(255, 255, 255, 0.1);
             border-radius: var(--ds-radius-compact);
-            transition: var(--ds-duration-normal);
+            transition:
+                font-size var(--ds-duration-normal) var(--ds-ease-standard),
+                margin var(--ds-duration-normal) var(--ds-ease-standard),
+                padding var(--ds-duration-normal) var(--ds-ease-standard);
         }
 
         .typing_peer_removed {
@@ -177,23 +184,30 @@
             padding: 10px 0;
             background-color: var(--ds-color-graphite-deep);
             -webkit-overflow-scrolling: touch;
+            scrollbar-color: rgba(255, 255, 255, 0.65) var(--ds-color-graphite-deep);
+            scrollbar-width: thin;
         }
 
         .participant {
             display: block;
-            overflow: hidden;
             margin: 4px 12px;
             border-radius: var(--ds-radius-compact);
             padding: 0 8px 0 16px;
             font-size: var(--ds-font-size-chat-label);
             font-family: monospace;
-            height: 32px;
-            transition: 0.3s ease-out;
+            min-height: 32px;
+            overflow-wrap: anywhere;
+            transition:
+                background-color var(--ds-duration-fast) var(--ds-ease-standard),
+                height var(--ds-duration-normal) var(--ds-ease-standard),
+                margin var(--ds-duration-normal) var(--ds-ease-standard),
+                opacity var(--ds-duration-normal) var(--ds-ease-standard);
         }
 
         .participant span {
-            line-height: 32px;
-            vertical-align: middle;
+            display: block;
+            line-height: 1.4;
+            padding-block: 6px;
         }
 
         .participant_self {
@@ -203,6 +217,7 @@
         .participant_deleted {
             background-color: var(--ds-color-offline) !important;
             height: 0 !important;
+            min-height: 0 !important;
             margin: 0 !important;
             opacity: 0.5;
         }
@@ -359,6 +374,7 @@
             font-weight: 600;
             font-size: var(--ds-font-size-chat-label);
             color: var(--ds-color-white);
+            overflow-wrap: anywhere;
         }
 
         .message-text {
@@ -378,6 +394,7 @@
 
         .message-div-file {
             display: inline-block;
+            max-inline-size: 100%;
             padding: 0 0 6px;
             margin: 0 8px 8px 0;
             background-color: rgba(255, 255, 255, 0.05);
@@ -397,6 +414,9 @@
             border-radius: var(--ds-radius-control) var(--ds-radius-control) 0 0;
             min-height: 44px;
             line-height: 28px;
+            overflow-wrap: anywhere;
+            text-decoration-thickness: 0.125em;
+            text-underline-offset: 0.16em;
         }
 
         .message-div-files a:active {
@@ -408,6 +428,8 @@
             font-family: monospace;
             font-size: var(--ds-font-size-sm);
             color: rgba(255, 255, 255, 0.7);
+            overflow-wrap: anywhere;
+            font-variant-numeric: tabular-nums;
         }
 
         #chat_container hr {
@@ -432,6 +454,22 @@
             display: block;
         }
 
+        #chat_container ::selection {
+            color: var(--ds-color-white);
+            background-color: var(--ds-color-action-active);
+        }
+
+        @media (forced-colors: active) {
+            #chat_history,
+            #chat_participants {
+                scrollbar-color: auto;
+            }
+
+            :where(a, button, input, textarea):focus-visible {
+                outline-color: Highlight;
+            }
+        }
+
         /* ========================================
            MOBILE STYLES
            ======================================== */
@@ -449,7 +487,7 @@
                 width: 280px;
                 max-width: 80vw;
                 transform: translateX(100%);
-                transition: transform 0.25s ease-out;
+                transition: transform var(--ds-duration-normal) var(--ds-ease-standard);
                 z-index: 20;
                 padding-top: 20px;
             }
@@ -501,12 +539,13 @@
 
             .participant {
                 font-size: var(--ds-font-size-base);
-                height: 40px;
+                min-height: 40px;
                 margin: 6px 12px;
             }
 
             .participant span {
-                line-height: 40px;
+                line-height: 1.4;
+                padding-block: 8px;
             }
         }
 

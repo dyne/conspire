@@ -13,6 +13,19 @@ body {
     /* Enables kerning and ligatures etc. */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    caret-color: var(--ds-color-action-active);
+    scrollbar-color: var(--ds-color-action) var(--ds-color-white);
+    scrollbar-width: thin;
+}
+
+::selection {
+    color: var(--ds-color-white);
+    background-color: var(--ds-color-action-active);
+}
+
+a {
+    text-decoration-thickness: 0.125em;
+    text-underline-offset: 0.16em;
 }
 
 
@@ -36,6 +49,8 @@ button,
     color: var(--ds-color-white);
     text-transform: uppercase;
     text-decoration: none;
+    min-block-size: 44px;
+    overflow-wrap: anywhere;
 }
 
 button:hover,
@@ -67,6 +82,13 @@ button:active,
     }
 }
 
+@media (forced-colors: active) {
+    body { scrollbar-color: auto; }
+    :where(a, button, input, textarea):focus-visible {
+        outline-color: Highlight;
+    }
+}
+
 h1,
 h2,
 h3 {
@@ -81,6 +103,10 @@ pre {
     /* 1 */
     font-size: 1em;
     /* 2 */
+}
+
+:where(p, li, code) {
+    overflow-wrap: anywhere;
 }
 
 ul {

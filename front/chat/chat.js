@@ -226,6 +226,10 @@ function removeTypingPeer(peerElem) {
         announceActivity('stoppedTyping', { peerName: peerElem.dataset.peerName });
         peerElem.remove();
     };
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        finish();
+        return;
+    }
     peerElem.addEventListener('transitionend', finish, { once: true });
     setTimeout(finish, 400);
 }
@@ -274,17 +278,19 @@ function createParticipantElement(peer) {
 }
 
 function removeParticipantElement(peerElem) {
-    let transitionCounter = 0;
+    let removed = false;
+    const finish = () => {
+        if (removed) return;
+        removed = true;
+        peerElem.remove();
+    };
     peerElem.classList.add("participant_deleted");
-    peerElem.addEventListener('transitionstart', function() {
-        transitionCounter ++;
-    });
-    peerElem.addEventListener('transitionend', function() {
-        transitionCounter --;
-        if(transitionCounter == 0) {
-            peerElem.remove();
-        }
-    });
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        finish();
+        return;
+    }
+    peerElem.addEventListener('transitionend', finish, { once: true });
+    setTimeout(finish, 400);
 }
 
 function addParticipant(peer, parent) {

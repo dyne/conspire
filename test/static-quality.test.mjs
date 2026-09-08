@@ -141,6 +141,61 @@ test('all production surfaces consume the embedded shared design primitives', as
   assert.match(dashboardApp, /CHART_COLOR_TOKENS/);
 });
 
+test('motion uses shared tokens and never delays chat cleanup for reduced-motion users', async () => {
+  const [tokens, chat, chatApp, dashboard] = await Promise.all([
+    readFile(new URL('../front/design-system.css', import.meta.url), 'utf8'),
+    readFile(new URL('../front/chat/chat.css', import.meta.url), 'utf8'),
+    readFile(new URL('../front/chat/chat.js', import.meta.url), 'utf8'),
+    readFile(new URL('../dashboard/style.css', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(tokens, /@media \(prefers-reduced-motion: reduce\)[\s\S]*--ds-duration-fast:\s*0ms/);
+  assert.match(tokens, /--ds-duration-normal:\s*0ms/);
+  assert.doesNotMatch(chat, /transition:\s*(?:0\.3s|transform 0\.25s)/);
+  assert.match(chat, /var\(--ds-duration-normal\) var\(--ds-ease-standard\)/);
+  assert.match(dashboard, /var\(--duration-fast\) var\(--ease-standard\)/);
+  assert.match(chatApp, /matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches/);
+  assert.match(chatApp, /function removeParticipantElement[\s\S]*setTimeout\(finish, 400\)/);
+});
+
+test('responsive surfaces preserve target sizes and contain long operational content', async () => {
+  const [landing, chat, dashboard] = await Promise.all([
+    readFile(new URL('../front/style.css', import.meta.url), 'utf8'),
+    readFile(new URL('../front/chat/chat.css', import.meta.url), 'utf8'),
+    readFile(new URL('../dashboard/style.css', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(landing, /button,[\s\S]*min-block-size:\s*44px/);
+  assert.match(chat, /#participants_toggle[\s\S]*min-block-size:\s*40px/);
+  assert.match(chat, /\.participant[\s\S]*min-height:\s*32px[\s\S]*overflow-wrap:\s*anywhere/);
+  assert.match(chat, /\.message-div-files a[\s\S]*overflow-wrap:\s*anywhere/);
+  assert.match(dashboard, /\.refresh-btn[\s\S]*min-block-size:\s*44px/);
+  assert.match(dashboard, /\.load-file-btn[\s\S]*min-block-size:\s*44px/);
+  assert.match(dashboard, /\.chart-data table \{ min-width: max-content;/);
+});
+
+test('browser-owned surfaces keep semantic styling with forced-colors fallbacks', async () => {
+  const [landing, chat, dashboard] = await Promise.all([
+    readFile(new URL('../front/style.css', import.meta.url), 'utf8'),
+    readFile(new URL('../front/chat/chat.css', import.meta.url), 'utf8'),
+    readFile(new URL('../dashboard/style.css', import.meta.url), 'utf8'),
+  ]);
+
+  for (const [file, css] of [
+    ['front/style.css', landing],
+    ['front/chat/chat.css', chat],
+    ['dashboard/style.css', dashboard],
+  ]) {
+    assert.match(css, /::selection/, file);
+    assert.match(css, /@media \(forced-colors: active\)/, file);
+    assert.match(css, /scrollbar-color:\s*auto/, file);
+  }
+  assert.match(landing, /caret-color:/);
+  assert.match(chat, /font-variant-numeric:\s*tabular-nums/);
+  assert.match(dashboard, /text-underline-offset:/);
+  assert.match(dashboard, /color-scheme:\s*light dark/);
+});
+
 test('server admission and malformed-message guards remain explicit', async () => {
   const lobby = await readFile(new URL('../server/src/rooms/Lobby.cpp', import.meta.url), 'utf8');
   const room = await readFile(new URL('../server/src/rooms/Room.cpp', import.meta.url), 'utf8');

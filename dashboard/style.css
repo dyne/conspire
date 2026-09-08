@@ -1,6 +1,7 @@
 @import url("/design-system.css");
 
 :root {
+  color-scheme: light dark;
   /* Primitive Color Tokens */
   --color-white: var(--ds-color-white);
   --color-black: var(--ds-color-black);
@@ -329,6 +330,14 @@ h6 {
   line-height: var(--line-height-tight);
   color: var(--color-text);
   letter-spacing: var(--letter-spacing-tight);
+  caret-color: var(--color-primary);
+  scrollbar-color: var(--color-primary) var(--color-background);
+  scrollbar-width: thin;
+}
+
+::selection {
+  color: var(--color-btn-primary-text);
+  background-color: var(--color-primary);
 }
 
 h1 {
@@ -358,6 +367,8 @@ a {
   color: var(--color-primary);
   text-decoration: none;
   transition: color var(--duration-fast) var(--ease-standard);
+  text-decoration-thickness: 0.125em;
+  text-underline-offset: 0.16em;
 }
 
 a:hover {
@@ -800,6 +811,7 @@ select.form-control {
     font-size: var(--font-size-sm);
     font-weight: 500;
     cursor: pointer;
+    min-block-size: 44px;
     transition: all var(--duration-normal) var(--ease-standard);
 }
 
@@ -826,6 +838,7 @@ select.form-control {
     font-size: var(--font-size-sm);
     font-weight: 500;
     cursor: pointer;
+    min-block-size: 44px;
     transition: all var(--duration-normal) var(--ease-standard);
 }
 
@@ -898,6 +911,7 @@ select.form-control {
     color: var(--color-white);
     background: var(--color-error);
     cursor: pointer;
+    min-block-size: 44px;
 }
 
 .dashboard-status-action:hover {
@@ -942,11 +956,17 @@ select.form-control {
 .chart-data summary { cursor: pointer; color: var(--color-text); font-weight: 600; }
 .chart-data summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .chart-table-wrap { overflow-x: auto; margin-top: var(--space-8); }
-.chart-data table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.chart-data table { min-width: max-content; width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .chart-data th, .chart-data td { padding: var(--space-8); text-align: start; border-bottom: 1px solid var(--color-border); white-space: nowrap; }
 .chart-data th { color: var(--color-text); }
 .chart-data td { color: var(--color-text-secondary); }
 .chart-data caption { caption-side: top; text-align: start; padding-bottom: var(--space-8); color: var(--color-text-secondary); }
+
+.stats-url,
+.stats-url code,
+.chart-summary {
+    overflow-wrap: anywhere;
+}
 
 .chart-container > div {
     flex: 1;
@@ -1031,5 +1051,17 @@ canvas {
     
     .stats-url {
         text-align: center;
+    }
+}
+
+@media (forced-colors: active) {
+    body { scrollbar-color: auto; }
+
+    :where(a, input, textarea, select, summary):focus-visible,
+    button:focus-visible,
+    .chart-data summary:focus-visible {
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+        box-shadow: none;
     }
 }
