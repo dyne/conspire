@@ -158,6 +158,9 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await expect(first.getByRole('button', { name: 'Send', exact: true })).toHaveCSS('outline-style', 'solid');
     await expect(first.getByRole('button', { name: 'Insert grinning face' })).toBeVisible();
     await expect(first.locator('#emoji button')).toHaveCount(15);
+    const chooserPromise = first.waitForEvent('filechooser');
+    await first.getByRole('button', { name: 'Share Files' }).click();
+    await chooserPromise;
     await saveStableSurfaceScreenshot(first, 'chat-desktop-emoji-controls');
     const composer = first.getByPlaceholder('Type a message');
     await composer.fill('ab');
@@ -175,6 +178,11 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await expect(compactLanding.getByRole('main')).toBeVisible();
     await expect(compactLanding.getByRole('button', { name: 'Public Reception' })).toBeVisible();
     await saveStableSurfaceScreenshot(compactLanding, 'landing-compact-light-reduced-motion-200-font');
+
+    const compactDashboard = trackPage(await compactContext.newPage());
+    await compactDashboard.goto(`${origin}/dashboard`);
+    await expect(compactDashboard.locator('.chart-container').first()).toHaveCSS('transition-duration', '0s');
+    await expect(compactDashboard.getByRole('button', { name: 'Refresh Data' })).toHaveCSS('min-height', '44px');
 
     const openParticipant = async () => {
       const context = await browser.newContext();
@@ -208,6 +216,7 @@ test('users chat through the browser UI and a newcomer receives history', async 
     const mobile = trackPage(await mobileContext.newPage());
     await mobile.goto(roomUrl);
     const drawerToggle = mobile.getByRole('button', { name: /participants/i });
+    await expect(mobile.locator('#chat_participants')).toHaveCSS('transition-duration', '0s');
     await saveStableSurfaceScreenshot(mobile, 'chat-compact-emoji-controls');
     await expect(drawerToggle).toHaveAttribute('aria-expanded', 'false');
     await drawerToggle.click();
@@ -227,6 +236,26 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await mobile.setViewportSize({ width: 769, height: 1000 });
     await expect(drawerToggle).toBeHidden();
     await expect(mobile.locator('#chat_participants')).toBeVisible();
+    await mobile.setViewportSize({ width: 320, height: 812 });
+    await mobile.evaluate(() => {
+      const participant = document.createElement('div');
+      participant.className = 'participant';
+      participant.textContent = 'very-long-peer-name-without-natural-breaks-'.repeat(8);
+      document.querySelector('#chat_participants')?.append(participant);
+    });
+    await expect.poll(() => mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+    const forcedColorsContext = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+      forcedColors: 'active',
+      reducedMotion: 'reduce',
+    });
+    contexts.push(forcedColorsContext);
+    const forcedColorsDashboard = trackPage(await forcedColorsContext.newPage());
+    await forcedColorsDashboard.goto(`${origin}/dashboard`);
+    await expect.poll(() => forcedColorsDashboard.evaluate(() => matchMedia('(forced-colors: active)').matches)).toBe(true);
+    await forcedColorsDashboard.getByRole('button', { name: 'Refresh Data' }).focus();
+    await expect(forcedColorsDashboard.getByRole('button', { name: 'Refresh Data' })).toBeFocused();
     expect(pageErrors, pageErrors.map((error) => error.message).join('\n')).toEqual([]);
   } catch (error) {
     scenarioError = error;

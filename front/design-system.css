@@ -153,3 +153,11 @@
   --ds-container-lg: 1024px;
   --ds-container-xl: 1280px;
 }
+
+/* Keep state changes immediate when the operating system requests less motion. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ds-duration-fast: 0ms;
+    --ds-duration-normal: 0ms;
+  }
+}
