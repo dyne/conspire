@@ -132,6 +132,7 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await expect.poll(() => dashboard.evaluate(() => Object.keys(Chart.instances).length)).toBe(4);
     await dashboard.getByRole('button', { name: 'Refresh Data' }).focus();
     await expect(dashboard.getByRole('button', { name: 'Refresh Data' })).toHaveCSS('box-shadow', /rgba?\(/);
+    await saveStableSurfaceScreenshot(dashboard, 'dashboard-desktop-light');
 
     const landing = trackPage(await firstContext.newPage());
     await landing.goto(origin);
@@ -183,6 +184,7 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await compactDashboard.goto(`${origin}/dashboard`);
     await expect(compactDashboard.locator('.chart-container').first()).toHaveCSS('transition-duration', '0s');
     await expect(compactDashboard.getByRole('button', { name: 'Refresh Data' })).toHaveCSS('min-height', '44px');
+    await saveStableSurfaceScreenshot(compactDashboard, 'dashboard-compact-light-reduced-motion-200-font');
 
     const openParticipant = async () => {
       const context = await browser.newContext();

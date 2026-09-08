@@ -1,0 +1,56 @@
+:root {
+    color-scheme: light;
+    --example-page: #ffffff;
+    --example-text: #25313b;
+    --example-muted: #5f6b75;
+    --example-action: #448aff;
+    --example-action-active: #2979ff;
+    --example-focus: #184c9f;
+    --example-radius: 4px;
+}
+
+body {
+    box-sizing: border-box;
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 1rem;
+    color: var(--example-text);
+    background: var(--example-page);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    text-align: center;
+}
+
+*,
+*::before,
+*::after { box-sizing: inherit; }
+
+h1 { margin-block-end: 0.5rem; }
+
+.tagline { color: var(--example-muted); margin-block-end: 2rem; }
+
+button {
+    min-block-size: 44px;
+    padding: 1rem 2rem;
+    border: 0;
+    border-radius: var(--example-radius);
+    color: var(--example-page);
+    background: var(--example-action);
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+
+button:hover:not(:disabled),
+button:active:not(:disabled) { background: var(--example-action-active); }
+
+button:focus-visible {
+    outline: 3px solid var(--example-focus);
+    outline-offset: 3px;
+}
+
+.hint { color: var(--example-muted); font-size: 0.9rem; margin-block-start: 1rem; }
+.footer { color: var(--example-muted); font-size: 0.85rem; margin-block-start: 3rem; }
+.footer a { color: inherit; }
+
+@media (forced-colors: active) {
+    button:focus-visible { outline-color: Highlight; }
+}

@@ -185,17 +185,25 @@ A landing page provides a friendlier entry point with branding, instructions, an
 
 A working example is provided in [`docs/landing-example/`](landing-example/):
 
-- [`index.html`](landing-example/index.html) — Minimal landing page with styling
+- [`index.html`](landing-example/index.html) — Minimal strict-CSP-compatible landing page
+- [`style.css`](landing-example/style.css) — External presentation stylesheet
 - [`room.js`](landing-example/room.js) — Room ID generator and redirect logic
 
-Copy these to your web root and customize as needed. The key integration point:
+Copy these to your web root and set the button's `data-conspire-origin` to the
+public origin that serves Conspire. This may include a non-default port or a
+path prefix; do not put credentials, a room path, a query string, or a fragment
+in the value. When the attribute is omitted, the example uses the landing
+page's own origin.
 
 ```html
-<button id="new-room">Start a New Room</button>
+<link rel="stylesheet" href="style.css">
+<button id="new-room" data-conspire-origin="https://chat.example.org">Start a New Room</button>
 <script src="room.js"></script>
 ```
 
-The script generates a cryptographically random Base58 room ID and redirects to `https://your-domain.com:8443/room/{id}`. Adjust `CONSPIRE_PORT` in `room.js` if using a different port.
+The script generates a cryptographically random Base58 room ID and redirects to
+`{data-conspire-origin}/room/{id}`. Both styles and scripts are external, so
+the example remains usable under `style-src 'self'; script-src 'self'`.
 
 ### Web Server (Caddy)
 

@@ -6,10 +6,8 @@
  * Usage:
  *   1. Include this script in your landing page
  *   2. Add a button with id="new-room"
- *   3. Adjust CONSPIRE_PORT if needed
+ *   3. Set data-conspire-origin on the button to the public Conspire origin.
  */
-
-const CONSPIRE_PORT = 8443;
 
 /**
  * Encodes a Uint8Array into Base58.
@@ -37,7 +35,7 @@ function encodeBase58(buffer) {
 
     let str = '';
     for (let i = digits.length - 1; i >= 0; i--) str += ALPHABET[digits[i]];
-    for (let i = 0; i < buffer.length && buffer[i] === 0; i++) str = '1' + str;
+    for (let i = 0; i < buffer.length - 1 && buffer[i] === 0; i++) str = '1' + str;
     return str;
 }
 
@@ -54,13 +52,26 @@ function generateRoomId(length = 16) {
 /**
  * Redirects to a new Conspire room.
  */
-function openNewRoom() {
+function roomUrl(origin = window.location.origin, roomId) {
+    const destination = new URL(origin, window.location.origin);
+    if (!['http:', 'https:'].includes(destination.protocol) || destination.username || destination.password) {
+        throw new TypeError('Conspire origin must be an HTTP(S) origin without credentials.');
+    }
+    destination.hash = '';
+    destination.search = '';
+    destination.pathname = `${destination.pathname.replace(/\/$/, '')}/room/${roomId}`;
+    return destination.href;
+}
+
+function openNewRoom(button) {
     const roomId = generateRoomId();
-    window.location.href = 'https://' + window.location.hostname + ':' + CONSPIRE_PORT + '/room/' + roomId;
+    window.location.assign(roomUrl(button.dataset.conspireOrigin || window.location.origin, roomId));
 }
 
 // Auto-attach to button with id="new-room"
 document.addEventListener('DOMContentLoaded', function() {
     const btn = document.getElementById('new-room');
-    if (btn) btn.addEventListener('click', openNewRoom);
+    if (btn) btn.addEventListener('click', () => openNewRoom(btn));
 });
+
+globalThis.ConspireRoom = Object.freeze({ encodeBase58, generateRoomId, roomUrl });

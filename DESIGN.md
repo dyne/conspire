@@ -129,6 +129,18 @@ The current implementation contains three legitimate surface modes. **Landing** 
 
 The system is flat by default. Tonal contrast, borders, and adjacency establish hierarchy; shallow shadows are structural exceptions for the chat status bar, mobile overlays, and dashboard chart containers. Shared primitive values live in `front/design-system.css`; landing, chat, and dashboard styles import that layer and retain their task-specific semantic and component rules. The software is embedded into the server binary, so the source assets in `front/` and `dashboard/` are the visual source of truth.
 
+## Browser Support Policy
+
+Conspire supports the current and previous stable releases of Chrome, Firefox,
+Safari, and Edge. The baseline is CSS custom properties, `:focus-visible`,
+`100dvh`, and `color-scheme`; each is supported by those releases. Dashboard
+automatic theming uses `prefers-color-scheme`, while explicit
+`data-color-scheme` values remain the compatible override. Newer CSS features
+are progressive enhancement only: core communication, focus, contrast, and
+room creation must remain usable without them. Validate the shipped surfaces at
+375px and 1440px, with reduced motion and forced colors where the browser
+supports those modes.
+
 **Key Characteristics:**
 
 - Civic, clear, and durable rather than promotional.
