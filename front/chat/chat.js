@@ -548,7 +548,7 @@ function socketSendNextData(data) {
 
 window.addEventListener("beforeunload", function (e) {
     e.preventDefault();
-    event.returnValue = "You are about to leave the chat. " +
+    e.returnValue = "You are about to leave the chat. " +
         "Once you leave you'll lose chat history and all of your files shared will be canceled. " +
         "Are you sure you want to leave the chat?";
 });

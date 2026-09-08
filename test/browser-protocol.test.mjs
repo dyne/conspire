@@ -137,6 +137,17 @@ test('chat keeps modern keyboard, DOM, and safe-download paths', async () => {
   assert.match(chat, /e\.preventDefault\(\)/);
 });
 
+test('chat leave protection uses its beforeunload event parameter consistently', async () => {
+  const chat = await readFile(new URL('../front/chat/chat.js', import.meta.url), 'utf8');
+  const handler = chat.match(/addEventListener\(["']beforeunload["'],\s*function\s*\((\w+)\)\s*\{([\s\S]*?)\n\}\);/);
+
+  assert.ok(handler, 'beforeunload handler is registered with an event parameter');
+  const [, parameter, body] = handler;
+  assert.match(body, new RegExp(`\\b${parameter}\\.preventDefault\\(\\)`));
+  assert.match(body, new RegExp(`\\b${parameter}\\.returnValue\\s*=`));
+  assert.doesNotMatch(body, /\bevent\.returnValue\s*=/);
+});
+
 test('lobby actions are CSP-compatible external listeners', async () => {
   const lobby = await readFile(new URL('../front/index.html', import.meta.url), 'utf8');
   const script = await readFile(new URL('../front/lobby.js', import.meta.url), 'utf8');
