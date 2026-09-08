@@ -45,8 +45,9 @@ On 2026-09-08, reusable primitives were extracted into `front/design-system.css`
 
 | Asset | Status | Notes |
 |---|---|---|
-| `docs/landing-example/index.html` | Deployment example | Standalone “Community Chat” page with inline CSS |
-| `docs/landing-example/room.js` | Deployment example | Base58 room generator with a hardcoded port (`8443`) |
+| `docs/landing-example/index.html` | Deployment example | Strict-CSP page with external presentation and script assets |
+| `docs/landing-example/style.css` | Deployment example | Reusable external presentation stylesheet |
+| `docs/landing-example/room.js` | Deployment example | Base58 room generator using an explicit `data-conspire-origin` |
 | `front/chat/coverage-fixture.js` | Test-only fixture | Intentionally under-covered; never part of the visual runtime contract |
 | `playwright.config.mjs` | Test configuration | Configures the real browser contract |
 | `test/browser-protocol.test.mjs` | Node test | Protocol boundaries, safe DOM sinks, room modules, and external handlers |
@@ -62,7 +63,7 @@ On 2026-09-08, reusable primitives were extracted into `front/design-system.css`
 - The complete surface is static HTML plus `front/style.css`; only room navigation is dynamic. Reused primitives come from `front/design-system.css`.
 - The layout is a `700px` reading column with `18px` body copy and `1.6` line-height.
 - Actions hardcode Bright Blue (`#448aff`) and Bright Blue Active (`#2979ff`), `3px` corners, bold uppercase labels, and `9px 20px` padding.
-- `.dark-mode` exists as an opt-in class, but no production script toggles it.
+- Landing intentionally follows its documented light communication surface; it has no unsupported dark-mode branch.
 
 ### Chat
 
@@ -79,8 +80,8 @@ On 2026-09-08, reusable primitives were extracted into `front/design-system.css`
 
 ### Deployment example
 
-- The example intentionally remains self-contained, but its inline style block creates a fourth mini-system: slate actions (`#2c3e50`), darker hover (`#1a252f`), `600px` layout, and `4px` corners.
-- `room.js` generates a secure random Base58 room identifier but bakes the destination scheme and port into JavaScript.
+- The example uses external `style.css` and `room.js` files, so it works under a strict same-origin CSP.
+- `room.js` generates a secure random Base58 room identifier and constructs the destination from `data-conspire-origin`, defaulting to the hosting origin.
 
 ## Strengths to preserve
 
@@ -95,31 +96,20 @@ On 2026-09-08, reusable primitives were extracted into `front/design-system.css`
 
 ## Findings and maintenance risks
 
-### High priority
+### Resolved during interface hardening
 
-1. **Chat disables user zoom.** `front/chat/index.html` sets `maximum-scale=1.0` and `user-scalable=no`. This blocks an important accessibility mechanism and should be removed when accessibility hardening is authorized.
-2. **Core chat updates are not announced.** Messages, connection state, typing state, and participant changes have no `aria-live` or equivalent status semantics. Screen-reader users may not receive real-time changes.
-3. **Emoji shortcuts are pointer-only paragraphs.** The emoji row uses clickable `<p>` elements created in HTML and bound in JavaScript. They are not keyboard controls and expose no action semantics.
-4. **Focus visibility is inconsistent.** Landing and chat controls remove outlines without defining a replacement. Dashboard focus treatment is substantially stronger and should be the reference when convergence work is authorized.
+- Zoom, live-region, emoji-control, drawer-state, focus-visible, reduced-motion,
+  chart-equivalent, and bundled Chart.js findings are covered by the current
+  production implementation and tests.
+- Dashboard theme aliases are consolidated; duplicate controls, unused colorful
+  background tokens, and the undefined mono alias were removed.
+- The landing example no longer uses inline CSP exceptions or a hardcoded port.
 
-### Medium priority
+### Remaining maintenance notes
 
-1. **The mobile participant drawer lacks state semantics.** The toggle has no `aria-expanded` or `aria-controls`; the drawer and background do not use `inert`, dialog, or complementary-navigation semantics.
-2. **Duplicate participant-count IDs can occur.** The static toggle contains `#participant_count`, while `createParticipantsList()` creates another element with the same ID inside the participant rail. DOM lookup behavior then depends on document order.
-3. **No reduced-motion mode exists.** Participant removal, typing chips, the mobile drawer, controls, and dashboard cards animate without a `prefers-reduced-motion` override.
-4. **Chart canvases lack fallback descriptions.** Section headings name the metrics, but the canvases do not provide summaries, tabular alternatives, or accessible labels for the data itself.
-5. **The dashboard loads unpinned remote Chart.js.** `https://cdn.jsdelivr.net/npm/chart.js` has no version or integrity metadata, making behavior and availability less deterministic than the embedded frontend.
-
-### Low priority and cleanup
-
-1. `front/index.html` omits `lang`, duplicates the charset declaration, and contains stale Jaromil-specific Open Graph and Twitter metadata unrelated to Conspire.
-2. `dashboard/style.css` repeats dark/light semantic theme blocks and duplicates `.control-buttons` and `.load-file-btn` rules, increasing drift risk.
-3. `dashboard/style.css` references `--font-mono` in `.stats-url code`; the declared token is `--font-family-mono`.
-4. `front/chat/chat.js` retains obsolete IE selection handling and deprecated `keypress` / `event.which` logic.
-5. `front/chat/chat.js` clears one participant container with `innerHTML = ""`; no untrusted content is inserted there, but `replaceChildren()` would match the safer pattern already used by the dashboard.
-6. The `beforeunload` handler accepts an `e` parameter but refers to the global `event` object.
-7. The deployment example uses inline CSS and a hardcoded `https` port, so it is illustrative rather than a reusable themed component.
-8. Dashboard documentation still describes removed CORS-proxy and sample-data UI paths, while current code deliberately does not proxy statistics.
+- The example stylesheet is intentionally standalone because deployment sites do
+  not expose Conspire's embedded `/design-system.css` route.
+- Dashboard remote statistics must still satisfy its direct-fetch CORS policy.
 
 ## Design-system boundary
 
@@ -134,7 +124,7 @@ The dashboard token vocabulary is the strongest implementation reference, but it
 ## Verification record
 
 - `npm run check:web`: validates JavaScript syntax and the browser-facing Node tests.
-- `npx playwright test test/playwright/chat-ui.spec.mjs --reporter=line`: passed on 2026-09-08 (`1 passed`).
+- `npx playwright test`: covers production surfaces and the strict-CSP landing example.
 - The static quality tests verify external event handlers, version placeholders, embedded assets, safe dashboard string handling, and explicit room module routes.
 
 This review is descriptive. It documents implementation debt but does not modify runtime HTML, CSS, JavaScript, or server behavior.

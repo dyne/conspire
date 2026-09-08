@@ -1,8 +1,9 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-08T00:00:00+02:00",
+  "generatedAt": "2026-09-08T09:30:00+02:00",
   "title": "Design System: Conspire",
   "extensions": {
+    "browserSupport": "Current and previous stable Chrome, Firefox, Safari, and Edge; custom properties, :focus-visible, 100dvh, color-scheme, and prefers-color-scheme are baseline. Newer CSS is progressive enhancement.",
     "colorMeta": {
       "white": {
         "role": "neutral",

@@ -68,20 +68,6 @@ button:active,
     outline-offset: 3px;
 }
 
-.dark-mode {
-    background-color: var(--ds-color-black);
-    color: var(--ds-color-white);
-    accent-color: var(--ds-color-dark-link);
-
-    a:link {
-        color: var(--ds-color-dark-link);
-    }
-
-    a:visited {
-        color: var(--ds-color-dark-link-visited);
-    }
-}
-
 @media (forced-colors: active) {
     body { scrollbar-color: auto; }
     :where(a, button, input, textarea):focus-visible {

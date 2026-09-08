@@ -141,6 +141,35 @@ test('all production surfaces consume the embedded shared design primitives', as
   assert.match(dashboardApp, /CHART_COLOR_TOKENS/);
 });
 
+test('dashboard theme aliases remain defined, canonical, and explicitly overridable', async () => {
+  const dashboard = await readFile(new URL('../dashboard/style.css', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(dashboard, /--color-bg-[1-8]:/);
+  assert.doesNotMatch(dashboard, /var\(--font-mono\)/);
+  assert.equal((dashboard.match(/^\.control-buttons\s*\{/gm) ?? []).length, 1);
+  assert.equal((dashboard.match(/^\.load-file-btn\s*\{/gm) ?? []).length, 1);
+  assert.match(dashboard, /:root:not\(\[data-color-scheme\]\)/);
+  assert.match(dashboard, /\[data-color-scheme="dark"\][\s\S]*--select-caret:\s*var\(--select-caret-dark\)/);
+  assert.match(dashboard, /\[data-color-scheme="light"\][\s\S]*--select-caret:\s*var\(--select-caret-light\)/);
+});
+
+test('design documentation records the current source of truth and browser policy', async () => {
+  const [design, sidecar, audit] = await Promise.all([
+    readFile(new URL('../DESIGN.md', import.meta.url), 'utf8'),
+    readFile(new URL('../.impeccable/design.json', import.meta.url), 'utf8'),
+    readFile(new URL('../docs/FRONTEND_ASSET_REVIEW.md', import.meta.url), 'utf8'),
+  ]);
+  const parsed = JSON.parse(sidecar);
+  assert.equal(parsed.schemaVersion, 2);
+  assert.match(parsed.extensions.browserSupport, /Safari/);
+  for (const heading of ['## Overview', '## Browser Support Policy', '## Colors', '## Typography', '## Layout']) {
+    assert.ok(design.indexOf(heading) >= 0, heading);
+  }
+  assert.ok(design.indexOf('## Overview') < design.indexOf('## Browser Support Policy'));
+  assert.match(audit, /docs\/landing-example\/style\.css/);
+  assert.match(audit, /no longer uses inline CSP exceptions or a hardcoded port/);
+});
+
 test('motion uses shared tokens and never delays chat cleanup for reduced-motion users', async () => {
   const [tokens, chat, chatApp, dashboard] = await Promise.all([
     readFile(new URL('../front/design-system.css', import.meta.url), 'utf8'),
