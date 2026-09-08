@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-import { humanFileSize } from './format.js';
+import { formatChatAnnouncement, humanFileSize, insertTextAtSelection } from './format.js';
 import { createFileChunkMessage } from './protocol.js';
 import { createChatState } from './state.js';
 
@@ -28,6 +28,7 @@ let filesMap = chatState.files;
 let bulbColorsNumber = 18;
 let socketSendBuffer = [];
 let lastTimeTypingSent = 0;
+let hydratingHistory = false;
 
 setupEmoji();
 
@@ -35,70 +36,52 @@ function nextFileId() {
     return chatState.nextFileId ++;
 }
 
-function insertAtCursor(myField, myValue) {
-    //IE support
-    if (document.selection) {
-        myField.focus();
-        sel = document.selection.createRange();
-        sel.text = myValue;
-    }
-    //MOZILLA and others
-    else if (myField.selectionStart || myField.selectionStart == '0') {
-        var startPos = myField.selectionStart;
-        var endPos = myField.selectionEnd;
-        myField.value = myField.value.substring(0, startPos)
-            + myValue
-            + myField.value.substring(endPos, myField.value.length);
-    } else {
-        myField.value += myValue;
-    }
+function announceActivity(type, details) {
+    if (hydratingHistory) return;
+    const region = document.getElementById('chat_activity');
+    if (region) region.textContent = formatChatAnnouncement(type, details);
 }
 
 function setupEmoji (){
 
-    let div = document.getElementById('emoji');
-    let children = div.children;
-
-    for (let index = 0; index < children.length; index ++) {
-
-        let child = children[index];
+    const controls = document.querySelectorAll('#emoji button[data-emoji]');
+    for (const child of controls) {
         child.addEventListener('click', function() {
             let input = document.getElementById('chat_input');
-            insertAtCursor(input, child.textContent);
+            insertTextAtSelection(input, child.dataset.emoji);
             input.focus();
         });
-
     }
+}
+
+function messageGroup(message, peerKey = message.peerId) {
+    const messageField = document.getElementById('chat_history');
+    const lastChild = messageField.lastElementChild;
+    if (lastChild?.dataset.peerId === String(peerKey)) return lastChild;
+    const group = document.createElement('article');
+    group.className = 'message-container';
+    group.dataset.peerId = peerKey;
+    const author = document.createElement('p');
+    const timestamp = new Date(message.timestamp / 1000);
+    author.className = 'message-author';
+    author.textContent = message.peerName + ' at ' + timestamp.toLocaleTimeString([], { timeStyle: 'short' });
+    const time = document.createElement('time');
+    time.dateTime = timestamp.toISOString();
+    time.textContent = author.textContent;
+    author.replaceChildren(time);
+    group.setAttribute('aria-label', `Messages from ${message.peerName} at ${time.textContent}`);
+    group.append(author);
+    messageField.append(group);
+    return group;
 }
 
 function postChatMessage(message) {
 
     removeTypingPeerNow(message.peerId);
 
-    let messageElem;
-
     let messageField = document.getElementById('chat_history');
     let scrollPos = messageField.scrollHeight - messageField.scrollTop;
-
-    let lastChild = messageField.lastChild;
-    if(lastChild) {
-        let lastPeerId = lastChild.getAttribute('peerId');
-        if(lastPeerId && lastPeerId == message.peerId) {
-            messageElem = lastChild;
-        }
-    }
-    if(!messageElem) {
-        messageElem = document.createElement('div');
-        messageElem.className = "message-container";
-        messageElem.setAttribute('peerId', message.peerId);
-
-        let peerName = document.createElement('pre');
-        let ts = new Date(message.timestamp / 1000);
-        peerName.className = "message-author";
-        peerName.textContent = message.peerName + " at " + ts.toLocaleTimeString([], {timeStyle: 'short'});
-        messageElem.append(peerName);
-        messageField.append(messageElem);
-    }
+    const messageElem = messageGroup(message);
 
     let messageDiv = document.createElement('div');
     messageDiv.className = "message-div";
@@ -117,34 +100,15 @@ function postChatMessage(message) {
     if(scrollPos <= messageField.getBoundingClientRect().height) {
         messageField.scrollTop = messageField.scrollHeight;
     }
+    announceActivity('message', message);
 
 }
 
 function postSharedFile(message) {
 
-    let messageElem;
-
     let messageField = document.getElementById('chat_history');
     let scrollPos = messageField.scrollHeight - messageField.scrollTop;
-    let lastChild = messageField.lastChild;
-    if(lastChild) {
-        let lastPeerId = lastChild.getAttribute('peerId');
-        if(lastPeerId && lastPeerId == message.peerId) {
-            messageElem = lastChild;
-        }
-    }
-    if(!messageElem) {
-        messageElem = document.createElement('div');
-        messageElem.className = "message-container";
-        messageElem.setAttribute('peerId', message.peerId);
-
-        let peerName = document.createElement('pre');
-        let ts = new Date(message.timestamp / 1000);
-        peerName.className = "message-author";
-        peerName.textContent = message.peerName + " at " + ts.toLocaleTimeString([], {timeStyle: 'short'});
-        messageElem.append(peerName);
-        messageField.append(messageElem);
-    }
+    const messageElem = messageGroup(message);
 
     let messageDivFiles = document.createElement('div');
     messageDivFiles.className = "message-div-files";
@@ -161,7 +125,8 @@ function postSharedFile(message) {
         var linkText = document.createTextNode(file.name);
         link.appendChild(linkText);
         link.href = urlRoom + "/file/" + file.serverFileId;
-        link.setAttribute('target', '_blank');
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
 
         let messageDivOneFile = document.createElement('div');
         messageDivOneFile.className = "message-div-file";
@@ -189,6 +154,7 @@ function postSharedFile(message) {
     if(scrollPos <= messageField.getBoundingClientRect().height) {
         messageField.scrollTop = messageField.scrollHeight;
     }
+    announceActivity('file', { peerName: message.peerName, count: message.files.length });
 
 }
 
@@ -196,30 +162,16 @@ function postSystemMessage(message) {
 
     removeTypingPeerNow(message.peerId);
 
-    let messageElem;
-
     let messageField = document.getElementById('chat_history');
     let scrollPos = messageField.scrollHeight - messageField.scrollTop;
-    let lastChild = messageField.lastChild;
-    if(lastChild) {
-        let lastPeerId = lastChild.getAttribute('peerId');
-        if(lastPeerId && lastPeerId == 'sys') {
-            messageElem = lastChild;
-        }
-    }
-    if(!messageElem) {
-        messageElem = document.createElement('div');
-        messageElem.className = "message-container";
-        messageElem.setAttribute('peerId', 'sys');
-        messageField.append(messageElem);
-    }
+    const messageElem = messageGroup({ ...message, peerName: 'Room activity', timestamp: message.timestamp || Date.now() * 1000 }, 'sys');
 
     let messageDiv = document.createElement('div');
     messageDiv.className = "message-div-system";
 
     let messageText = document.createElement('pre');
     messageText.className = "message-text";
-    messageText.textContent = "📢 " + message.message;
+    messageText.textContent = message.message;
 
     messageDiv.append(messageText);
     messageElem.append(messageDiv);
@@ -247,7 +199,9 @@ function postPeerIsTyping(message) {
         typingPeerElem.id = 'typing_peer_' + message.peerId;
         typingPeerElem.className = "typing_peer";
         typingPeerElem.textContent = message.peerName + "   ";
+        typingPeerElem.dataset.peerName = message.peerName;
         whosTypingPanel.append(typingPeerElem);
+        announceActivity('typing', message);
     }
 
     let ts = new Date();
@@ -258,22 +212,22 @@ function postPeerIsTyping(message) {
 function removeTypingPeerNow(typingPeerId) {
     let typingPeerElem = document.getElementById('typing_peer_' + typingPeerId);
     if(typingPeerElem) {
+        announceActivity('stoppedTyping', { peerName: typingPeerElem.dataset.peerName });
         typingPeerElem.remove();
     }
 }
 
 function removeTypingPeer(peerElem) {
-    let transitionCounter = 0;
     peerElem.classList.add("typing_peer_removed");
-    peerElem.addEventListener('transitionstart', function() {
-        transitionCounter ++;
-    });
-    peerElem.addEventListener('transitionend', function() {
-        transitionCounter --;
-        if(transitionCounter == 0) {
-            peerElem.remove();
-        }
-    });
+    let removed = false;
+    const finish = () => {
+        if (removed) return;
+        removed = true;
+        announceActivity('stoppedTyping', { peerName: peerElem.dataset.peerName });
+        peerElem.remove();
+    };
+    peerElem.addEventListener('transitionend', finish, { once: true });
+    setTimeout(finish, 400);
 }
 
 let animateWhosTyping = setInterval(function() {
@@ -344,11 +298,12 @@ function cmpPeers(a, b) {
 }
 
 function createParticipantsList() {
-    let list = document.getElementById('chat_participants');
-    let allPeersElem = document.createElement('div');
+    const list = document.getElementById('chat_participants');
+    const heading = list.querySelector('#participants_heading');
+    const allPeersElem = document.createElement('div');
 
     let caption = document.createElement('p');
-    caption.id = "participant_count";
+    caption.id = 'participant_drawer_count';
     caption.textContent = "Participants: " + peersMap.size;
     caption.className = "participant_n";
     allPeersElem.append(caption);
@@ -376,81 +331,12 @@ function createParticipantsList() {
         }
     }
 
-  list.innerHTML = "";
-  for (let child of allPeersElem.children) {
-    list.appendChild(child.cloneNode(true));
-  }
+    list.replaceChildren(heading, allPeersElem);
 }
 
 function updateParticipants() {
 
-    let list = document.getElementById('chat_participants');
-    if(list.innerHTML === "") {
-        createParticipantsList();
-    } else {
-
-        let countElem = document.getElementById('participant_count');
-        countElem.textContent = "Participants: " + peersMap.size;
-
-        let peers = Array.from(peersMap.values());
-        peers.sort(cmpPeers);
-
-        let list = document.getElementById('peers_other');
-        let children = list.children;
-        let childrenLeft = [];
-        let childrenNew = [];
-
-        for (let index = 0; index < children.length; index ++) {
-
-            let child = children[index];
-            if(!peersMap.get(parseInt(child.getAttribute("peer_id")))) {
-                removeParticipantElement(child);
-            } else {
-                childrenLeft.push(child);
-            }
-
-        }
-
-        let peerIndex = 0;
-
-        for (let index = 0; index < childrenLeft.length; index ++) {
-
-            let child = childrenLeft[index];
-            let childId = parseInt(child.getAttribute("peer_id"));
-            let inserted = true;
-            while(inserted) {
-                let peer = peers[peerIndex];
-                if(peer.peerId !== peerId) {
-                    if (peer.peerId !== childId) {
-                        let newChild = createParticipantElement(peer);
-                        newChild.classList.add("peer_style_new");
-                        list.insertBefore(newChild, child);
-                        childrenNew.push(newChild);
-                    } else {
-                        inserted = false;
-                    }
-                }
-                peerIndex++;
-            }
-        }
-
-        for (let index = peerIndex; index < peers.length; index ++) {
-            let peer = peers[index];
-            if(peer.peerId !== peerId) {
-                let newChild = createParticipantElement(peer);
-                newChild.classList.add("peer_style_new");
-                list.append(newChild);
-                childrenNew.push(newChild);
-            }
-        }
-
-        for (let index = 0; index < childrenNew.length; index ++) {
-            let child = childrenNew[index];
-            window.getComputedStyle(child).opacity;
-            childrenNew[index].classList.remove("peer_style_new");
-        }
-
-    }
+    createParticipantsList();
 
 }
 
@@ -484,7 +370,9 @@ function sendFileChunks(message) {
                 let spin = parseInt(sentLabel.getAttribute("progress-spin")) + 1;
                 sentLabel.setAttribute("amount-sent", sent);
                 sentLabel.setAttribute("progress-spin", spin);
-                sentLabel.textContent = "Sent: " + humanFileSize(sent, spin);
+                const progress = 'Sent: ' + humanFileSize(sent);
+                sentLabel.textContent = progress;
+                if (spin % 10 === 0) announceActivity('transfer', { progress });
 
             }
 
@@ -541,8 +429,8 @@ export function submitMessage() {
     return false;
 };
 
-document.getElementById('chat_input').addEventListener("keypress", function (e) {
-    if(e.which == 13 && !e.shiftKey) {
+document.getElementById('chat_input').addEventListener('keydown', function (e) {
+    if(e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         submitMessage();
         e.preventDefault();
     }
@@ -566,6 +454,7 @@ socket.onclose = function(event) {
     let status = document.getElementById('status_connection');
     status.textContent = "offline";
     status.className = "status_offline";
+    announceActivity('connection', { message: 'Connection offline.' });
     peersMap.clear();
     updateParticipants();
 };
@@ -597,9 +486,9 @@ function onMessage(message) {
             updateParticipants();
 
             if(message.history && message.history.length > 0) {
-                for (let index = 0; index < message.history.length; index++) {
-                    onMessage(message.history[index]);
-                }
+                hydratingHistory = true;
+                for (let index = 0; index < message.history.length; index++) onMessage(message.history[index]);
+                hydratingHistory = false;
             } else {
                 onMessage({
                     code: CODE_PEER_JOINED,
@@ -618,12 +507,14 @@ function onMessage(message) {
             peer.peerName = message.peerName;
             peersMap.set(peer.peerId, peer);
             updateParticipants();
+            announceActivity('joined', message);
             break;
 
         case CODE_PEER_LEFT:
             postSystemMessage(message);
             peersMap.delete(message.peerId);
             updateParticipants();
+            announceActivity('left', message);
             break;
 
         case CODE_PEER_MESSAGE:
@@ -650,7 +541,7 @@ function socketSendNextData(data) {
 }
 
 window.addEventListener("beforeunload", function (e) {
-    event.preventDefault();
+    e.preventDefault();
     event.returnValue = "You are about to leave the chat. " +
         "Once you leave you'll lose chat history and all of your files shared will be canceled. " +
         "Are you sure you want to leave the chat?";

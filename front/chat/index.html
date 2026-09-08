@@ -13,37 +13,41 @@
 
         <header id="chat_status">
             <h1 class="visually-hidden">Conspire chat room</h1>
-            <p id="status_connection" class="status_online">online</p>
-            <button type="button" id="participants_toggle">
-                <span id="participant_count">0</span> 👥
+            <p id="status_connection" class="status_online" role="status" aria-live="polite">online</p>
+            <button type="button" id="participants_toggle" aria-expanded="false" aria-controls="chat_participants">
+                <span id="participant_count">0</span>
+                <svg class="control-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-3.9-4.9A5 5 0 1 0 8 14c-3 0-5.5 1.5-6 4h20c-.5-2.5-3-4-6-4Zm0-7a2 2 0 1 1-2 2 2 2 0 0 1 2-2ZM8 6a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"/></svg>
+                <span class="visually-hidden">participants</span>
             </button>
         </header>
 
         <main id="chat_main">
             <section id="chat_history_wrapper" aria-label="Chat history">
-                <div id="chat_history"></div>
-                <div id="chat_whos_typing"></div>
+                <div id="chat_history" role="log" aria-live="off" aria-relevant="additions text"></div>
+                <div id="chat_whos_typing" aria-live="off"></div>
             </section>
-            <aside id="chat_participants" aria-label="Participants"></aside>
+            <aside id="chat_participants" aria-labelledby="participants_heading" aria-hidden="true" inert>
+                <h2 id="participants_heading" class="visually-hidden" tabindex="-1">Participants</h2>
+            </aside>
         </main>
 
         <footer id="chat_input_container">
-            <div id="emoji">
-                <p>&#128513;</p>
-                <p>&#128521;</p>
-                <p>&#128528;</p>
-                <p>&#128532;</p>
-                <p>&#128534;</p>
-                <p>&#128536;</p>
-                <p>&#128175;</p>
-                <p>&#128077;</p>
-                <p>&#128078;</p>
-                <p>&#9757;</p>
-                <p>&#8986;</p>
-                <p>&#9749;</p>
-                <p>&#128064;</p>
-                <p>&#128066;</p>
-                <p>&#128068;</p>
+            <div id="emoji" role="toolbar" aria-label="Emoji shortcuts">
+                <button type="button" data-emoji="😀" aria-label="Insert grinning face">Smile</button>
+                <button type="button" data-emoji="😉" aria-label="Insert winking face">Wink</button>
+                <button type="button" data-emoji="😐" aria-label="Insert neutral face">Neutral</button>
+                <button type="button" data-emoji="😔" aria-label="Insert pensive face">Pensive</button>
+                <button type="button" data-emoji="😖" aria-label="Insert confounded face">Concerned</button>
+                <button type="button" data-emoji="😜" aria-label="Insert winking tongue face">Playful</button>
+                <button type="button" data-emoji="💯" aria-label="Insert one hundred points">Hundred</button>
+                <button type="button" data-emoji="👍" aria-label="Insert thumbs up">Approve</button>
+                <button type="button" data-emoji="👎" aria-label="Insert thumbs down">Disapprove</button>
+                <button type="button" data-emoji="☝" aria-label="Insert pointing up">Point</button>
+                <button type="button" data-emoji="⌚" aria-label="Insert watch">Watch</button>
+                <button type="button" data-emoji="☕" aria-label="Insert hot beverage">Coffee</button>
+                <button type="button" data-emoji="👀" aria-label="Insert eyes">Eyes</button>
+                <button type="button" data-emoji="👂" aria-label="Insert ear">Listen</button>
+                <button type="button" data-emoji="👄" aria-label="Insert mouth">Mouth</button>
             </div>
             <form name="publish" autocomplete="off">
                 <div id="ta-container">
@@ -63,7 +67,8 @@
             </div>
         </footer>
 
-        <div id="participants_overlay"></div>
+        <div id="participants_overlay" aria-hidden="true"></div>
+        <div id="chat_activity" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
     </div>
 

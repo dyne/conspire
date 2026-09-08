@@ -37,7 +37,7 @@
             padding: 0;
             margin: -1px;
             overflow: hidden;
-            clip: rect(0, 0, 0, 0);
+            clip-path: inset(50%);
             white-space: nowrap;
             border: 0;
         }
@@ -102,7 +102,12 @@
             border-radius: var(--ds-radius-control);
             font-size: var(--ds-font-size-chat-label);
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
+
+        .control-icon { width: 18px; height: 18px; fill: currentColor; }
 
         #participants_toggle:active {
             background: rgba(255, 255, 255, 0.2);
@@ -224,26 +229,30 @@
             flex-wrap: wrap;
             gap: 2px;
             margin-bottom: 8px;
-            height: 32px;
-            overflow: hidden;
+            max-height: 64px;
+            overflow-x: auto;
         }
 
-        #emoji p {
+        #emoji button {
             margin: 0;
             padding: 4px 6px;
-            font-size: var(--ds-font-size-xl);
+            min-height: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: transparent;
+            font: inherit;
+            font-size: var(--ds-font-size-chat-label);
             cursor: pointer;
             color: rgba(255, 255, 255, 0.7);
             border-radius: var(--ds-radius-compact);
             transition: var(--ds-duration-fast);
         }
 
-        #emoji p:hover {
+        #emoji button:hover {
             color: white;
             background-color: rgba(255, 255, 255, 0.1);
         }
 
-        #emoji p:active {
+        #emoji button:active {
             background-color: rgba(255, 255, 255, 0.2);
         }
 
@@ -456,12 +465,10 @@
             }
 
             #emoji {
-                height: 28px;
                 margin-bottom: 6px;
             }
 
-            #emoji p {
-                font-size: var(--ds-font-size-lg);
+            #emoji button {
                 padding: 3px 5px;
             }
 
