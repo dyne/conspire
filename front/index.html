@@ -1,38 +1,24 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>%%%CONSPIRE_TITLE%%%</title>
-    <meta name="description" content="Web-based chat for radical exchange: ephemeral, anonymous, and synchronous." />
+    <meta name="description" content="Conspire is an ephemeral, anonymous, web-based chat for direct exchange." />
     <meta name="keywords" content="web-chat, anonymous, file-sharing, commons" />
-    <meta charset="utf-8" />
 
-    <!-- Open Graph for social networks -->
-    <meta property="og:title" content="Denis 'Jaromil' Roio - Dyne.org foundation" />
-    <meta property="og:description"
-        content="Jaromil is the ethical hacker at the origins of the Dyne.org foundation, he is widely respected within the free software community for supporting the development of free software and open culture." />
-    <meta property="og:type" content="" />
-    <meta property="og:image" content="https://jaromil.dyne.org/img/jaromil_2020_fb.jpg" />
-    <meta property="og:url" content="https://jaromil.dyne.org" />
-    <meta property="fb:admins" content="641586196" />
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:site" content="@Jaromil">
-    <meta name="twitter:title" content="Denis 'Jaromil' Roio - Dyne.org foundation">
-    <meta name="twitter:description"
-        content="Jaromil is the ethical hacker at the origins of the Dyne.org foundation, he is widely respected within the free software community for supporting the development of free software and open culture." />
-    <meta name="twitter:image" content="https://jaromil.dyne.org/img/jaromil_2020_tw.jpg">
+    <meta property="og:title" content="Conspire" />
+    <meta property="og:description" content="An ephemeral, anonymous web chat for direct exchange." />
+    <meta property="og:type" content="website" />
     <link rel="shortcut icon" href="img/favicon.ico">
-    <link rel="twitter" type="text/html" href="http://twitter.com/jaromil">
-
     <link rel="stylesheet" href="style.css">
 </head>
 
 
 <body>
 
-    <div id="container">
+    <header id="container">
 
         <h1>Dyne.org / Conspire Chat</h1>
 
@@ -40,19 +26,25 @@
             Web-based chat for radical exchange: ephemeral, anonymous, and synchronous.
         </p>
 
-        <h2>🚪🏃 Choose a room</h2>
+    </header>
+
+    <main>
+        <section aria-labelledby="choose-room-heading">
+        <h2 id="choose-room-heading">🚪🏃 Choose a room</h2>
         <p class="subtitle">
             Join the public reception or create a private, ephemeral room. Rooms are anonymous and self-destruct when
-            empty — share private room URLs only with trusted participants. Create your own <code>/room/${NAME}</code> url or use the
+            empty — share private room URLs only with trusted participants. Create your own <code>/room/&lt;NAME&gt;</code> URL or use the
             buttons below:
         </p>
         <div id="starter">
 
-            <input id="public-room-button" type="button" value="Public Reception">
-            <input id="private-room-button" type="button" value="New Private Room">
+            <button id="public-room-button" type="button">Public Reception</button>
+            <button id="private-room-button" type="button">New Private Room</button>
             %%%TOR_HIDDEN_SERVICE_BUTTON%%%
         </div>
-        <div id="note">
+        </section>
+
+        <section id="note" aria-label="How Conspire works">
             <section aria-labelledby="rules-heading">
                 <h3 id="rules-heading">📜 Rules</h3>
 
@@ -96,9 +88,9 @@
                     downloads.
                 </p>
             </section>
-        </div>
+        </section>
 
-    </div>
+    </main>
 
     <script src="lobby.js"></script>
 

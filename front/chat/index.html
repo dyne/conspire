@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>%%%CONSPIRE_TITLE%%%</title>
 
     <link rel="stylesheet" href="/room/%%%ROOM_ID%%%/chat.css">
@@ -11,22 +11,23 @@
 
     <div id="chat_container">
 
-        <div id="chat_status">
+        <header id="chat_status">
+            <h1 class="visually-hidden">Conspire chat room</h1>
             <p id="status_connection" class="status_online">online</p>
             <button type="button" id="participants_toggle">
                 <span id="participant_count">0</span> 👥
             </button>
-        </div>
+        </header>
 
-        <div id="chat_main">
-            <div id="chat_history_wrapper">
+        <main id="chat_main">
+            <section id="chat_history_wrapper" aria-label="Chat history">
                 <div id="chat_history"></div>
                 <div id="chat_whos_typing"></div>
-            </div>
-            <div id="chat_participants"></div>
-        </div>
+            </section>
+            <aside id="chat_participants" aria-label="Participants"></aside>
+        </main>
 
-        <div id="chat_input_container">
+        <footer id="chat_input_container">
             <div id="emoji">
                 <p>&#128513;</p>
                 <p>&#128521;</p>
@@ -60,7 +61,7 @@
                 <input id="file_share_button_overlay" type="button" value="Share Files">
                 <input id="file_share_button" type="file" multiple>
             </div>
-        </div>
+        </footer>
 
         <div id="participants_overlay"></div>
 

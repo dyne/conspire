@@ -30,6 +30,18 @@
             box-sizing: border-box;
         }
 
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
         html, body {
             margin: 0;
             padding: 0;
@@ -94,6 +106,11 @@
 
         #participants_toggle:active {
             background: rgba(255, 255, 255, 0.2);
+        }
+
+        :where(a, button, input, textarea):focus-visible {
+            outline: 3px solid var(--ds-color-action);
+            outline-offset: 3px;
         }
 
         /* Main content area */
@@ -257,7 +274,6 @@
             margin: 0;
             padding: 0;
             border: none;
-            outline: none;
             resize: none;
             font-size: var(--ds-font-size-base);
             font-family: var(--ds-font-sans);
@@ -280,7 +296,6 @@
         #file_share_button_overlay {
             flex: 1;
             border: none;
-            outline: none;
             cursor: pointer;
             font-size: var(--ds-font-size-base);
             font-weight: 500;

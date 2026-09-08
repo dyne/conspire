@@ -22,11 +22,10 @@ body {
     margin: 0 0 50px 0;
 }
 
-input,
+button,
 .button {
     display: inline;
     border: none;
-    outline: none;
     padding: 9px 20px;
     cursor: pointer;
     margin: 0 0 10px 0;
@@ -39,14 +38,19 @@ input,
     text-decoration: none;
 }
 
-input:hover,
+button:hover,
 .button:hover {
     background-color: var(--ds-color-action-active);
 }
 
-input:active,
+button:active,
 .button:active {
     background-color: var(--ds-color-action-active);
+}
+
+:where(a, button, input, textarea):focus-visible {
+    outline: 3px solid var(--ds-color-action-active);
+    outline-offset: 3px;
 }
 
 .dark-mode {
