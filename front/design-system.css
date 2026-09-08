@@ -1,0 +1,155 @@
+/*
+ * Conspire shared design primitives.
+ *
+ * Surface styles remain in front/style.css, front/chat/chat.css, and
+ * dashboard/style.css. This file owns only values reused across those modes.
+ */
+:root {
+  /* Core neutrals and communication colors */
+  --ds-color-white: #ffffff;
+  --ds-color-black: #000000;
+  --ds-color-landing-text: #444444;
+  --ds-color-action: #448aff;
+  --ds-color-action-active: #2979ff;
+  --ds-color-graphite: #424242;
+  --ds-color-graphite-deep: #212121;
+  --ds-color-graphite-input: #383838;
+  --ds-color-self: #e0f7fa;
+  --ds-color-online: #00ff00;
+  --ds-color-offline: #ff0000;
+  --ds-color-dark-link: #58a6ff;
+  --ds-color-dark-link-visited: #3f84e4;
+
+  /* Ephemeral participant identity colors */
+  --ds-peer-new: #00aa00;
+  --ds-peer-0: #ffebee;
+  --ds-peer-1: #fce4ec;
+  --ds-peer-2: #f3e5f5;
+  --ds-peer-3: #ede7f6;
+  --ds-peer-4: #e8eaf6;
+  --ds-peer-5: #e3f2fd;
+  --ds-peer-6: #e1f5fe;
+  --ds-peer-7: #e0f2f1;
+  --ds-peer-8: #e8f5e9;
+  --ds-peer-9: #f1f8e9;
+  --ds-peer-10: #f9fbe7;
+  --ds-peer-11: #fffde7;
+  --ds-peer-12: #fff8e1;
+  --ds-peer-13: #fff3e0;
+  --ds-peer-14: #fbe9e7;
+  --ds-peer-15: #efebe9;
+  --ds-peer-16: #fafafa;
+  --ds-peer-17: #eceff1;
+
+  /* Dashboard primitives */
+  --ds-color-cream-50: rgba(252, 252, 249, 1);
+  --ds-color-cream-100: rgba(255, 255, 253, 1);
+  --ds-color-gray-200: rgba(245, 245, 245, 1);
+  --ds-color-gray-300: rgba(167, 169, 169, 1);
+  --ds-color-gray-400: rgba(119, 124, 124, 1);
+  --ds-color-slate-500: rgba(98, 108, 113, 1);
+  --ds-color-brown-600: rgba(94, 82, 64, 1);
+  --ds-color-charcoal-700: rgba(31, 33, 33, 1);
+  --ds-color-charcoal-800: rgba(38, 40, 40, 1);
+  --ds-color-slate-900: rgba(19, 52, 59, 1);
+  --ds-color-teal-300: rgba(50, 184, 198, 1);
+  --ds-color-teal-400: rgba(45, 166, 178, 1);
+  --ds-color-teal-500: rgba(33, 128, 141, 1);
+  --ds-color-teal-600: rgba(29, 116, 128, 1);
+  --ds-color-teal-700: rgba(26, 104, 115, 1);
+  --ds-color-teal-800: rgba(41, 150, 161, 1);
+  --ds-color-red-400: rgba(255, 84, 89, 1);
+  --ds-color-red-500: rgba(192, 21, 47, 1);
+  --ds-color-orange-400: rgba(230, 129, 97, 1);
+  --ds-color-orange-500: rgba(168, 75, 47, 1);
+
+  /* RGB channels used with alpha */
+  --ds-rgb-brown-600: 94, 82, 64;
+  --ds-rgb-teal-300: 50, 184, 198;
+  --ds-rgb-teal-500: 33, 128, 141;
+  --ds-rgb-slate-900: 19, 52, 59;
+  --ds-rgb-slate-500: 98, 108, 113;
+  --ds-rgb-gray-200: 245, 245, 245;
+  --ds-rgb-gray-300: 167, 169, 169;
+  --ds-rgb-gray-400: 119, 124, 124;
+  --ds-rgb-red-400: 255, 84, 89;
+  --ds-rgb-red-500: 192, 21, 47;
+  --ds-rgb-orange-400: 230, 129, 97;
+  --ds-rgb-orange-500: 168, 75, 47;
+
+  /* Chart series */
+  --ds-chart-1: #1fb8cd;
+  --ds-chart-2: #ffc185;
+  --ds-chart-3: #b4413c;
+  --ds-chart-4: #ecebd5;
+  --ds-chart-5: #5d878f;
+  --ds-chart-6: #db4545;
+  --ds-chart-7: #d2ba4c;
+  --ds-chart-8: #964325;
+  --ds-chart-9: #944454;
+  --ds-chart-10: #13343b;
+
+  /* Typography */
+  --ds-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --ds-font-dashboard: "Geist", "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --ds-font-mono: "Berkeley Mono", ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, "Liberation Mono", monospace;
+  --ds-font-size-xs: 11px;
+  --ds-font-size-sm: 12px;
+  --ds-font-size-chat-label: 13px;
+  --ds-font-size-base: 14px;
+  --ds-font-size-chat-mobile: 15px;
+  --ds-font-size-lg: 16px;
+  --ds-font-size-xl: 18px;
+  --ds-font-size-2xl: 20px;
+  --ds-font-size-3xl: 24px;
+  --ds-font-size-4xl: 30px;
+  --ds-font-weight-normal: 400;
+  --ds-font-weight-medium: 500;
+  --ds-font-weight-semibold: 550;
+  --ds-font-weight-bold: 600;
+  --ds-line-height-tight: 1.2;
+  --ds-line-height-normal: 1.5;
+  --ds-letter-spacing-tight: -0.01em;
+
+  /* Spacing and shape */
+  --ds-space-0: 0;
+  --ds-space-1: 1px;
+  --ds-space-2: 2px;
+  --ds-space-4: 4px;
+  --ds-space-6: 6px;
+  --ds-space-8: 8px;
+  --ds-space-10: 10px;
+  --ds-space-12: 12px;
+  --ds-space-16: 16px;
+  --ds-space-20: 20px;
+  --ds-space-24: 24px;
+  --ds-space-32: 32px;
+  --ds-radius-compact: 3px;
+  --ds-radius-control: 4px;
+  --ds-radius-sm: 6px;
+  --ds-radius-base: 8px;
+  --ds-radius-md: 10px;
+  --ds-radius-lg: 12px;
+  --ds-radius-full: 9999px;
+
+  /* Structural depth and motion */
+  --ds-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.02);
+  --ds-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.02);
+  --ds-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.04),
+    0 2px 4px -1px rgba(0, 0, 0, 0.02);
+  --ds-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.04),
+    0 4px 6px -2px rgba(0, 0, 0, 0.02);
+  --ds-duration-fast: 150ms;
+  --ds-duration-normal: 250ms;
+  --ds-ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Shared layout thresholds */
+  --ds-container-sm: 640px;
+  --ds-container-md: 768px;
+  --ds-container-lg: 1024px;
+  --ds-container-xl: 1280px;
+}

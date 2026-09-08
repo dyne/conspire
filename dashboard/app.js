@@ -3,8 +3,7 @@ const DEFAULT_STATS_URL = globalThis.ConspireDashboardConfig?.statsUrl ?? '/admi
 let statsData = [];
 let charts = {}; // Store chart instances for updating
 
-// Chart colors from design system
-const colors = ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B'];
+const CHART_COLOR_TOKENS = Array.from({ length: 10 }, (_, index) => `--ds-chart-${index + 1}`);
 const MAX_STATS_BYTES = 1024 * 1024;
 const MAX_STATS_POINTS = 1000;
 const REQUIRED_STAT_FIELDS = ['timestamp', 'ev_peer_connected', 'ev_peer_disconnected'];
@@ -37,9 +36,14 @@ function messageNode(tag, text) {
 function actionButton(label, handler) {
     const button = messageNode('button', label);
     button.type = 'button';
-    button.style.cssText = 'background: #c33; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-top: 10px;';
+    button.className = 'dashboard-error-action';
     button.addEventListener('click', handler);
     return button;
+}
+
+function getChartColors() {
+    const styles = getComputedStyle(document.documentElement);
+    return CHART_COLOR_TOKENS.map((token) => styles.getPropertyValue(token).trim());
 }
 
 // Get stats URL from URL parameters or use default
@@ -82,7 +86,8 @@ async function fetchStatsData(url = getStatsUrl()) {
 function showLoadingState() {
     const container = document.querySelector('.dashboard-grid');
     if (container) {
-        container.style.opacity = '0.5';
+        container.classList.remove('is-error');
+        container.classList.add('is-loading');
     }
     
     // Add loading indicator if it doesn't exist
@@ -91,28 +96,28 @@ function showLoadingState() {
         loadingDiv = document.createElement('div');
         loadingDiv.id = 'loading-indicator';
         const text = messageNode('p', 'Loading dashboard data...');
-        text.style.cssText = 'text-align: center; padding: 20px; color: var(--color-text-secondary);';
+        text.className = 'dashboard-message dashboard-message--loading';
         loadingDiv.appendChild(text);
         document.querySelector('.container').insertBefore(loadingDiv, document.querySelector('.dashboard-grid'));
     }
-    loadingDiv.style.display = 'block';
+    loadingDiv.hidden = false;
 }
 
 // Hide loading state
 function hideLoadingState() {
     const container = document.querySelector('.dashboard-grid');
     if (container) {
-        container.style.opacity = '1';
+        container.classList.remove('is-loading', 'is-error');
     }
     
     const loadingDiv = document.getElementById('loading-indicator');
     if (loadingDiv) {
-        loadingDiv.style.display = 'none';
+        loadingDiv.hidden = true;
     }
     
     const errorDiv = document.getElementById('error-indicator');
     if (errorDiv) {
-        errorDiv.style.display = 'none';
+        errorDiv.hidden = true;
     }
 }
 
@@ -120,7 +125,8 @@ function hideLoadingState() {
 function showErrorState(message) {
     const container = document.querySelector('.dashboard-grid');
     if (container) {
-        container.style.opacity = '0.3';
+        container.classList.remove('is-loading');
+        container.classList.add('is-error');
     }
     
     // Add error indicator if it doesn't exist
@@ -128,18 +134,18 @@ function showErrorState(message) {
     if (!errorDiv) {
         errorDiv = document.createElement('div');
         errorDiv.id = 'error-indicator';
-        errorDiv.style.cssText = 'background: #fee; border: 1px solid #fcc; padding: 20px; margin: 20px 0; border-radius: 8px; color: #c33;';
+        errorDiv.className = 'dashboard-message dashboard-message--error';
         document.querySelector('.container').insertBefore(errorDiv, document.querySelector('.dashboard-grid'));
     }
     
     const paragraph = document.createElement('p');
     paragraph.append(messageNode('strong', 'Error loading dashboard data: '), document.createTextNode(` ${message}`));
     replaceChildren(errorDiv, paragraph, actionButton('Retry', retryDataLoad));
-    errorDiv.style.display = 'block';
+    errorDiv.hidden = false;
     
     const loadingDiv = document.getElementById('loading-indicator');
     if (loadingDiv) {
-        loadingDiv.style.display = 'none';
+        loadingDiv.hidden = true;
     }
 }
 
@@ -254,6 +260,7 @@ function initializeCharts() {
     }
 
     const labels = getLabels();
+    const colors = getChartColors();
 
     // Destroy existing charts if they exist
     Object.values(charts).forEach(chart => {
@@ -461,7 +468,7 @@ function loadJsonFile(event) {
                 replaceChildren(errorDiv, messageNode('h4', 'File Loaded Successfully'),
                     messageNode('p', `Loaded ${data.length} data points from ${file.name}`));
                 setTimeout(() => {
-                    errorDiv.style.display = 'none';
+                    errorDiv.hidden = true;
                 }, 3000);
             }
             

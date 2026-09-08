@@ -102,6 +102,19 @@ public:
     }
   };
 
+  ENDPOINT_ASYNC("GET", "design-system.css", DesignSystemCSS) {
+    ENDPOINT_ASYNC_INIT(DesignSystemCSS)
+
+    Action act() override {
+      auto response = controller->createResponse(
+          Status::CODE_200, controller->loadAsset("design-system.css"));
+      response->putHeader(Header::CONTENT_TYPE, "text/css");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
   ENDPOINT_ASYNC("GET", "lobby.js", LobbyJS) {
     ENDPOINT_ASYNC_INIT(LobbyJS)
 

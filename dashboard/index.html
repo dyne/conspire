@@ -15,7 +15,7 @@
             <div class="dashboard-controls">
                 <p class="stats-url">Data source: <code id="stats-url"></code></p>
                 <div class="control-buttons">
-                    <input type="file" id="jsonFileInput" accept=".json" style="display: none;">
+                    <input class="hidden-input" type="file" id="jsonFileInput" accept=".json">
                     <button type="button" id="load-file-button" class="load-file-btn">Load JSON File</button>
                     <button type="button" id="refresh-button" class="refresh-btn">Refresh Data</button>
                 </div>
@@ -25,28 +25,28 @@
         <main class="dashboard-grid">
             <div class="chart-container">
                 <h3>Peer Activity</h3>
-                <div style="position: relative; height: 300px;">
+                <div class="chart-viewport">
                     <canvas id="peerChart"></canvas>
                 </div>
             </div>
 
             <div class="chart-container">
                 <h3>Room Activity</h3>
-                <div style="position: relative; height: 300px;">
+                <div class="chart-viewport">
                     <canvas id="roomChart"></canvas>
                 </div>
             </div>
 
             <div class="chart-container">
                 <h3>Communication</h3>
-                <div style="position: relative; height: 300px;">
+                <div class="chart-viewport">
                     <canvas id="communicationChart"></canvas>
                 </div>
             </div>
 
             <div class="chart-container">
                 <h3>System Metrics</h3>
-                <div style="position: relative; height: 300px;">
+                <div class="chart-viewport">
                     <canvas id="systemChart"></canvas>
                 </div>
             </div>

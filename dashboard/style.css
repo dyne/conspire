@@ -1,37 +1,39 @@
+@import url("/design-system.css");
+
 :root {
   /* Primitive Color Tokens */
-  --color-white: rgba(255, 255, 255, 1);
-  --color-black: rgba(0, 0, 0, 1);
-  --color-cream-50: rgba(252, 252, 249, 1);
-  --color-cream-100: rgba(255, 255, 253, 1);
-  --color-gray-200: rgba(245, 245, 245, 1);
-  --color-gray-300: rgba(167, 169, 169, 1);
-  --color-gray-400: rgba(119, 124, 124, 1);
-  --color-slate-500: rgba(98, 108, 113, 1);
-  --color-brown-600: rgba(94, 82, 64, 1);
-  --color-charcoal-700: rgba(31, 33, 33, 1);
-  --color-charcoal-800: rgba(38, 40, 40, 1);
-  --color-slate-900: rgba(19, 52, 59, 1);
-  --color-teal-300: rgba(50, 184, 198, 1);
-  --color-teal-400: rgba(45, 166, 178, 1);
-  --color-teal-500: rgba(33, 128, 141, 1);
-  --color-teal-600: rgba(29, 116, 128, 1);
-  --color-teal-700: rgba(26, 104, 115, 1);
-  --color-teal-800: rgba(41, 150, 161, 1);
-  --color-red-400: rgba(255, 84, 89, 1);
-  --color-red-500: rgba(192, 21, 47, 1);
-  --color-orange-400: rgba(230, 129, 97, 1);
-  --color-orange-500: rgba(168, 75, 47, 1);
+  --color-white: var(--ds-color-white);
+  --color-black: var(--ds-color-black);
+  --color-cream-50: var(--ds-color-cream-50);
+  --color-cream-100: var(--ds-color-cream-100);
+  --color-gray-200: var(--ds-color-gray-200);
+  --color-gray-300: var(--ds-color-gray-300);
+  --color-gray-400: var(--ds-color-gray-400);
+  --color-slate-500: var(--ds-color-slate-500);
+  --color-brown-600: var(--ds-color-brown-600);
+  --color-charcoal-700: var(--ds-color-charcoal-700);
+  --color-charcoal-800: var(--ds-color-charcoal-800);
+  --color-slate-900: var(--ds-color-slate-900);
+  --color-teal-300: var(--ds-color-teal-300);
+  --color-teal-400: var(--ds-color-teal-400);
+  --color-teal-500: var(--ds-color-teal-500);
+  --color-teal-600: var(--ds-color-teal-600);
+  --color-teal-700: var(--ds-color-teal-700);
+  --color-teal-800: var(--ds-color-teal-800);
+  --color-red-400: var(--ds-color-red-400);
+  --color-red-500: var(--ds-color-red-500);
+  --color-orange-400: var(--ds-color-orange-400);
+  --color-orange-500: var(--ds-color-orange-500);
 
   /* RGB versions for opacity control */
-  --color-brown-600-rgb: 94, 82, 64;
-  --color-teal-500-rgb: 33, 128, 141;
-  --color-slate-900-rgb: 19, 52, 59;
-  --color-slate-500-rgb: 98, 108, 113;
-  --color-red-500-rgb: 192, 21, 47;
-  --color-red-400-rgb: 255, 84, 89;
-  --color-orange-500-rgb: 168, 75, 47;
-  --color-orange-400-rgb: 230, 129, 97;
+  --color-brown-600-rgb: var(--ds-rgb-brown-600);
+  --color-teal-500-rgb: var(--ds-rgb-teal-500);
+  --color-slate-900-rgb: var(--ds-rgb-slate-900);
+  --color-slate-500-rgb: var(--ds-rgb-slate-500);
+  --color-red-500-rgb: var(--ds-rgb-red-500);
+  --color-red-400-rgb: var(--ds-rgb-red-400);
+  --color-orange-500-rgb: var(--ds-rgb-orange-500);
+  --color-orange-400-rgb: var(--ds-rgb-orange-400);
 
   /* Background color tokens (Light Mode) */
   --color-bg-1: rgba(59, 130, 246, 0.08); /* Light blue */
@@ -80,78 +82,74 @@
   --color-info-rgb: 98, 108, 113;
 
   /* Typography */
-  --font-family-base: "Geist", "Inter", -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-family-mono: "Berkeley Mono", ui-monospace, SFMono-Regular, Menlo,
-    Monaco, Consolas, monospace;
-  --font-size-xs: 11px;
-  --font-size-sm: 12px;
-  --font-size-base: 14px;
-  --font-size-md: 14px;
-  --font-size-lg: 16px;
-  --font-size-xl: 18px;
-  --font-size-2xl: 20px;
-  --font-size-3xl: 24px;
-  --font-size-4xl: 30px;
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 550;
-  --font-weight-bold: 600;
-  --line-height-tight: 1.2;
-  --line-height-normal: 1.5;
-  --letter-spacing-tight: -0.01em;
+  --font-family-base: var(--ds-font-dashboard);
+  --font-family-mono: var(--ds-font-mono);
+  --font-size-xs: var(--ds-font-size-xs);
+  --font-size-sm: var(--ds-font-size-sm);
+  --font-size-base: var(--ds-font-size-base);
+  --font-size-md: var(--ds-font-size-base);
+  --font-size-lg: var(--ds-font-size-lg);
+  --font-size-xl: var(--ds-font-size-xl);
+  --font-size-2xl: var(--ds-font-size-2xl);
+  --font-size-3xl: var(--ds-font-size-3xl);
+  --font-size-4xl: var(--ds-font-size-4xl);
+  --font-weight-normal: var(--ds-font-weight-normal);
+  --font-weight-medium: var(--ds-font-weight-medium);
+  --font-weight-semibold: var(--ds-font-weight-semibold);
+  --font-weight-bold: var(--ds-font-weight-bold);
+  --line-height-tight: var(--ds-line-height-tight);
+  --line-height-normal: var(--ds-line-height-normal);
+  --letter-spacing-tight: var(--ds-letter-spacing-tight);
 
   /* Spacing */
-  --space-0: 0;
-  --space-1: 1px;
-  --space-2: 2px;
-  --space-4: 4px;
-  --space-6: 6px;
-  --space-8: 8px;
-  --space-10: 10px;
-  --space-12: 12px;
-  --space-16: 16px;
-  --space-20: 20px;
-  --space-24: 24px;
-  --space-32: 32px;
+  --space-0: var(--ds-space-0);
+  --space-1: var(--ds-space-1);
+  --space-2: var(--ds-space-2);
+  --space-4: var(--ds-space-4);
+  --space-6: var(--ds-space-6);
+  --space-8: var(--ds-space-8);
+  --space-10: var(--ds-space-10);
+  --space-12: var(--ds-space-12);
+  --space-16: var(--ds-space-16);
+  --space-20: var(--ds-space-20);
+  --space-24: var(--ds-space-24);
+  --space-32: var(--ds-space-32);
 
   /* Border Radius */
-  --radius-sm: 6px;
-  --radius-base: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-full: 9999px;
+  --radius-sm: var(--ds-radius-sm);
+  --radius-base: var(--ds-radius-base);
+  --radius-md: var(--ds-radius-md);
+  --radius-lg: var(--ds-radius-lg);
+  --radius-full: var(--ds-radius-full);
 
   /* Shadows */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.04),
-    0 2px 4px -1px rgba(0, 0, 0, 0.02);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.04),
-    0 4px 6px -2px rgba(0, 0, 0, 0.02);
+  --shadow-xs: var(--ds-shadow-xs);
+  --shadow-sm: var(--ds-shadow-sm);
+  --shadow-md: var(--ds-shadow-md);
+  --shadow-lg: var(--ds-shadow-lg);
   --shadow-inset-sm: inset 0 1px 0 rgba(255, 255, 255, 0.15),
     inset 0 -1px 0 rgba(0, 0, 0, 0.03);
 
   /* Animation */
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
-  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: var(--ds-duration-fast);
+  --duration-normal: var(--ds-duration-normal);
+  --ease-standard: var(--ds-ease-standard);
 
   /* Layout */
-  --container-sm: 640px;
-  --container-md: 768px;
-  --container-lg: 1024px;
-  --container-xl: 1280px;
+  --container-sm: var(--ds-container-sm);
+  --container-md: var(--ds-container-md);
+  --container-lg: var(--ds-container-lg);
+  --container-xl: var(--ds-container-xl);
 }
 
 /* Dark mode colors */
 @media (prefers-color-scheme: dark) {
   :root {
     /* RGB versions for opacity control (Dark Mode) */
-    --color-gray-400-rgb: 119, 124, 124;
-    --color-teal-300-rgb: 50, 184, 198;
-    --color-gray-300-rgb: 167, 169, 169;
-    --color-gray-200-rgb: 245, 245, 245;
+    --color-gray-400-rgb: var(--ds-rgb-gray-400);
+    --color-teal-300-rgb: var(--ds-rgb-teal-300);
+    --color-gray-300-rgb: var(--ds-rgb-gray-300);
+    --color-gray-200-rgb: var(--ds-rgb-gray-200);
 
     /* Background color tokens (Dark Mode) */
     --color-bg-1: rgba(29, 78, 216, 0.15); /* Dark blue */
@@ -208,10 +206,10 @@
 /* Data attribute for manual theme switching */
 [data-color-scheme="dark"] {
   /* RGB versions for opacity control (dark mode) */
-  --color-gray-400-rgb: 119, 124, 124;
-  --color-teal-300-rgb: 50, 184, 198;
-  --color-gray-300-rgb: 167, 169, 169;
-  --color-gray-200-rgb: 245, 245, 245;
+  --color-gray-400-rgb: var(--ds-rgb-gray-400);
+  --color-teal-300-rgb: var(--ds-rgb-teal-300);
+  --color-gray-300-rgb: var(--ds-rgb-gray-300);
+  --color-gray-200-rgb: var(--ds-rgb-gray-200);
 
   /* Colorful background palette - Dark Mode */
   --color-bg-1: rgba(29, 78, 216, 0.15); /* Dark blue */
@@ -265,9 +263,9 @@
 
 [data-color-scheme="light"] {
   /* RGB versions for opacity control (light mode) */
-  --color-brown-600-rgb: 94, 82, 64;
-  --color-teal-500-rgb: 33, 128, 141;
-  --color-slate-900-rgb: 19, 52, 59;
+  --color-brown-600-rgb: var(--ds-rgb-brown-600);
+  --color-teal-500-rgb: var(--ds-rgb-teal-500);
+  --color-slate-900-rgb: var(--ds-rgb-slate-900);
 
   /* Semantic Color Tokens (Light Mode) */
   --color-background: var(--color-cream-50);
@@ -708,6 +706,10 @@ select.form-control {
   display: none;
 }
 
+.hidden-input {
+  display: none;
+}
+
 /* Accessibility */
 .sr-only {
   position: absolute;
@@ -870,6 +872,52 @@ select.form-control {
     gap: var(--space-20);
     margin-bottom: var(--space-24);
     min-height: 0;
+    transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.dashboard-grid.is-loading {
+    opacity: 0.5;
+}
+
+.dashboard-grid.is-error {
+    opacity: 0.3;
+}
+
+.dashboard-message {
+    padding: var(--space-20);
+    margin: var(--space-20) 0;
+}
+
+.dashboard-message--loading {
+    margin: 0;
+    text-align: center;
+    color: var(--color-text-secondary);
+}
+
+.dashboard-message--error {
+    color: var(--color-error);
+    background: rgba(var(--color-error-rgb), 0.08);
+    border: 1px solid rgba(var(--color-error-rgb), 0.2);
+    border-radius: var(--radius-base);
+}
+
+.dashboard-error-action {
+    margin-top: var(--space-10);
+    padding: var(--space-8) var(--space-16);
+    border: none;
+    border-radius: var(--ds-radius-control);
+    color: var(--color-white);
+    background: var(--color-error);
+    cursor: pointer;
+}
+
+.dashboard-error-action:hover {
+    filter: brightness(0.9);
+}
+
+.dashboard-error-action:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
 }
 
 .chart-container {
@@ -900,6 +948,10 @@ select.form-control {
     flex: 1;
     min-height: 280px;
     position: relative;
+}
+
+.chart-viewport {
+    height: 300px;
 }
 
 /* Ensure charts are responsive */
