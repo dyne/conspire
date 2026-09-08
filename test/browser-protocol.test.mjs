@@ -8,13 +8,22 @@ import {
   roomFileUrl,
 } from '../front/chat/protocol.js';
 import { createChatState } from '../front/chat/state.js';
-import { humanFileSize as formatFileSize } from '../front/chat/format.js';
+import { formatChatAnnouncement, humanFileSize as formatFileSize, insertTextAtSelection } from '../front/chat/format.js';
 import { readFile } from 'node:fs/promises';
 
 test('protocol parser accepts every supported message code', () => {
   for (const code of Object.values(MessageCode)) {
     assert.deepEqual(parseProtocolMessage(JSON.stringify({ code })), { code });
   }
+});
+
+test('chat announcement formatting stays concise and text insertion preserves selections', () => {
+  assert.equal(formatChatAnnouncement('message', { peerName: 'Ada', message: 'Hello' }), 'Ada said: Hello');
+  assert.equal(formatChatAnnouncement('joined', { peerName: 'Ada' }), 'Ada joined the room.');
+  const field = { value: 'hello world', selectionStart: 6, selectionEnd: 11,
+    setRangeText(text, start, end) { this.value = `${this.value.slice(0, start)}${text}${this.value.slice(end)}`; } };
+  insertTextAtSelection(field, 'there');
+  assert.equal(field.value, 'hello there');
 });
 
 test('protocol parser rejects hostile, malformed, and oversized payloads', () => {
@@ -110,6 +119,16 @@ test('room UI registers CSP-compatible handlers from an external script', async 
   assert.match(room, /ui\.js/);
   assert.match(ui, /addEventListener\('click'/);
   assert.match(ui, /addEventListener\('change'/);
+});
+
+test('chat keeps modern keyboard, DOM, and safe-download paths', async () => {
+  const chat = await readFile(new URL('../front/chat/chat.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(chat, /document\.selection|keypress|event\.which|\.innerHTML\s*=/);
+  assert.match(chat, /addEventListener\('keydown'/);
+  assert.match(chat, /e\.key === 'Enter'/);
+  assert.match(chat, /replaceChildren\(/);
+  assert.match(chat, /link\.rel = 'noopener noreferrer'/);
+  assert.match(chat, /e\.preventDefault\(\)/);
 });
 
 test('lobby actions are CSP-compatible external listeners', async () => {

@@ -156,6 +156,16 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await expect(first.getByRole('button', { name: 'Share Files' })).toBeVisible();
     await first.getByRole('button', { name: 'Send', exact: true }).focus();
     await expect(first.getByRole('button', { name: 'Send', exact: true })).toHaveCSS('outline-style', 'solid');
+    await expect(first.getByRole('button', { name: 'Insert grinning face' })).toBeVisible();
+    await expect(first.locator('#emoji button')).toHaveCount(15);
+    await saveStableSurfaceScreenshot(first, 'chat-desktop-emoji-controls');
+    const composer = first.getByPlaceholder('Type a message');
+    await composer.fill('ab');
+    await composer.evaluate((element) => element.setSelectionRange(1, 1));
+    await first.getByRole('button', { name: 'Insert grinning face' }).click();
+    await expect(composer).toHaveValue('a😀b');
+    await composer.fill('');
+    await expect(first.getByRole('button', { name: /participants/i })).toBeHidden();
 
     const compactContext = await newSurfaceContext(browser, surfaceMatrix.compact);
     contexts.push(compactContext);
@@ -186,10 +196,37 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await first.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(first.locator('.message-text', { hasText: chatText })).toBeVisible();
     await expect(second.locator('.message-text', { hasText: chatText })).toBeVisible();
+    await expect(second.locator('#chat_activity')).toHaveText(new RegExp(`said: ${chatText}$`));
 
     const third = await openParticipant();
     await expect(third.locator('#participants_toggle #participant_count')).toHaveText('3');
     await expect(third.locator('.message-text', { hasText: chatText })).toBeVisible();
+    await expect(third.locator('#chat_activity')).toHaveText('');
+
+    const mobileContext = await newSurfaceContext(browser, surfaceMatrix.compact);
+    contexts.push(mobileContext);
+    const mobile = trackPage(await mobileContext.newPage());
+    await mobile.goto(roomUrl);
+    const drawerToggle = mobile.getByRole('button', { name: /participants/i });
+    await saveStableSurfaceScreenshot(mobile, 'chat-compact-emoji-controls');
+    await expect(drawerToggle).toHaveAttribute('aria-expanded', 'false');
+    await drawerToggle.click();
+    await expect(drawerToggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(mobile.locator('#chat_participants')).toHaveAttribute('aria-hidden', 'false');
+    await expect(mobile.locator('#chat_history_wrapper')).toHaveJSProperty('inert', true);
+    await expect(mobile.locator('#participants_heading')).toBeFocused();
+    await mobile.keyboard.press('Escape');
+    await expect(drawerToggle).toBeFocused();
+    await expect(mobile.locator('#chat_participants')).toHaveAttribute('aria-hidden', 'true');
+    await expect(mobile.locator('[id="participant_count"]')).toHaveCount(1);
+    await mobile.setViewportSize({ width: 768, height: 1000 });
+    await drawerToggle.click();
+    await expect(mobile.locator('#chat_participants')).toHaveAttribute('aria-hidden', 'false');
+    await mobile.locator('#participants_overlay').click({ position: { x: 4, y: 4 } });
+    await expect(drawerToggle).toHaveAttribute('aria-expanded', 'false');
+    await mobile.setViewportSize({ width: 769, height: 1000 });
+    await expect(drawerToggle).toBeHidden();
+    await expect(mobile.locator('#chat_participants')).toBeVisible();
     expect(pageErrors, pageErrors.map((error) => error.message).join('\n')).toEqual([]);
   } catch (error) {
     scenarioError = error;
