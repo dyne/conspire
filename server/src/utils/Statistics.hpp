@@ -50,6 +50,9 @@ public:
   std::atomic<v_uint64> EVENT_PEER_CONNECTED      {0};          // On Connected event counter
   std::atomic<v_uint64> EVENT_PEER_DISCONNECTED   {0};          // On Disconnected event counter
   std::atomic<v_uint64> EVENT_PEER_ZOMBIE_DROPPED {0};          // On Disconnected due to failed ping counter
+  std::atomic<v_uint64> EVENT_PEER_TRANSPORT_CLOSED {0};        // Any classified transport close
+  std::atomic<v_uint64> EVENT_PEER_RESUMED {0};                 // Reserved for session resumption
+  std::atomic<v_uint64> EVENT_SESSION_EXPIRED {0};              // Reserved for session expiry
   std::atomic<v_uint64> EVENT_PEER_SEND_MESSAGE   {0};          // Sent messages counter
   std::atomic<v_uint64> EVENT_PEER_SHARE_FILE     {0};          // Shared files counter
 

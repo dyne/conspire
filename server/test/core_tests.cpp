@@ -1,6 +1,7 @@
 #include "utils/ConfigValidation.hpp"
 #include "utils/ServerBoundaries.hpp"
 #include "utils/Lifecycle.hpp"
+#include "rooms/Heartbeat.hpp"
 
 #include <cassert>
 #include <cstdint>
@@ -16,6 +17,29 @@
 int coverageFixture(bool includeOptionalPath);
 
 int main() {
+  using HeartbeatClock = Heartbeat::Clock;
+  const auto heartbeatStart = HeartbeatClock::time_point{};
+  Heartbeat heartbeat(heartbeatStart, 7);
+  TerminalCloseAccounting closeAccounting;
+  assert(closeAccounting.accountOnce()); // protocol error records a classified close
+  assert(!closeAccounting.accountOnce()); // later onClose/invalidation cannot double count
+  assert(heartbeat.tick(heartbeatStart + std::chrono::milliseconds(29999)) == Heartbeat::Tick::NONE);
+  assert(heartbeat.tick(heartbeatStart + std::chrono::seconds(30)) == Heartbeat::Tick::QUEUE_PING);
+  assert(heartbeat.pingQueued());
+  assert(heartbeat.tick(heartbeatStart + std::chrono::seconds(60)) == Heartbeat::Tick::NONE);
+  assert(!heartbeat.writeCompleted(8, true));
+  assert(heartbeat.writeCompleted(7, true));
+  assert(heartbeat.pingOutstanding());
+  assert(heartbeat.tick(heartbeatStart + std::chrono::milliseconds(119999)) == Heartbeat::Tick::NONE);
+  assert(heartbeat.tick(heartbeatStart + std::chrono::milliseconds(120000)) == Heartbeat::Tick::EXPIRED);
+  heartbeat.activate(heartbeatStart, 9);
+  assert(heartbeat.tick(heartbeatStart + std::chrono::seconds(30)) == Heartbeat::Tick::QUEUE_PING);
+  assert(heartbeat.tick(heartbeatStart + std::chrono::milliseconds(120000)) == Heartbeat::Tick::EXPIRED);
+  heartbeat.activate(heartbeatStart, 10);
+  assert(heartbeat.inbound(heartbeatStart + std::chrono::seconds(119), 10));
+  assert(heartbeat.tick(heartbeatStart + std::chrono::seconds(120)) == Heartbeat::Tick::QUEUE_PING);
+  assert(heartbeat.tick(heartbeatStart + std::chrono::milliseconds(238999)) == Heartbeat::Tick::NONE);
+  assert(heartbeat.tick(heartbeatStart + std::chrono::seconds(239)) == Heartbeat::Tick::EXPIRED);
   using conspire::config::canonicalBaseUrl;
   using conspire::config::parsePort;
   using conspire::config::websocketBaseUrl;

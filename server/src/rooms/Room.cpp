@@ -198,8 +198,8 @@ void Room::pingAllPeers() {
     for (const auto& pair : m_peerById) peers.push_back(pair.second);
   }
   for (const auto& peer : peers) {
-    if(!peer->sendPingAsync()) {
-      peer->invalidateSocket();
+    if(peer->sendPingAsync() == Heartbeat::Tick::EXPIRED) {
+      peer->invalidateSocket(Peer::CloseReason::HEARTBEAT_TIMEOUT);
       ++ m_statistics->EVENT_PEER_ZOMBIE_DROPPED;
     }
   }

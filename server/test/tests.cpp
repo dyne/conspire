@@ -126,6 +126,7 @@ void runStatisticsPersistenceTests() {
   source.EVENT_FRONT_PAGE_LOADED.store(17);
   source.EVENT_PEER_CONNECTED.store(9);
   source.EVENT_PEER_SEND_MESSAGE.store(23);
+  source.EVENT_PEER_TRANSPORT_CLOSED.store(4);
   source.FILE_SERVED_BYTES.store(4096);
   source.runStatIteration();
   assert(source.saveState(statePath.string()));
@@ -139,6 +140,9 @@ void runStatisticsPersistenceTests() {
   assert(restored.EVENT_FRONT_PAGE_LOADED.load() == 17);
   assert(restored.EVENT_PEER_CONNECTED.load() == 9);
   assert(restored.EVENT_PEER_SEND_MESSAGE.load() == 23);
+  assert(restored.EVENT_PEER_TRANSPORT_CLOSED.load() == 4);
+  assert(restored.EVENT_PEER_RESUMED.load() == 0);
+  assert(restored.EVENT_SESSION_EXPIRED.load() == 0);
   assert(restored.FILE_SERVED_BYTES.load() == 4096);
 
   {
