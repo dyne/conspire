@@ -2,9 +2,11 @@
 #include "utils/ServerBoundaries.hpp"
 #include "utils/Lifecycle.hpp"
 #include "rooms/Heartbeat.hpp"
+#include "utils/SessionReliability.hpp"
 
 #include <cassert>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <deque>
 #include <memory>
@@ -135,6 +137,61 @@ int main() {
                  "<p>Conspire v1.2.3 by Dyne.org</p>");
   assert(!conspire::boundaries::replaceLiteral(page, "%%%MISSING%%%", "unused"));
   assert(coverageFixture(true) == 1);
+
+  using conspire::session::DedupeWindow;
+  using conspire::session::RoomSequencer;
+  const std::string messageId = "AAAAAAAAAAAAAAAAAAAAAA";
+  assert(conspire::session::validBase64UrlId(messageId, 16));
+  assert(conspire::session::validClientMessageId(messageId));
+  assert(!conspire::session::validClientMessageId("not-a-128-bit-id"));
+  assert(!conspire::session::validClientMessageId(std::string(65, 'A')));
+  RoomSequencer sequencer;
+  assert(sequencer.next() == 1);
+  assert(sequencer.next() == 2);
+  assert(!sequencer.advanceTo(1));
+  assert(sequencer.advanceTo(9));
+  assert(sequencer.latest() == 9);
+  assert(sequencer.advanceTo(std::numeric_limits<std::uint64_t>::max()));
+  assert(!sequencer.next());
+  DedupeWindow dedupe(2);
+  assert(dedupe.remember(messageId, 9));
+  assert(dedupe.find(messageId) == 9);
+  assert(!dedupe.remember(messageId, 10));
+  const std::string secondId = "BBBBBBBBBBBBBBBBBBBBBB";
+  const std::string thirdId = "CCCCCCCCCCCCCCCCCCCCCC";
+  assert(dedupe.remember(secondId, 10));
+  assert(!dedupe.remember(thirdId, 11)); // capacity rejects; accepted IDs persist
+  assert(dedupe.find(messageId) == 9);
+  assert(dedupe.find(secondId) == 10);
+  assert(!dedupe.find(thirdId));
+
+  const auto sessionStart = conspire::session::Clock::time_point{};
+  conspire::session::SessionLease lease;
+  lease.detach(sessionStart);
+  assert(lease.disconnected());
+  assert(lease.canResume(sessionStart + std::chrono::milliseconds(299999)));
+  assert(lease.resume(sessionStart + std::chrono::milliseconds(299999)));
+  assert(!lease.disconnected());
+  lease.detach(sessionStart);
+  assert(!lease.canResume(sessionStart + std::chrono::seconds(300)));
+  assert(lease.expires(sessionStart + std::chrono::seconds(300)));
+  assert(!lease.resume(sessionStart + std::chrono::seconds(300)));
+  conspire::session::PendingHelloLease pendingHello(sessionStart);
+  assert(pendingHello.accept(sessionStart + std::chrono::seconds(9)));
+  assert(!pendingHello.accept(sessionStart + std::chrono::seconds(9)));
+  conspire::session::PendingHelloLease expiredHello(sessionStart);
+  assert(!expiredHello.accept(sessionStart + std::chrono::seconds(10)));
+  assert(expiredHello.expires(sessionStart + std::chrono::seconds(10)));
+  // Deterministic old-socket destruction after a replacement must be a no-op.
+  int oldSocket = 0;
+  int replacementSocket = 0;
+  conspire::session::TransportGeneration transport;
+  const auto oldGeneration = transport.replace(&oldSocket);
+  const auto replacementGeneration = transport.replace(&replacementSocket);
+  assert(!transport.detachIfCurrent(&oldSocket, oldGeneration));
+  assert(transport.isCurrent(&replacementSocket, replacementGeneration));
+  assert(!transport.isCurrent(&oldSocket, oldGeneration));
+  assert(transport.detachIfCurrent(&replacementSocket, replacementGeneration));
 
   std::atomic<int> iterations{0};
   conspire::lifecycle::PeriodicRunner runner;

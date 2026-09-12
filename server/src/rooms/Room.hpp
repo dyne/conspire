@@ -31,6 +31,7 @@
 #include "./Peer.hpp"
 #include "dto/DTOs.hpp"
 #include "utils/Statistics.hpp"
+#include "utils/SessionReliability.hpp"
 
 #include "oatpp/macro/component.hpp"
 
@@ -46,6 +47,7 @@ private:
   std::unordered_map<v_int64, std::shared_ptr<File>> m_fileById;
   std::unordered_map<v_int64, std::shared_ptr<Peer>> m_peerById;
   std::list<oatpp::Object<MessageDto>> m_history;
+  conspire::session::RoomSequencer m_sequencer;
   mutable std::mutex m_peerByIdLock;
   mutable std::mutex m_fileByIdLock;
   mutable std::mutex m_historyLock;
@@ -95,6 +97,7 @@ public:
    * @param peer
    */
   void goodbyePeer(const std::shared_ptr<Peer>& peer);
+  void publishConnectionState(const std::shared_ptr<Peer>& peer, bool connected);
 
   /**
    * Get peer by id.
@@ -120,6 +123,9 @@ public:
    * @return
    */
   oatpp::List<oatpp::Object<MessageDto>> getHistory();
+  oatpp::List<oatpp::Object<PeerDto>> getPeers();
+  oatpp::List<oatpp::Object<MessageDto>> getHistoryAfter(v_uint64 cursor, bool& resyncRequired);
+  v_uint64 latestServerSeq();
 
   /**
    * Share file.
@@ -142,7 +148,8 @@ public:
    * Send message to all peers in the room.
    * @param message
    */
-  void sendMessageAsync(const oatpp::Object<MessageDto>& message);
+  void sendMessageAsync(const oatpp::Object<MessageDto>& message,
+                        const std::shared_ptr<Peer>& excluded = nullptr);
 
   /**
    * Websocket-Ping all peers.

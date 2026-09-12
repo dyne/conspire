@@ -45,7 +45,12 @@ ENUM(MessageCodes, v_int32,
   VALUE(CODE_FILE_REQUEST_CHUNK, 7),
   VALUE(CODE_FILE_CHUNK_DATA, 8),
 
-  VALUE(CODE_API_ERROR, 9)
+  VALUE(CODE_API_ERROR, 9),
+
+  VALUE(CODE_SESSION_HELLO, 10),
+  VALUE(CODE_SESSION_READY, 11),
+  VALUE(CODE_MESSAGE_ACK, 12),
+  VALUE(CODE_PEER_CONNECTION_STATE, 13)
 );
 
 class PeerDto : public oatpp::DTO {
@@ -86,6 +91,16 @@ public:
   DTO_FIELD(Enum<MessageCodes>::AsNumber::NotNull, code);
   DTO_FIELD(String, message);
   DTO_FIELD(Int64, timestamp);
+  DTO_FIELD(UInt64, serverSeq);
+  DTO_FIELD(UInt64, lastServerSeq);
+  DTO_FIELD(UInt64, latestServerSeq);
+  DTO_FIELD(Int32, protocolVersion);
+  DTO_FIELD(String, resumeToken);
+  DTO_FIELD(String, fileCapabilityId);
+  DTO_FIELD(String, clientMessageId);
+  DTO_FIELD(Boolean, resumed);
+  DTO_FIELD(Boolean, resyncRequired);
+  DTO_FIELD(Boolean, connected);
 
   DTO_FIELD(List<Object<PeerDto>>, peers);
   DTO_FIELD(List<Object<MessageDto>>, history);

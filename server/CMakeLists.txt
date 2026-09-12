@@ -150,7 +150,7 @@ if(CONSPIRE_HAS_NATIVE_DEPS)
   src/rooms/Room.cpp src/rooms/Room.hpp
   src/rooms/Lobby.cpp src/rooms/Lobby.hpp
   src/utils/Nickname.cpp src/utils/Nickname.hpp
-  src/utils/AppConfig.hpp src/utils/ConfigValidation.hpp src/utils/ServerBoundaries.hpp src/utils/Lifecycle.hpp
+  src/utils/AppConfig.hpp src/utils/ConfigValidation.hpp src/utils/ServerBoundaries.hpp src/utils/Lifecycle.hpp src/utils/SessionReliability.hpp src/utils/SessionCredentials.hpp
   src/utils/TorControl.cpp src/utils/TorControl.hpp
   src/utils/Statistics.cpp src/utils/Statistics.hpp
   src/dto/DTOs.hpp src/dto/Config.hpp)

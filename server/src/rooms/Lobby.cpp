@@ -27,7 +27,54 @@
 #include "Lobby.hpp"
 #include "utils/ServerBoundaries.hpp"
 
+#include "oatpp/data/stream/BufferStream.hpp"
+
 #include <vector>
+
+namespace {
+
+class PendingHello final : public oatpp::websocket::AsyncWebSocket::Listener {
+  Lobby* m_lobby;
+  oatpp::String m_roomName;
+  oatpp::String m_nickname;
+  oatpp::data::stream::BufferOutputStream m_buffer;
+  bool m_consumed = false;
+  OATPP_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>, m_objectMapper);
+  OATPP_COMPONENT(oatpp::Object<ConfigDto>, m_appConfig);
+public:
+  PendingHello(Lobby* lobby, const oatpp::String& roomName, const oatpp::String& nickname)
+    : m_lobby(lobby), m_roomName(roomName), m_nickname(nickname) {}
+  CoroutineStarter readMessage(const std::shared_ptr<AsyncWebSocket>& socket, v_uint8, p_char8 data,
+                               oatpp::v_io_size size) override {
+    if (m_consumed) { socket->getConnection().invalidate(); return nullptr; }
+    if (size > 0) {
+      const auto limit = *m_appConfig->maxMessageSizeBytes;
+      const auto position = m_buffer.getCurrentPosition();
+      if (position < 0 || static_cast<v_uint64>(position) > limit ||
+          static_cast<v_uint64>(size) > limit - static_cast<v_uint64>(position)) {
+        socket->getConnection().invalidate();
+        return nullptr;
+      }
+      m_buffer.writeSimple(data, size);
+      return nullptr;
+    }
+    m_consumed = true;
+    try {
+      const auto hello = m_objectMapper->readFromString<oatpp::Object<MessageDto>>(m_buffer.toString());
+      if (!m_lobby->acceptSessionHello(socket, m_roomName, m_nickname, hello)) socket->getConnection().invalidate();
+    } catch (const std::runtime_error&) { socket->getConnection().invalidate(); }
+    return nullptr;
+  }
+  CoroutineStarter onPing(const std::shared_ptr<AsyncWebSocket>&, const oatpp::String&) override { return nullptr; }
+  CoroutineStarter onPong(const std::shared_ptr<AsyncWebSocket>&, const oatpp::String&) override { return nullptr; }
+  CoroutineStarter onClose(const std::shared_ptr<AsyncWebSocket>&, v_uint16, const oatpp::String&) override { return nullptr; }
+};
+
+} // namespace
+
+std::string Lobby::digestKey(const conspire::session::TokenDigest& digest) {
+  return {reinterpret_cast<const char*>(digest.data()), digest.size()};
+}
 
 v_int64 Lobby::obtainNewPeerId() {
   return m_peerIdCounter ++;
@@ -68,52 +115,132 @@ void Lobby::runPingIteration() {
   for (const auto& room : rooms) room->pingAllPeers();
 }
 
+std::shared_ptr<Peer> Lobby::acceptSessionHello(const std::shared_ptr<AsyncWebSocket>& socket,
+                                                const oatpp::String& roomName, const oatpp::String& nickname,
+                                                const oatpp::Object<MessageDto>& hello) {
+  if (!hello || !hello->code || *hello->code != MessageCodes::CODE_SESSION_HELLO ||
+      !hello->protocolVersion || *hello->protocolVersion != 2 || !hello->lastServerSeq ||
+      !hello->fileCapabilityId || !conspire::session::validBase64UrlId(*hello->fileCapabilityId, 16)) return nullptr;
+  const auto now = conspire::session::Clock::now();
+  {
+    std::lock_guard<std::mutex> lock(m_sessionsMutex);
+    const auto pending = m_pending.find(socket.get());
+    if (pending == m_pending.end() || now >= pending->second.deadline) return nullptr;
+    m_pending.erase(pending); // exactly one application hello per transport
+  }
+  std::shared_ptr<Peer> peer;
+  std::string token;
+  bool resumed = false;
+  if (hello->resumeToken) {
+    if (!conspire::session::validBase64UrlId(*hello->resumeToken, 32)) return nullptr;
+    const auto digest = conspire::session::digestToken(*hello->resumeToken);
+    {
+      std::lock_guard<std::mutex> lock(m_sessionsMutex);
+      const auto it = m_sessions.find(digestKey(digest));
+      if (it == m_sessions.end() || !conspire::session::constantTimeDigestEqual(it->second.digest, digest) ||
+          it->second.room->getName() != roomName || !it->second.lease.resume(now)) return nullptr;
+      peer = it->second.peer;
+    }
+    // Do not take a peer state lock while the registry lock is held.  The old
+    // transport is selected atomically and invalidated only after both locks.
+    const auto replaced = peer->replaceSocket(socket);
+    if (replaced && replaced != socket) replaced->getConnection().invalidate();
+    resumed = true;
+  } else {
+    if (!conspire::session::makeResumeToken(token)) return nullptr;
+    const auto digest = conspire::session::digestToken(token);
+    auto room = getOrCreateRoom(roomName);
+    if (!(room && room->hasPeerCapacity())) return nullptr;
+    peer = std::make_shared<Peer>(socket, room, nickname, obtainNewPeerId());
+    if (!room->addPeer(peer)) return nullptr;
+    {
+      std::lock_guard<std::mutex> lock(m_sessionsMutex);
+      m_sessions.emplace(digestKey(digest), SessionRecord{room, peer, digest, {}});
+    }
+    room->welcomePeer(peer);
+  }
+  if (!peer || (!resumed && token.empty())) return nullptr;
+  socket->setListener(peer);
+  auto ready = MessageDto::createShared();
+  ready->code = MessageCodes::CODE_SESSION_READY;
+  ready->protocolVersion = 2;
+  ready->resumed = resumed;
+  ready->peerId = peer->getPeerId();
+  ready->peerName = peer->getNickname();
+  ready->peers = peer->getRoom()->getPeers();
+  ready->latestServerSeq = peer->getRoom()->latestServerSeq();
+  bool resyncRequired = false;
+  ready->history = peer->getRoom()->getHistoryAfter(*hello->lastServerSeq, resyncRequired);
+  ready->resyncRequired = resyncRequired;
+  // The raw bearer is never retained by the registry; on resume it is echoed
+  // only on the already-authenticated private transport.
+  ready->resumeToken = resumed ? hello->resumeToken : oatpp::String(token.c_str());
+  peer->sendMessageAsync(ready);
+  if (!resumed) { ++m_statistics->EVENT_PEER_CONNECTED; }
+  else { ++m_statistics->EVENT_PEER_RESUMED; peer->getRoom()->publishConnectionState(peer, true); }
+  return peer;
+}
+
+void Lobby::detachSessionTransport(const std::shared_ptr<AsyncWebSocket>& socket) {
+  const auto peer = std::dynamic_pointer_cast<Peer>(socket->getListener());
+  if (!peer || !peer->detachIfCurrent(socket)) return;
+  std::shared_ptr<Room> room;
+  {
+    std::lock_guard<std::mutex> lock(m_sessionsMutex);
+    for (auto& entry : m_sessions) {
+      if (entry.second.peer == peer) {
+        entry.second.lease.detach(conspire::session::Clock::now());
+        room = entry.second.room;
+        break;
+      }
+    }
+  }
+  if (room) { ++m_statistics->EVENT_PEER_DISCONNECTED; room->publishConnectionState(peer, false); }
+}
+
+void Lobby::expireSessions(conspire::session::Clock::time_point now) {
+  std::vector<SessionRecord> expired;
+  std::vector<std::shared_ptr<AsyncWebSocket>> pendingExpired;
+  {
+    std::lock_guard<std::mutex> lock(m_sessionsMutex);
+    for (auto it = m_pending.begin(); it != m_pending.end();) {
+      if (now >= it->second.deadline) { pendingExpired.push_back(it->second.socket); it = m_pending.erase(it); }
+      else ++it;
+    }
+    for (auto it = m_sessions.begin(); it != m_sessions.end();) {
+      if (it->second.lease.expires(now)) {
+        expired.push_back(it->second);
+        it = m_sessions.erase(it);
+      } else ++it;
+    }
+  }
+  for (const auto& socket : pendingExpired) socket->getConnection().invalidate();
+  // All callbacks/broadcasts happen after dropping the registry lock.
+  for (const auto& session : expired) {
+    session.room->removePeerById(session.peer->getPeerId());
+    session.room->goodbyePeer(session.peer);
+    ++m_statistics->EVENT_SESSION_EXPIRED;
+    deleteRoomIfEmpty(session.room);
+  }
+}
+
 void Lobby::onAfterCreate_NonBlocking(const std::shared_ptr<AsyncWebSocket>& socket, const std::shared_ptr<const ParameterMap>& params) {
-
-  ++ m_statistics->EVENT_PEER_CONNECTED;
-
   auto roomName = params->find("roomName")->second;
   auto nickname = params->find("nickname")->second;
-  std::shared_ptr<Room> room;
-  std::shared_ptr<Peer> peer;
   {
-    // Room lookup/creation and peer admission share the same lobby critical
-    // section as empty-room deletion. A joining peer can therefore never be
-    // admitted to a room after that room has been removed from the lobby.
-    std::lock_guard<std::mutex> lock(m_roomsMutex);
-    const auto existing = m_rooms.find(roomName);
-    if (existing != m_rooms.end()) {
-      room = existing->second;
-    } else if (conspire::boundaries::hasCapacity(m_rooms.size(), conspire::boundaries::Limits::rooms)) {
-      room = std::make_shared<Room>(roomName);
-      m_rooms.emplace(roomName, room);
-    }
-    if (room && room->hasPeerCapacity()) {
-      peer = std::make_shared<Peer>(socket, room, nickname, obtainNewPeerId());
-      room->welcomePeer(peer);
-      if (!room->addPeer(peer)) peer.reset();
-    }
+    std::lock_guard<std::mutex> lock(m_sessionsMutex);
+    m_pending.emplace(socket.get(), PendingRecord{socket, conspire::session::Clock::now() + std::chrono::seconds(10)});
   }
-  if (!peer) {
-    socket->getConnection().invalidate();
-    return;
-  }
-  socket->setListener(peer);
-  room->onboardPeer(peer);
+  socket->setListener(std::make_shared<PendingHello>(this, roomName, nickname));
 
 }
 
 void Lobby::onBeforeDestroy_NonBlocking(const std::shared_ptr<AsyncWebSocket>& socket) {
 
-  ++ m_statistics->EVENT_PEER_DISCONNECTED;
-
-  auto peer = std::static_pointer_cast<Peer>(socket->getListener());
-  auto room = peer->getRoom();
-
-  room->removePeerById(peer->getPeerId());
-  room->goodbyePeer(peer);
-  peer->invalidateSocket();
-
-  deleteRoomIfEmpty(room);
+  {
+    std::lock_guard<std::mutex> lock(m_sessionsMutex);
+    m_pending.erase(socket.get());
+  }
+  detachSessionTransport(socket);
 
 }

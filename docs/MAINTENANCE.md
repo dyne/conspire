@@ -81,6 +81,12 @@ advisory affects a pinned input.
   means a 120-second heartbeat timeout; `ev_peer_transport_closed` is every
   classified transport close) and Tor logs. Never add room URLs, tokens,
   nicknames, messages, or file details to diagnostic logs.
+- Protocol v2 sessions are memory-only. A transport loss enters a strict
+  five-minute `steady_clock` grace period; a valid private bearer resume keeps
+  the peer ID and emits transient connection state, while expiry performs the
+  normal final leave/file cleanup once. A process restart invalidates all
+  sessions. Resume tokens are bearer credentials: never place them in URLs,
+  logs, cookies, or persistent storage.
 - Before opening a PR: run every fresh-checkout command above, keep generated
   `dist/` and local certificates untracked, and update tests/documentation for
   observable behavior changes.

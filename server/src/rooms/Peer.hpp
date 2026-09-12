@@ -31,6 +31,7 @@
 #include "dto/Config.hpp"
 #include "rooms/File.hpp"
 #include "rooms/Heartbeat.hpp"
+#include "utils/SessionReliability.hpp"
 #include "utils/Statistics.hpp"
 
 #include "oatpp-websocket/AsyncWebSocket.hpp"
@@ -70,12 +71,18 @@ private:
   v_int64 m_peerId;
 private:
   Heartbeat m_heartbeat;
+  conspire::session::TransportGeneration m_transportGeneration;
   std::uint64_t m_socketGeneration = 1;
   CloseReason m_closeReason = CloseReason::NONE;
   TerminalCloseAccounting m_closeAccounting;
   v_uint16 m_closeCode = 0;
   std::string m_closeDetail;
   std::list<std::shared_ptr<File>> m_files;
+  conspire::session::DedupeWindow m_dedupe;
+  // Serializes a transport handoff against a completed frame.  It is always
+  // acquired before m_stateLock so stale callbacks cannot mutate a replacement.
+  mutable std::mutex m_transportLock;
+  std::mutex m_commandLock;
   mutable std::mutex m_stateLock;
 private:
 
@@ -98,6 +105,7 @@ private:
   oatpp::async::CoroutineStarter handleFileChunkMessage(const oatpp::Object<MessageDto>& message);
 
   oatpp::async::CoroutineStarter handleMessage(const oatpp::Object<MessageDto>& message);
+  void sendMessageAck(const oatpp::String& clientMessageId, v_uint64 serverSeq);
 
 public:
 
@@ -110,7 +118,7 @@ public:
     , m_nickname(nickname)
     , m_peerId(peerId)
     , m_heartbeat(Heartbeat::Clock::now())
-  {}
+  { m_socketGeneration = m_transportGeneration.replace(socket.get()); }
 
   /**
    * Send message to peer (to user).
@@ -159,6 +167,12 @@ public:
    * Remove circle `std::shared_ptr` dependencies
    */
   void invalidateSocket(CloseReason reason = CloseReason::SERVER_SHUTDOWN);
+  bool invalidateSocketIfCurrent(std::uint64_t generation, CloseReason reason);
+  /** Replace a dead transport without changing the logical peer identity. */
+  std::shared_ptr<AsyncWebSocket> replaceSocket(const std::shared_ptr<AsyncWebSocket>& socket);
+  bool detachIfCurrent(const std::shared_ptr<AsyncWebSocket>& socket, std::uint64_t generation);
+  bool detachIfCurrent(const std::shared_ptr<AsyncWebSocket>& socket);
+  std::uint64_t socketGeneration() const;
   void recordProtocolError();
 
 public: // WebSocket Listener methods

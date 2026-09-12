@@ -244,9 +244,18 @@ atomically every minute, and saves once more on graceful shutdown. The state
 directory must be writable by the service user.
 
 WebSocket liveness probes every 30 seconds but expires a transport only after
-120 seconds without confirmed inbound traffic. The dashboard distinguishes
-heartbeat timeouts from classified transport closures; the resumption and
-session-expiry counters remain zero until resumable sessions are introduced.
+120 seconds without confirmed inbound traffic. Protocol v2 then retains the
+logical peer, hosted files, and accepted-command IDs in memory for exactly five
+minutes. A replacement transport must send `SESSION_HELLO` first; a valid
+resume preserves the peer identity and replays sequenced room history. Tokens
+are 256-bit bearer credentials delivered only in private `SESSION_READY`
+frames, never persisted by the server, logged, or exposed to peers. Restarting
+the process invalidates every session. The dashboard distinguishes heartbeat
+timeouts, classified transport closures, resumptions, and final session expiry.
+
+The browser reconnecting client is delivered with the following frontend
+milestone. Until then, operational and Node real-process fixtures speak v2
+directly; a production browser client must not send legacy first frames.
 
 ## 💼 License
 
