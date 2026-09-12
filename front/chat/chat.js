@@ -458,8 +458,10 @@ document.getElementById('chat_input').addEventListener("input", function () {
 
 socket.onclose = function(event) {
     let status = document.getElementById('status_connection');
-    status.textContent = "offline";
+    const detail = `close code ${event.code}${event.reason ? ` (${event.reason.slice(0, 120)})` : ''}${event.wasClean ? ', clean' : ', interrupted'}`;
+    status.textContent = "offline — " + detail;
     status.className = "status_offline";
+    console.info('Conspire WebSocket closed', { code: event.code, reason: event.reason, wasClean: event.wasClean });
     announceActivity('connection', { message: 'Connection offline.' });
     peersMap.clear();
     updateParticipants();

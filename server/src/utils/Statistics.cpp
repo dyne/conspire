@@ -128,6 +128,9 @@ void Statistics::takeSample() {
   point->evPeerConnected = EVENT_PEER_CONNECTED.load();
   point->evPeerDisconnected = EVENT_PEER_DISCONNECTED.load();
   point->evPeerZombieDropped = EVENT_PEER_ZOMBIE_DROPPED.load();
+  point->evPeerTransportClosed = EVENT_PEER_TRANSPORT_CLOSED.load();
+  point->evPeerResumed = EVENT_PEER_RESUMED.load();
+  point->evSessionExpired = EVENT_SESSION_EXPIRED.load();
   point->evPeerSendMessage = EVENT_PEER_SEND_MESSAGE.load();
   point->evPeerShareFile = EVENT_PEER_SHARE_FILE.load();
 
@@ -186,6 +189,10 @@ Statistics::StateLoadResult Statistics::loadState(const std::string& path) {
   EVENT_PEER_CONNECTED.store(*latest->evPeerConnected);
   EVENT_PEER_DISCONNECTED.store(*latest->evPeerDisconnected);
   EVENT_PEER_ZOMBIE_DROPPED.store(*latest->evPeerZombieDropped);
+  // New metrics are backward compatible with retained pre-heartbeat state.
+  EVENT_PEER_TRANSPORT_CLOSED.store(latest->evPeerTransportClosed ? *latest->evPeerTransportClosed : 0);
+  EVENT_PEER_RESUMED.store(latest->evPeerResumed ? *latest->evPeerResumed : 0);
+  EVENT_SESSION_EXPIRED.store(latest->evSessionExpired ? *latest->evSessionExpired : 0);
   EVENT_PEER_SEND_MESSAGE.store(*latest->evPeerSendMessage);
   EVENT_PEER_SHARE_FILE.store(*latest->evPeerShareFile);
   EVENT_ROOM_CREATED.store(*latest->evRoomCreated);

@@ -105,6 +105,9 @@ class StatPointDto : public oatpp::DTO {
   DTO_FIELD(UInt64, evPeerConnected, "ev_peer_connected");
   DTO_FIELD(UInt64, evPeerDisconnected, "ev_peer_disconnected");
   DTO_FIELD(UInt64, evPeerZombieDropped, "ev_peer_zombie_dropped");
+  DTO_FIELD(UInt64, evPeerTransportClosed, "ev_peer_transport_closed");
+  DTO_FIELD(UInt64, evPeerResumed, "ev_peer_resumed");
+  DTO_FIELD(UInt64, evSessionExpired, "ev_session_expired");
   DTO_FIELD(UInt64, evPeerSendMessage, "ev_peer_send_message");
   DTO_FIELD(UInt64, evPeerShareFile, "ev_peer_share_file");
 

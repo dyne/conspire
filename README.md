@@ -243,6 +243,11 @@ Conspire validates and restores the retained history at startup, checkpoints it
 atomically every minute, and saves once more on graceful shutdown. The state
 directory must be writable by the service user.
 
+WebSocket liveness probes every 30 seconds but expires a transport only after
+120 seconds without confirmed inbound traffic. The dashboard distinguishes
+heartbeat timeouts from classified transport closures; the resumption and
+session-expiry counters remain zero until resumable sessions are introduced.
+
 ## 💼 License
 
 Conspire is based on [can-chat](https://github.com/lganzzzo/canchat) by Leonid

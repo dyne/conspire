@@ -8,7 +8,7 @@ let statsData = [];
 let charts = {};
 
 const METRICS = [
-    { id: 'peer', canvas: 'peerChart', title: 'Peer Activity', fields: [['Peers Connected', 'ev_peer_connected'], ['Peers Disconnected', 'ev_peer_disconnected'], ['Zombie Dropped', 'ev_peer_zombie_dropped']] },
+    { id: 'peer', canvas: 'peerChart', title: 'Peer Activity', fields: [['Peers Connected', 'ev_peer_connected'], ['Peers Disconnected', 'ev_peer_disconnected'], ['Heartbeat Timeouts', 'ev_peer_zombie_dropped'], ['Transport Closed', 'ev_peer_transport_closed'], ['Peers Resumed', 'ev_peer_resumed'], ['Sessions Expired', 'ev_session_expired']] },
     { id: 'room', canvas: 'roomChart', title: 'Room Activity', fields: [['Rooms Created', 'ev_room_created'], ['Rooms Deleted', 'ev_room_deleted']] },
     { id: 'communication', canvas: 'communicationChart', title: 'Communication', fields: [['Messages Sent', 'ev_peer_send_message'], ['Files Shared', 'ev_peer_share_file']] },
     { id: 'system', canvas: 'systemChart', title: 'System Metrics', fields: [['Front Page Loads', 'ev_front_page_loaded'], ['Data Served', 'file_served_bytes', 'MB']] }

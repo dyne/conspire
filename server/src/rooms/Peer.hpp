@@ -30,6 +30,7 @@
 #include "dto/DTOs.hpp"
 #include "dto/Config.hpp"
 #include "rooms/File.hpp"
+#include "rooms/Heartbeat.hpp"
 #include "utils/Statistics.hpp"
 
 #include "oatpp-websocket/AsyncWebSocket.hpp"
@@ -42,11 +43,14 @@
 #include "oatpp/macro/component.hpp"
 
 #include <mutex>
+#include <string>
 #include <vector>
 
 class Room; // FWD
 
 class Peer : public oatpp::websocket::AsyncWebSocket::Listener {
+public:
+  enum class CloseReason { NONE, HEARTBEAT_TIMEOUT, WRITE_ERROR, PROTOCOL_ERROR, SERVER_SHUTDOWN, REMOTE_CLOSE };
 private:
 
   /**
@@ -65,7 +69,12 @@ private:
   oatpp::String m_nickname;
   v_int64 m_peerId;
 private:
-  std::atomic<v_int32> m_pingPoingCounter;
+  Heartbeat m_heartbeat;
+  std::uint64_t m_socketGeneration = 1;
+  CloseReason m_closeReason = CloseReason::NONE;
+  TerminalCloseAccounting m_closeAccounting;
+  v_uint16 m_closeCode = 0;
+  std::string m_closeDetail;
   std::list<std::shared_ptr<File>> m_files;
   mutable std::mutex m_stateLock;
 private:
@@ -80,6 +89,7 @@ private:
 private:
 
   oatpp::async::CoroutineStarter onApiError(const oatpp::String& errorMessage);
+  bool selectCloseReasonLocked(CloseReason reason);
 
 private:
 
@@ -99,7 +109,7 @@ public:
     , m_room(room)
     , m_nickname(nickname)
     , m_peerId(peerId)
-    , m_pingPoingCounter(0)
+    , m_heartbeat(Heartbeat::Clock::now())
   {}
 
   /**
@@ -113,7 +123,8 @@ public:
    * @return - `true` - ping was sent.
    * `false` peer has not responded to the last ping, it means we have to disconnect him.
    */
-  bool sendPingAsync();
+  Heartbeat::Tick sendPingAsync();
+  bool pingWriteCompleted(std::uint64_t generation, bool success);
 
   /**
    * Get room of the peer.
@@ -147,7 +158,8 @@ public:
   /**
    * Remove circle `std::shared_ptr` dependencies
    */
-  void invalidateSocket();
+  void invalidateSocket(CloseReason reason = CloseReason::SERVER_SHUTDOWN);
+  void recordProtocolError();
 
 public: // WebSocket Listener methods
 

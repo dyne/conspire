@@ -30,6 +30,30 @@
 
 #include "oatpp/network/tcp/Connection.hpp"
 #include "oatpp/encoding/Base64.hpp"
+#include "oatpp/base/Log.hpp"
+
+namespace {
+
+std::string boundedCloseDetail(const oatpp::String& detail) {
+  constexpr std::size_t maxBytes = 120;
+  if (!detail) return {};
+  const std::string value(*detail);
+  std::string safe;
+  safe.reserve(std::min(value.size(), maxBytes));
+  for (std::size_t index = 0; index < value.size() && safe.size() < maxBytes;) {
+    const auto lead = static_cast<unsigned char>(value[index]);
+    std::size_t length = lead < 0x80U ? 1 : lead >= 0xc2U && lead <= 0xdfU ? 2 :
+                         lead >= 0xe0U && lead <= 0xefU ? 3 : lead >= 0xf0U && lead <= 0xf4U ? 4 : 0;
+    bool valid = length != 0 && index + length <= value.size();
+    for (std::size_t offset = 1; valid && offset < length; ++offset)
+      valid = (static_cast<unsigned char>(value[index + offset]) & 0xc0U) == 0x80U;
+    if (!valid || safe.size() + length > maxBytes) { safe.push_back('?'); ++index; continue; }
+    safe.append(value, index, length); index += length;
+  }
+  return safe;
+}
+
+} // namespace
 
 void Peer::sendMessageAsync(const oatpp::Object<MessageDto>& message) {
 
@@ -65,53 +89,61 @@ void Peer::sendMessageAsync(const oatpp::Object<MessageDto>& message) {
 
 }
 
-bool Peer::sendPingAsync() {
+Heartbeat::Tick Peer::sendPingAsync() {
 
   class SendPingCoroutine : public oatpp::async::Coroutine<SendPingCoroutine> {
   private:
     oatpp::async::Lock* m_lock;
     std::shared_ptr<AsyncWebSocket> m_websocket;
+    Peer* m_peer;
+    std::uint64_t m_generation;
   public:
 
-    SendPingCoroutine(oatpp::async::Lock* lock, const std::shared_ptr<AsyncWebSocket>& websocket)
+    SendPingCoroutine(oatpp::async::Lock* lock, const std::shared_ptr<AsyncWebSocket>& websocket,
+                      Peer* peer, std::uint64_t generation)
       : m_lock(lock)
       , m_websocket(websocket)
+      , m_peer(peer)
+      , m_generation(generation)
     {}
 
     Action act() override {
-      return oatpp::async::synchronize(m_lock, m_websocket->sendPingAsync(nullptr)).next(finish());
+      return oatpp::async::synchronize(m_lock, m_websocket->sendPingAsync(nullptr)).next(yieldTo(&SendPingCoroutine::written));
+    }
+    Action written() { m_peer->pingWriteCompleted(m_generation, true); return finish(); }
+    Action handleError(oatpp::async::Error*) override {
+      if (m_peer->pingWriteCompleted(m_generation, false))
+        m_peer->invalidateSocket(Peer::CloseReason::WRITE_ERROR);
+      return finish();
     }
 
   };
 
-  /******************************************************
-   *
-   * Ping counter is increased on sending ping
-   * and decreased on receiving pong from the client.
-   *
-   * If the server didn't receive pong from client
-   * before the next ping,- then the client is
-   * considered to be disconnected.
-   *
-   ******************************************************/
-
-  ++ m_pingPoingCounter;
-
   std::shared_ptr<AsyncWebSocket> socket;
+  std::uint64_t generation = 0;
+  Heartbeat::Tick tick;
   {
     std::lock_guard<std::mutex> lock(m_stateLock);
+    tick = m_heartbeat.tick(Heartbeat::Clock::now());
+    if (tick != Heartbeat::Tick::QUEUE_PING) return tick;
     socket = m_socket;
+    generation = m_socketGeneration;
   }
-  if(socket && m_pingPoingCounter == 1) {
-    m_asyncExecutor->execute<SendPingCoroutine>(&m_writeLock, socket);
-    return true;
+  if(socket) {
+    m_asyncExecutor->execute<SendPingCoroutine>(&m_writeLock, socket, this, generation);
+    return Heartbeat::Tick::QUEUE_PING;
   }
-
-  return false;
+  return Heartbeat::Tick::NONE;
 
 }
 
+bool Peer::pingWriteCompleted(std::uint64_t generation, bool success) {
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  return m_heartbeat.writeCompleted(generation, success);
+}
+
 oatpp::async::CoroutineStarter Peer::onApiError(const oatpp::String& errorMessage) {
+  recordProtocolError();
 
   class SendErrorCoroutine : public oatpp::async::Coroutine<SendErrorCoroutine> {
   private:
@@ -312,29 +344,72 @@ std::vector<std::shared_ptr<File>> Peer::getFilesSnapshot() {
   return {m_files.begin(), m_files.end()};
 }
 
-void Peer::invalidateSocket() {
+void Peer::invalidateSocket(CloseReason reason) {
   std::shared_ptr<AsyncWebSocket> socket;
+  std::uint64_t generation = 0;
+  std::int64_t idleMilliseconds = 0;
+  CloseReason winningReason;
+  bool accountClose = false;
   {
     std::lock_guard<std::mutex> lock(m_stateLock);
+    accountClose = selectCloseReasonLocked(reason);
+    winningReason = m_closeReason;
+    generation = m_socketGeneration;
+    idleMilliseconds = m_heartbeat.idleMilliseconds(Heartbeat::Clock::now());
     socket = std::move(m_socket);
   }
-  if(socket) socket->getConnection().invalidate();
+  if(socket) {
+    if (accountClose) ++ m_statistics->EVENT_PEER_TRANSPORT_CLOSED;
+    OATPP_LOGi("heartbeat", "peer={} generation={} close_reason={} idle_ms={}", m_peerId, generation,
+               static_cast<int>(winningReason), idleMilliseconds);
+    socket->getConnection().invalidate();
+  }
+}
+
+bool Peer::selectCloseReasonLocked(CloseReason reason) {
+  if (m_closeReason == CloseReason::NONE) m_closeReason = reason;
+  return m_closeAccounting.accountOnce();
+}
+
+void Peer::recordProtocolError() {
+  bool accountClose = false;
+  {
+    std::lock_guard<std::mutex> lock(m_stateLock);
+    accountClose = selectCloseReasonLocked(CloseReason::PROTOCOL_ERROR);
+  }
+  if (accountClose) ++ m_statistics->EVENT_PEER_TRANSPORT_CLOSED;
 }
 
 oatpp::async::CoroutineStarter Peer::onPing(const std::shared_ptr<AsyncWebSocket>& socket, const oatpp::String& message) {
+  { std::lock_guard<std::mutex> lock(m_stateLock);
+    if (socket != m_socket) return nullptr;
+    m_heartbeat.inbound(Heartbeat::Clock::now(), m_socketGeneration); }
   return oatpp::async::synchronize(&m_writeLock, socket->sendPongAsync(message));
 }
 
-oatpp::async::CoroutineStarter Peer::onPong(const std::shared_ptr<AsyncWebSocket>&, const oatpp::String&) {
-  -- m_pingPoingCounter;
+oatpp::async::CoroutineStarter Peer::onPong(const std::shared_ptr<AsyncWebSocket>& socket, const oatpp::String&) {
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  if (socket == m_socket) m_heartbeat.inbound(Heartbeat::Clock::now(), m_socketGeneration);
   return nullptr; // do nothing
 }
 
-oatpp::async::CoroutineStarter Peer::onClose(const std::shared_ptr<AsyncWebSocket>&, v_uint16, const oatpp::String&) {
+oatpp::async::CoroutineStarter Peer::onClose(const std::shared_ptr<AsyncWebSocket>& socket, v_uint16 code, const oatpp::String& detail) {
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  if (socket == m_socket) {
+    const bool accountClose = selectCloseReasonLocked(CloseReason::REMOTE_CLOSE);
+    m_closeCode = code;
+    m_closeDetail = boundedCloseDetail(detail);
+    if (accountClose) ++ m_statistics->EVENT_PEER_TRANSPORT_CLOSED;
+    OATPP_LOGi("heartbeat", "peer={} generation={} close_reason={} close_code={}", m_peerId,
+               m_socketGeneration, static_cast<int>(m_closeReason), code);
+  }
   return nullptr; // do nothing
 }
 
-oatpp::async::CoroutineStarter Peer::readMessage(const std::shared_ptr<AsyncWebSocket>&, v_uint8, p_char8 data, oatpp::v_io_size size) {
+oatpp::async::CoroutineStarter Peer::readMessage(const std::shared_ptr<AsyncWebSocket>& socket, v_uint8, p_char8 data, oatpp::v_io_size size) {
+  { std::lock_guard<std::mutex> lock(m_stateLock);
+    if (socket != m_socket) return nullptr;
+    m_heartbeat.inbound(Heartbeat::Clock::now(), m_socketGeneration); }
 
   const auto maxMessageSize = *m_appConfig->maxMessageSizeBytes;
   const auto currentPosition = m_messageBuffer.getCurrentPosition();
