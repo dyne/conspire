@@ -3,6 +3,7 @@
 #include "utils/AppConfig.hpp"
 #include "utils/Statistics.hpp"
 #include "utils/TorControl.hpp"
+#include "utils/SessionCredentials.hpp"
 
 #include "oatpp-test/UnitTest.hpp"
 #include <cassert>
@@ -153,9 +154,23 @@ void runStatisticsPersistenceTests() {
   std::filesystem::remove(statePath);
 }
 
+void runSessionCredentialTests() {
+  std::string first;
+  std::string second;
+  assert(conspire::session::makeResumeToken(first));
+  assert(conspire::session::makeResumeToken(second));
+  assert(first != second);
+  assert(conspire::session::validBase64UrlId(first, 32));
+  const auto firstDigest = conspire::session::digestToken(first);
+  const auto secondDigest = conspire::session::digestToken(second);
+  assert(conspire::session::constantTimeDigestEqual(firstDigest, firstDigest));
+  assert(!conspire::session::constantTimeDigestEqual(firstDigest, secondDigest));
+}
+
 void runTests() {
   runConfigTests();
   runStatisticsPersistenceTests();
+  runSessionCredentialTests();
   OATPP_RUN_TEST(WSTest);
 }
 

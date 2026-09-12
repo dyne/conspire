@@ -204,10 +204,14 @@ Options:
   }
 
   conspire::lifecycle::PeriodicRunner pingRunner;
+  conspire::lifecycle::PeriodicRunner sessionRunner;
   conspire::lifecycle::PeriodicRunner statisticsRunner;
   conspire::lifecycle::PeriodicRunner statisticsPersistenceRunner;
   const bool pingStarted = pingRunner.start(std::chrono::seconds(30), [lobby] {
     lobby->runPingIteration();
+  });
+  const bool sessionStarted = sessionRunner.start(std::chrono::seconds(1), [lobby] {
+    lobby->expireSessions();
   });
   const bool statisticsStarted = statisticsRunner.start(std::chrono::seconds(1), [statistics] {
     statistics->runStatIteration();
@@ -220,9 +224,10 @@ Options:
                          statisticsStatePath);
             }
           });
-  if (!pingStarted || !statisticsStarted || !statisticsPersistenceStarted) {
+  if (!pingStarted || !sessionStarted || !statisticsStarted || !statisticsPersistenceStarted) {
     OATPP_LOGe("conspire", "Failed to start lifecycle workers");
     pingRunner.stop();
+    sessionRunner.stop();
     statisticsRunner.stop();
     statisticsPersistenceRunner.stop();
     onionService.stop();
@@ -251,7 +256,7 @@ Options:
   }
 
   // Wait for shutdown signal
-  while (g_shutdownSignal == 0 && !pingRunner.failed() && !statisticsRunner.failed() &&
+  while (g_shutdownSignal == 0 && !pingRunner.failed() && !sessionRunner.failed() && !statisticsRunner.failed() &&
          !statisticsPersistenceRunner.failed()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
@@ -260,6 +265,7 @@ Options:
 
   // Each owned worker is woken and joined before components/environment die.
   pingRunner.stop();
+  sessionRunner.stop();
   statisticsPersistenceRunner.stop();
   onionService.stop();
   if (torServer) torServer->stop();

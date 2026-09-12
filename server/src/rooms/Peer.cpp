@@ -209,6 +209,8 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
 
   if (!message)
     return onApiError("No message provided.");
+  if (!message->clientMessageId || !conspire::session::validClientMessageId(*message->clientMessageId))
+    return onApiError("Invalid client message id.");
   auto files = message->files;
   if (!files || files->size() == 0 || files->size() > conspire::boundaries::Limits::filesPerMessage)
     return onApiError("Invalid files list.");
@@ -218,6 +220,12 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
       return onApiError("Invalid file descriptor.");
   }
 
+  std::lock_guard<std::mutex> commandLock(m_commandLock);
+  if (const auto prior = m_dedupe.find(*message->clientMessageId)) {
+    sendMessageAck(message->clientMessageId, *prior);
+    return nullptr;
+  }
+  if (m_dedupe.full()) return onApiError("Retryable command capacity reached.");
   auto fileMessage = MessageDto::createShared();
   fileMessage->code = MessageCodes::CODE_PEER_MESSAGE_FILE;
   fileMessage->peerId = m_peerId;
@@ -239,7 +247,10 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
   }
 
   m_room->addHistoryMessage(fileMessage);
+  if (!fileMessage->serverSeq || !m_dedupe.remember(*message->clientMessageId, *fileMessage->serverSeq))
+    return onApiError("Retryable command capacity reached.");
   m_room->sendMessageAsync(fileMessage);
+  sendMessageAck(message->clientMessageId, *fileMessage->serverSeq);
 
   return nullptr;
 
@@ -299,9 +310,23 @@ oatpp::async::CoroutineStarter Peer::handleMessage(const oatpp::Object<MessageDt
     case MessageCodes::CODE_PEER_MESSAGE:
       if(!message->message || !conspire::boundaries::validMessageContent(*message->message))
         return onApiError("Invalid message content.");
-      m_room->addHistoryMessage(message);
-      m_room->sendMessageAsync(message);
-      ++ m_statistics->EVENT_PEER_SEND_MESSAGE;
+      if (!message->clientMessageId || !conspire::session::validClientMessageId(*message->clientMessageId))
+        return onApiError("Invalid client message id.");
+      {
+        std::lock_guard<std::mutex> commandLock(m_commandLock);
+        if (const auto prior = m_dedupe.find(*message->clientMessageId)) {
+          sendMessageAck(message->clientMessageId, *prior);
+          return nullptr;
+        }
+        if (m_dedupe.full()) return onApiError("Retryable command capacity reached.");
+        m_room->addHistoryMessage(message);
+        const auto sequence = message->serverSeq;
+        if (!sequence || !m_dedupe.remember(*message->clientMessageId, *sequence))
+          return onApiError("Retryable command capacity reached.");
+        m_room->sendMessageAsync(message);
+        sendMessageAck(message->clientMessageId, *sequence);
+        ++ m_statistics->EVENT_PEER_SEND_MESSAGE;
+      }
       break;
 
     case MessageCodes::CODE_PEER_IS_TYPING:
@@ -320,6 +345,14 @@ oatpp::async::CoroutineStarter Peer::handleMessage(const oatpp::Object<MessageDt
 
   return nullptr;
 
+}
+
+void Peer::sendMessageAck(const oatpp::String& clientMessageId, v_uint64 serverSeq) {
+  auto ack = MessageDto::createShared();
+  ack->code = MessageCodes::CODE_MESSAGE_ACK;
+  ack->clientMessageId = clientMessageId;
+  ack->serverSeq = serverSeq;
+  sendMessageAsync(ack);
 }
 
 std::shared_ptr<Room> Peer::getRoom() {
@@ -366,6 +399,66 @@ void Peer::invalidateSocket(CloseReason reason) {
   }
 }
 
+bool Peer::invalidateSocketIfCurrent(std::uint64_t generation, CloseReason reason) {
+  std::shared_ptr<AsyncWebSocket> socket;
+  std::int64_t idleMilliseconds = 0;
+  CloseReason winningReason = CloseReason::NONE;
+  bool accountClose = false;
+  {
+    std::lock_guard<std::mutex> lock(m_stateLock);
+    if (generation != m_socketGeneration) return false;
+    accountClose = selectCloseReasonLocked(reason);
+    winningReason = m_closeReason;
+    idleMilliseconds = m_heartbeat.idleMilliseconds(Heartbeat::Clock::now());
+    socket = std::move(m_socket);
+  }
+  if (socket) {
+    if (accountClose) ++m_statistics->EVENT_PEER_TRANSPORT_CLOSED;
+    OATPP_LOGi("heartbeat", "peer={} generation={} close_reason={} idle_ms={}", m_peerId, generation,
+               static_cast<int>(winningReason), idleMilliseconds);
+    socket->getConnection().invalidate();
+  }
+  return socket != nullptr;
+}
+
+std::shared_ptr<oatpp::websocket::AsyncWebSocket> Peer::replaceSocket(
+    const std::shared_ptr<oatpp::websocket::AsyncWebSocket>& socket) {
+  if (!socket) return nullptr;
+  std::lock_guard<std::mutex> transportLock(m_transportLock);
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  auto previous = std::move(m_socket);
+  m_socketGeneration = m_transportGeneration.replace(socket.get());
+  m_socket = socket;
+  m_messageBuffer.setCurrentPosition(0);
+  m_closeReason = CloseReason::NONE;
+  m_closeAccounting = TerminalCloseAccounting{};
+  m_heartbeat.activate(Heartbeat::Clock::now(), m_socketGeneration);
+  return previous;
+}
+
+bool Peer::detachIfCurrent(const std::shared_ptr<AsyncWebSocket>& socket, std::uint64_t generation) {
+  std::lock_guard<std::mutex> transportLock(m_transportLock);
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  if (!m_transportGeneration.isCurrent(socket.get(), generation) || socket != m_socket) return false;
+  m_socket.reset();
+  static_cast<void>(m_transportGeneration.detachIfCurrent(socket.get(), generation));
+  return true;
+}
+
+bool Peer::detachIfCurrent(const std::shared_ptr<AsyncWebSocket>& socket) {
+  std::lock_guard<std::mutex> transportLock(m_transportLock);
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  if (!m_transportGeneration.isCurrent(socket.get(), m_socketGeneration) || socket != m_socket) return false;
+  m_socket.reset();
+  static_cast<void>(m_transportGeneration.detachIfCurrent(socket.get(), m_socketGeneration));
+  return true;
+}
+
+std::uint64_t Peer::socketGeneration() const {
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  return m_socketGeneration;
+}
+
 bool Peer::selectCloseReasonLocked(CloseReason reason) {
   if (m_closeReason == CloseReason::NONE) m_closeReason = reason;
   return m_closeAccounting.accountOnce();
@@ -407,9 +500,15 @@ oatpp::async::CoroutineStarter Peer::onClose(const std::shared_ptr<AsyncWebSocke
 }
 
 oatpp::async::CoroutineStarter Peer::readMessage(const std::shared_ptr<AsyncWebSocket>& socket, v_uint8, p_char8 data, oatpp::v_io_size size) {
-  { std::lock_guard<std::mutex> lock(m_stateLock);
+  // Keep the handoff fence through validation and command dispatch. A stale
+  // callback either completes before replacement or observes a different
+  // current socket; it can never consume the new transport's buffer/state.
+  std::lock_guard<std::mutex> transportLock(m_transportLock);
+  {
+    std::lock_guard<std::mutex> lock(m_stateLock);
     if (socket != m_socket) return nullptr;
-    m_heartbeat.inbound(Heartbeat::Clock::now(), m_socketGeneration); }
+    m_heartbeat.inbound(Heartbeat::Clock::now(), m_socketGeneration);
+  }
 
   const auto maxMessageSize = *m_appConfig->maxMessageSizeBytes;
   const auto currentPosition = m_messageBuffer.getCurrentPosition();

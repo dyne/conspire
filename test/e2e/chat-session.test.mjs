@@ -21,6 +21,9 @@ const messageCode = Object.freeze({
   peerFile: 4,
   fileShare: 6,
   fileRequestChunk: 7,
+  sessionHello: 10,
+  sessionReady: 11,
+  messageAck: 12,
 });
 const execFileAsync = promisify(execFile);
 
@@ -122,7 +125,7 @@ async function waitForServer(server, origin) {
   }, 10_000);
 }
 
-async function connectClient(url, origin, headers = undefined) {
+async function connectClient(url, origin, headers = undefined, resume = undefined) {
   const socket = new WebSocket(url, { origin, headers });
   const messages = [];
   const socketErrors = [];
@@ -162,7 +165,23 @@ async function connectClient(url, origin, headers = undefined) {
     socket.once('error', onConnectionError);
     socket.once('unexpected-response', onUnexpectedResponse);
   });
-  return { socket, messages, socketErrors };
+  const fileCapabilityId = randomBytes(16).toString('base64url');
+  await new Promise((resolveSend, rejectSend) => socket.send(JSON.stringify({
+    code: messageCode.sessionHello,
+    protocolVersion: 2,
+    lastServerSeq: resume?.lastServerSeq ?? 0,
+    fileCapabilityId,
+    ...(resume ? { resumeToken: resume.resumeToken } : {}),
+  }), (error) => error ? rejectSend(error) : resolveSend()));
+  const ready = await waitUntil('SESSION_READY', () => {
+    if (socketErrors.length > 0) throw socketErrors[0];
+    return messages.find((message) => message.code === messageCode.sessionReady);
+  });
+  return { socket, messages, socketErrors, ready };
+}
+
+function clientMessageId() {
+  return randomBytes(16).toString('base64url');
 }
 
 async function requestText(port, path, headers = {}) {
@@ -388,8 +407,7 @@ test('Tor ADD_ONION identity persists and onion Host/Origin drive the frontend',
         `ws://127.0.0.1:${firstPort}/api/ws/room/tor-room/`, onionOrigin,
         { Host: onionHost },
       );
-      await waitForMessage(onionClient, 'onion-origin peer onboarding',
-        (message) => message.code === messageCode.info);
+      assert.equal(onionClient.ready.peers.length, 1);
       await closeClient(onionClient);
 
       assert.deepEqual(await stopConspire(activeServer), { code: 0, signal: null });
@@ -484,8 +502,7 @@ test('TLS mode exposes a separate loopback HTTP backend for onion port 80',
         `ws://127.0.0.1:${backendPort}/api/ws/room/tls-tor-room/`,
         `http://${onionHost}`, { Host: onionHost },
       );
-      await waitForMessage(onionClient, 'TLS-mode onion peer onboarding',
-        (message) => message.code === messageCode.info);
+      assert.equal(onionClient.ready.peers.length, 1);
       await closeClient(onionClient);
       assert.deepEqual(await stopConspire(server), { code: 0, signal: null });
       server = undefined;
@@ -584,9 +601,17 @@ test('real server broadcasts chat messages and supplies room history', { timeout
 
     const first = await connectClient(websocketUrl, origin);
     clients.push(first);
-    const firstInfo = await waitForMessage(first, 'first peer onboarding',
-      (message) => message.code === messageCode.info);
-    assert.equal(firstInfo.peers.length, 1);
+    assert.equal(first.ready.protocolVersion, 2);
+    assert.equal(first.ready.resumed, false);
+    assert.match(first.ready.resumeToken, /^[A-Za-z0-9_-]{43}$/);
+    assert.equal(first.messages[0]?.code, messageCode.sessionReady,
+      'fresh transport must receive SESSION_READY before durable room events');
+    assert.equal(first.ready.history.filter((message) => message.code === messageCode.peerJoined &&
+      message.peerId === first.ready.peerId).length, 1,
+    'fresh snapshot contains its durable join exactly once');
+    assert.equal(first.messages.filter((message) => message.code === messageCode.info).length, 0,
+      'v2 SESSION_READY is the only onboarding snapshot');
+    assert.equal(first.ready.peers.length, 1);
 
     const second = await connectClient(websocketUrl, origin);
     clients.push(second);
@@ -594,24 +619,35 @@ test('real server broadcasts chat messages and supplies room history', { timeout
       (message) => message.code === messageCode.peerJoined);
     assert.equal(typeof joined.peerId, 'number');
 
-    const secondInfo = await waitForMessage(second, 'second peer onboarding',
-      (message) => message.code === messageCode.info);
-    assert.equal(secondInfo.peers.length, 2);
+    assert.equal(second.ready.peers.length, 2);
 
     const chatText = `end-to-end-${Date.now()}`;
-    await sendJson(first, { code: messageCode.peerMessage, message: chatText });
+    const sentId = clientMessageId();
+    await sendJson(first, { code: messageCode.peerMessage, message: chatText, clientMessageId: sentId });
     const broadcast = await waitForMessage(second, 'chat broadcast',
       (message) => message.code === messageCode.peerMessage && message.message === chatText);
     assert.equal(typeof broadcast.peerId, 'number');
     assert.equal(typeof broadcast.peerName, 'string');
     assert.equal(typeof broadcast.timestamp, 'number');
+    const ack = await waitForMessage(first, 'chat MESSAGE_ACK',
+      (message) => message.code === messageCode.messageAck && message.clientMessageId === sentId);
+    assert.equal(ack.serverSeq, broadcast.serverSeq);
+    await sendJson(first, { code: messageCode.peerMessage, message: chatText, clientMessageId: sentId });
+    await waitUntil('duplicate MESSAGE_ACK', () => first.messages.filter(
+      (message) => message.code === messageCode.messageAck && message.clientMessageId === sentId,
+    ).length >= 2);
+    assert.equal(first.messages.filter(
+      (message) => message.code === messageCode.messageAck && message.clientMessageId === sentId,
+    )[1].serverSeq, ack.serverSeq);
+    await delay(50);
+    assert.equal(second.messages.filter(
+      (message) => message.code === messageCode.peerMessage && message.message === chatText,
+    ).length, 1, 'duplicate retry must not repeat the durable event');
 
     const third = await connectClient(websocketUrl, origin);
     clients.push(third);
-    const thirdInfo = await waitForMessage(third, 'third peer history',
-      (message) => message.code === messageCode.info);
-    assert.equal(thirdInfo.peers.length, 3);
-    assert(thirdInfo.history.some(
+    assert.equal(third.ready.peers.length, 3);
+    assert(third.ready.history.some(
       (message) => message.code === messageCode.peerMessage && message.message === chatText));
   } catch (error) {
     scenarioError = error;
@@ -639,6 +675,36 @@ test('real server broadcasts chat messages and supplies room history', { timeout
   assert.deepEqual(exit, { code: 0, signal: null }, `Conspire output:\n${diagnostics}`);
 });
 
+test('real server resumes a v2 session with the same peer identity', { timeout: 30_000 }, async () => {
+  const port = await reservePort();
+  const origin = `http://localhost:${port}`;
+  const websocketUrl = `ws://localhost:${port}/api/ws/room/e2e-resume-room/`;
+  const server = startConspire(port);
+  let first;
+  let resumed;
+  let scenarioError;
+  try {
+    await waitForServer(server, origin);
+    first = await connectClient(websocketUrl, origin);
+    await closeClient(first);
+    resumed = await connectClient(websocketUrl, origin, undefined, {
+      resumeToken: first.ready.resumeToken,
+      lastServerSeq: first.ready.latestServerSeq,
+    });
+    assert.equal(resumed.ready.resumed, true);
+    assert.equal(resumed.ready.peerId, first.ready.peerId);
+    assert.equal(resumed.ready.peerName, first.ready.peerName);
+    assert.equal(resumed.ready.resumeToken, first.ready.resumeToken);
+  } catch (error) {
+    scenarioError = error;
+  }
+  if (resumed) {
+    try { await closeClient(resumed); } catch (error) { scenarioError ??= error; }
+  }
+  try { await stopConspire(server); } catch (error) { scenarioError ??= error; }
+  if (scenarioError) throw new Error(`${scenarioError.message}\nConspire output:\n${server.getOutput()}`, { cause: scenarioError });
+});
+
 test('real server transfers file contents without disconnecting either peer',
   { timeout: 30_000 }, async () => {
     const port = await reservePort();
@@ -655,13 +721,11 @@ test('real server transfers file contents without disconnecting either peer',
       await waitForServer(server, origin);
       const offerer = await connectClient(websocketUrl, origin);
       clients.push(offerer);
-      await waitForMessage(offerer, 'file offerer onboarding',
-        (message) => message.code === messageCode.info);
+      assert.equal(offerer.ready.peers.length, 1);
 
       const downloader = await connectClient(websocketUrl, origin);
       clients.push(downloader);
-      await waitForMessage(downloader, 'file downloader onboarding',
-        (message) => message.code === messageCode.info);
+      assert.equal(downloader.ready.peers.length, 2);
 
       let responseError;
       offerer.socket.on('message', (payload) => {
@@ -680,6 +744,7 @@ test('real server transfers file contents without disconnecting either peer',
 
       await sendJson(offerer, {
         code: messageCode.fileShare,
+        clientMessageId: clientMessageId(),
         files: [{ clientFileId: 1, name: 'transfer.bin', size: contents.length }],
       });
       const shared = await waitForMessage(downloader, 'shared file announcement',
@@ -751,14 +816,12 @@ test('real server transfers from a clearnet offerer to an onion downloader',
       const offerer = await connectClient(
         `ws://localhost:${port}${websocketPath}`, clearnetOrigin);
       clients.push(offerer);
-      await waitForMessage(offerer, 'mixed file offerer onboarding',
-        (message) => message.code === messageCode.info);
+      assert.equal(offerer.ready.peers.length, 1);
 
       const downloader = await connectClient(
         `ws://127.0.0.1:${port}${websocketPath}`, onionOrigin, { Host: onionHost });
       clients.push(downloader);
-      await waitForMessage(downloader, 'mixed file downloader onboarding',
-        (message) => message.code === messageCode.info);
+      assert.equal(downloader.ready.peers.length, 2);
 
       let responseError;
       offerer.socket.on('message', (payload) => {
@@ -777,6 +840,7 @@ test('real server transfers from a clearnet offerer to an onion downloader',
 
       await sendJson(offerer, {
         code: messageCode.fileShare,
+        clientMessageId: clientMessageId(),
         files: [{ clientFileId: 1, name: 'mixed.txt', size: contents.length }],
       });
       const shared = await waitForMessage(downloader, 'mixed shared file announcement',

@@ -56,7 +56,9 @@ void Room::welcomePeer(const std::shared_ptr<Peer>& peer) {
   joinedMessage->message = peer->getNickname() + " - joined room";
 
   addHistoryMessage(joinedMessage);
-  sendMessageAsync(joinedMessage);
+  // The joining transport receives its single v2 snapshot through
+  // SESSION_READY; existing peers receive the live durable announcement.
+  sendMessageAsync(joinedMessage, peer);
 
 }
 
@@ -67,8 +69,14 @@ void Room::onboardPeer(const std::shared_ptr<Peer>& peer) {
   infoMessage->peerId = peer->getPeerId();
   infoMessage->peerName = peer->getNickname();
 
-  infoMessage->peers = {};
+  infoMessage->peers = getPeers();
+  infoMessage->history = getHistory();
+  peer->sendMessageAsync(infoMessage);
 
+}
+
+oatpp::List<oatpp::Object<PeerDto>> Room::getPeers() {
+  auto result = oatpp::List<oatpp::Object<PeerDto>>::createShared();
   std::vector<std::shared_ptr<Peer>> peers;
   {
     std::lock_guard<std::mutex> guard(m_peerByIdLock);
@@ -79,12 +87,9 @@ void Room::onboardPeer(const std::shared_ptr<Peer>& peer) {
     auto p = PeerDto::createShared();
     p->peerId = current->getPeerId();
     p->peerName = current->getNickname();
-    infoMessage->peers->push_back(p);
+    result->push_back(p);
   }
-
-  infoMessage->history = getHistory();
-  peer->sendMessageAsync(infoMessage);
-
+  return result;
 }
 
 void Room::goodbyePeer(const std::shared_ptr<Peer>& peer) {
@@ -97,6 +102,14 @@ void Room::goodbyePeer(const std::shared_ptr<Peer>& peer) {
   addHistoryMessage(message);
   sendMessageAsync(message);
 
+}
+
+void Room::publishConnectionState(const std::shared_ptr<Peer>& peer, bool connected) {
+  auto message = MessageDto::createShared();
+  message->code = MessageCodes::CODE_PEER_CONNECTION_STATE;
+  message->peerId = peer->getPeerId();
+  message->connected = connected;
+  sendMessageAsync(message); // transient: deliberately not sequenced/history retained
 }
 
 std::shared_ptr<Peer> Room::getPeerById(v_int64 peerId) {
@@ -123,17 +136,36 @@ void Room::removePeerById(v_int64 peerId) {
 }
 
 void Room::addHistoryMessage(const oatpp::Object<MessageDto>& message) {
+  std::lock_guard<std::mutex> guard(m_historyLock);
+
+  const auto sequence = m_sequencer.next();
+  if (!sequence) throw std::overflow_error("room server sequence exhausted");
+  message->serverSeq = *sequence;
 
   if(!m_appConfig->maxRoomHistoryMessages || *m_appConfig->maxRoomHistoryMessages == 0) {
     return;
   }
 
-  std::lock_guard<std::mutex> guard(m_historyLock);
-
   m_history.push_back(message);
 
   conspire::boundaries::retainLast(m_history, *m_appConfig->maxRoomHistoryMessages);
 
+}
+
+v_uint64 Room::latestServerSeq() {
+  std::lock_guard<std::mutex> guard(m_historyLock);
+  return m_sequencer.latest();
+}
+
+oatpp::List<oatpp::Object<MessageDto>> Room::getHistoryAfter(v_uint64 cursor, bool& resyncRequired) {
+  auto result = oatpp::List<oatpp::Object<MessageDto>>::createShared();
+  std::lock_guard<std::mutex> guard(m_historyLock);
+  const auto earliest = !m_history.empty() && m_history.front()->serverSeq ? *m_history.front()->serverSeq : 0U;
+  resyncRequired = earliest > 0U && cursor < earliest - 1U;
+  for (const auto& message : m_history) {
+    if (resyncRequired || (message->serverSeq && *message->serverSeq > cursor)) result->push_back(message);
+  }
+  return result;
 }
 
 oatpp::List<oatpp::Object<MessageDto>> Room::getHistory() {
@@ -180,14 +212,17 @@ std::shared_ptr<File> Room::getFileById(v_int64 fileId) {
   return conspire::boundaries::findById(m_fileById, fileId);
 }
 
-void Room::sendMessageAsync(const oatpp::Object<MessageDto>& message) {
+void Room::sendMessageAsync(const oatpp::Object<MessageDto>& message,
+                            const std::shared_ptr<Peer>& excluded) {
   std::vector<std::shared_ptr<Peer>> peers;
   {
     std::lock_guard<std::mutex> guard(m_peerByIdLock);
     peers.reserve(m_peerById.size());
     for (const auto& pair : m_peerById) peers.push_back(pair.second);
   }
-  for (const auto& peer : peers) peer->sendMessageAsync(message);
+  for (const auto& peer : peers) {
+    if (peer != excluded) peer->sendMessageAsync(message);
+  }
 }
 
 void Room::pingAllPeers() {
@@ -198,9 +233,12 @@ void Room::pingAllPeers() {
     for (const auto& pair : m_peerById) peers.push_back(pair.second);
   }
   for (const auto& peer : peers) {
+    const auto generation = peer->socketGeneration();
     if(peer->sendPingAsync() == Heartbeat::Tick::EXPIRED) {
-      peer->invalidateSocket(Peer::CloseReason::HEARTBEAT_TIMEOUT);
-      ++ m_statistics->EVENT_PEER_ZOMBIE_DROPPED;
+      // A resume can replace this transport between the liveness observation
+      // and invalidation; never close that newer generation.
+      if (peer->invalidateSocketIfCurrent(generation, Peer::CloseReason::HEARTBEAT_TIMEOUT))
+        ++ m_statistics->EVENT_PEER_ZOMBIE_DROPPED;
     }
   }
 }
