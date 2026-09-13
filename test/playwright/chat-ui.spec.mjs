@@ -406,7 +406,8 @@ test('image previews remain consent-gated, keyboard-operable, and contained at c
     await expect(portrait.getByRole('status')).toContainText('require confirmation');
     await expect(portrait.getByRole('button', { name: /Load image/ })).toBeVisible();
     await expect(portrait.getByRole('button', { name: /Cancel image load/ })).toHaveCount(0);
-    await expect(portrait.getByRole('link', { name: 'Download file' })).toBeVisible();
+    await expect(portrait.locator('..').getByRole('link', { name: 'Download file' })).toBeVisible();
+    await expect(portrait.locator('..').getByRole('link', { name: 'Download file' })).toHaveCount(1);
     await portrait.getByRole('button', { name: /Load image/ }).focus();
     await expect(portrait.getByRole('button', { name: /Load image/ })).toBeFocused();
     await recipient.keyboard.press('Enter');
@@ -440,7 +441,8 @@ test('image previews remain consent-gated, keyboard-operable, and contained at c
     const malformed = previews.nth(3);
     await malformed.getByRole('button', { name: /Load image/ }).click();
     await expect(malformed.getByRole('status')).toContainText('could not be safely displayed');
-    await expect(malformed.getByRole('button', { name: 'Retry image preview' })).toBeVisible();
+    await expect(malformed.getByRole('button', { name: 'Retry image preview' })).toHaveCount(0);
+    await expect(malformed.locator('..').getByRole('link', { name: 'Download file' })).toBeVisible();
     await expect.poll(() => malformed.evaluate((tile) => tile.scrollWidth <= tile.clientWidth)).toBe(true);
     await recipient.setViewportSize({ width: 375, height: 667 });
     await recipient.evaluate(() => document.documentElement.style.setProperty('font-size', '200%'));

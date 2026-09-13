@@ -464,8 +464,7 @@
             min-inline-size: 0;
         }
 
-        .image-preview-action,
-        .image-preview-download {
+        .image-preview-action {
             inline-size: fit-content;
             min-block-size: 44px;
             max-inline-size: 100%;
@@ -481,15 +480,7 @@
             cursor: pointer;
         }
 
-        .image-preview-download {
-            display: inline-flex;
-            align-items: center;
-            text-align: center;
-            text-decoration: none;
-        }
-
-        .image-preview-action:active,
-        .image-preview-download:active {
+        .image-preview-action:active {
             background: var(--ds-color-action-active);
         }
 
@@ -512,8 +503,7 @@
         }
 
         @media (forced-colors: active) {
-            .image-preview-action,
-            .image-preview-download {
+            .image-preview-action {
                 border: 1px solid ButtonText;
                 background: ButtonFace;
                 color: ButtonText;
