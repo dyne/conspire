@@ -210,6 +210,19 @@ test('room UI registers CSP-compatible handlers from an external script', async 
   assert.match(ui, /addEventListener\('change'/);
 });
 
+test('emoji shortcut buttons keep their glyphs visible and accessible', async () => {
+  const room = await readFile(new URL('../front/chat/index.html', import.meta.url), 'utf8');
+  const buttons = [...room.matchAll(
+    /<button[^>]*data-emoji="([^"]+)"[^>]*aria-label="([^"]+)"[^>]*>([^<]+)<\/button>/g,
+  )];
+
+  assert.equal(buttons.length, 15);
+  for (const [, emoji, accessibleName, visibleText] of buttons) {
+    assert.equal(visibleText, emoji, `${accessibleName} must display its emoji glyph`);
+    assert.match(accessibleName, /^Insert /);
+  }
+});
+
 test('chat keeps modern keyboard, DOM, and safe-download paths', async () => {
   const chat = await readFile(new URL('../front/chat/chat.js', import.meta.url), 'utf8');
   assert.doesNotMatch(chat, /document\.selection|keypress|event\.which|\.innerHTML\s*=/);

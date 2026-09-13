@@ -266,7 +266,7 @@
             border: 1px solid rgba(255, 255, 255, 0.25);
             background: transparent;
             font: inherit;
-            font-size: var(--ds-font-size-chat-label);
+            font-size: var(--ds-font-size-xl);
             cursor: pointer;
             color: rgba(255, 255, 255, 0.7);
             border-radius: var(--ds-radius-compact);
