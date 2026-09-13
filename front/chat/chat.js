@@ -1,6 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 import { formatChatAnnouncement, humanFileSize, insertTextAtSelection } from './format.js';
-import { createFileChunkMessage, imageCandidateMediaType, MessageCode, parseProtocolMessage } from './protocol.js';
+import { createFileChunkMessage, imageCandidateMediaType, isPreviewCandidate, MessageCode, parseProtocolMessage, roomFileUrl } from './protocol.js';
+import { createImagePreviewController, PreviewMemory } from './image-preview.js';
 import { createHandshakeInbox, createReliabilityState, randomId, reconcileReplay, retryPendingCommands } from './reliability.js';
 import { createChatState } from './state.js';
 import { ReconnectingTransport } from './transport.js';
@@ -32,6 +33,11 @@ const fileCapabilityId = randomId();
 let transport;
 const MAX_FILES_PER_MESSAGE = 16;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
+const previews = new Map();
+const previewMemory = new PreviewMemory(undefined, (id) => previews.get(String(id))?.evict());
+
+function cleanupPreview(id) { const preview = previews.get(String(id)); if (preview) { preview.cleanup(); previews.delete(String(id)); } }
+function cleanupAllPreviews() { for (const id of [...previews.keys()]) cleanupPreview(id); }
 
 setupEmoji();
 
@@ -172,6 +178,7 @@ function postSharedFile(message) {
                 oldLink.setAttribute('aria-disabled', 'true');
                 oldLink.textContent = `${file.name} (unavailable after source reload)`;
             }
+            cleanupPreview(file.serverFileId);
         }
         announceActivity('file', { peerName: message.peerName, count: message.files.length });
         return;
@@ -195,7 +202,7 @@ function postSharedFile(message) {
         let link = document.createElement('a');
         var linkText = document.createTextNode(file.name);
         link.appendChild(linkText);
-        link.href = urlRoom + "/file/" + file.serverFileId;
+        link.href = roomFileUrl(urlRoom, file.serverFileId) || '#';
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
 
@@ -209,6 +216,13 @@ function postSharedFile(message) {
         }
         messageDivOneFile.append(link);
         messageDivOneFile.append(fileInfoSize);
+
+        if (message.peerId !== peerId && isPreviewCandidate(file) && file.available !== false) {
+            link.textContent = 'Download file';
+            const preview = createImagePreviewController({ file, url: link.href, document, memory: previewMemory });
+            previews.set(String(file.serverFileId), preview);
+            messageDivOneFile.append(preview.root);
+        }
 
         if (message.peerId == peerId) {
             let fileInfoSent = document.createElement('pre');
@@ -676,6 +690,7 @@ function onMessage(message) {
 function socketSendNextData(data) { transport.send(data); }
 
 window.addEventListener("beforeunload", function (e) {
+    cleanupAllPreviews();
     e.preventDefault();
     e.returnValue = "You are about to leave the chat. " +
         "Once you leave you'll lose chat history and all of your files shared will be canceled. " +

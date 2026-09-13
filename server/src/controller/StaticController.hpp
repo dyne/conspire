@@ -236,7 +236,7 @@ public:
       conspire::boundaries::replaceLiteral(text, "%%%ROOM_ID%%%", conspire::boundaries::urlPathSegment(*roomId));
       auto response = controller->createResponse(Status::CODE_200, text);
       response->putHeader(Header::CONTENT_TYPE, "text/html");
-      response->putHeader("Content-Security-Policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
+      response->putHeader("Content-Security-Policy", "default-src 'self'; img-src 'self' blob:; base-uri 'none'; object-src 'none'; frame-ancestors 'none'");
       response->putHeader("X-Content-Type-Options", "nosniff");
       response->putHeader("Referrer-Policy", "no-referrer");
       response->putHeader("Cache-Control", "no-store");
@@ -281,6 +281,18 @@ public:
     Action act() override {
       auto response = controller->createResponse(Status::CODE_200,
                                                  controller->loadAsset("chat/protocol.js"));
+      response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "room/{roomId}/image-preview.js", ImagePreviewJS) {
+    ENDPOINT_ASYNC_INIT(ImagePreviewJS)
+    Action act() override {
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("chat/image-preview.js"));
       response->putHeader(Header::CONTENT_TYPE, "text/javascript");
       response->putHeader("X-Content-Type-Options", "nosniff");
       response->putHeader("Cache-Control", "no-store");
