@@ -17,11 +17,46 @@ export const MessageCode = Object.freeze({
 
 const knownCodes = new Set(Object.values(MessageCode));
 
+export const ImagePreviewLimits = Object.freeze({
+  mediaTypes: Object.freeze(['image/jpeg', 'image/png', 'image/webp']),
+  encodedBytes: 8 * 1024 * 1024,
+  pixels: 16 * 1024 * 1024,
+  axisPixels: 8192,
+  livePreviews: 3,
+  retainedBlobBytes: 24 * 1024 * 1024,
+  livePixels: 24 * 1024 * 1024,
+});
+
+const imageMediaTypes = new Set(ImagePreviewLimits.mediaTypes);
+
+export function imageCandidateMediaType(value) {
+  return typeof value === 'string' && value.length <= 32 && /^[\x00-\x7f]*$/.test(value) && imageMediaTypes.has(value)
+    ? value : null;
+}
+
+export function previewDimensions(width, height) {
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0 ||
+      width > ImagePreviewLimits.axisPixels || height > ImagePreviewLimits.axisPixels) return null;
+  if (width > Math.floor(ImagePreviewLimits.pixels / height)) return null;
+  const pixels = width * height;
+  return pixels <= ImagePreviewLimits.pixels ? { width, height, pixels } : null;
+}
+
+export function isPreviewCandidate(file) {
+  return !!file && imageCandidateMediaType(file.mediaType) !== null &&
+    Number.isSafeInteger(file.size) && file.size >= 0 && file.size <= ImagePreviewLimits.encodedBytes;
+}
+
 export function parseProtocolMessage(payload) {
   if (typeof payload !== 'string' || payload.length > 8192) return null;
   let message;
   try { message = JSON.parse(payload); } catch { return null; }
   if (!message || typeof message !== 'object' || Array.isArray(message) || !knownCodes.has(message.code)) return null;
+  if (Array.isArray(message.files)) {
+    for (const file of message.files) {
+      if (file && typeof file === 'object' && !Array.isArray(file) && imageCandidateMediaType(file.mediaType) === null) delete file.mediaType;
+    }
+  }
   return message;
 }
 

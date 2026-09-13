@@ -99,6 +99,14 @@ int main() {
   assert(!conspire::boundaries::validFileDescriptor("a", 2, 1));
   assert(!conspire::boundaries::validFileDescriptor("a\n", 0));
   assert(!conspire::boundaries::validFileDescriptor("a", -1));
+  assert(conspire::boundaries::validFileDescriptor("generic-large.bin", 9 * 1024 * 1024));
+  assert(conspire::boundaries::validImageMediaType("image/jpeg"));
+  assert(conspire::boundaries::validImageMediaType("image/png"));
+  assert(conspire::boundaries::validImageMediaType("image/webp"));
+  assert(!conspire::boundaries::validImageMediaType("image/gif"));
+  assert(!conspire::boundaries::validImageMediaType("IMAGE/PNG"));
+  assert(!conspire::boundaries::validImageMediaType(std::string(33, 'a')));
+  assert(!conspire::boundaries::validImageMediaType("image/\xC3\xA9"));
   assert(conspire::boundaries::validRoomId("room_42-A"));
   assert(!conspire::boundaries::validRoomId("room/42"));
   assert(!conspire::boundaries::validRoomId("room\n42"));

@@ -180,12 +180,14 @@ File::File(const std::shared_ptr<Peer>& host,
            v_int64 clientFileId,
            v_int64 serverFileId,
            const oatpp::String& fileName,
-           v_int64 fileSize)
+           v_int64 fileSize,
+           const oatpp::String& mediaType)
   : m_host(host)
   , m_clientFileId(clientFileId)
   , m_serverFileId(serverFileId)
   , m_fileName(fileName)
   , m_fileSize(fileSize)
+  , m_mediaType(mediaType && conspire::boundaries::validImageMediaType(*mediaType) ? mediaType : nullptr)
   , m_subscriberIdCounter(1)
 {}
 
@@ -241,6 +243,10 @@ oatpp::String File::getFileName() {
 
 v_int64 File::getFileSize() {
   return m_fileSize;
+}
+
+oatpp::String File::getMediaType() {
+  return m_mediaType;
 }
 
 void File::clearSubscribers() {

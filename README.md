@@ -71,6 +71,16 @@ cmake --build --preset native-clang
 ctest --preset native-clang
 ```
 
+### Shared-file image candidate metadata
+
+Shared-file descriptors may carry an advisory `mediaType` hint. Version 1 forwards
+only the exact ASCII values `image/jpeg`, `image/png`, and `image/webp`; absent,
+malformed, or unsupported hints are treated as ordinary generic files. The hint is
+never inferred from an extension and never authorizes rendering. Inline preview
+admission is limited to 8 MiB encoded bytes, 16 megapixels, and 8192 pixels per
+axis; a tab may retain at most three previews, 24 MiB of blobs, and 24 megapixels.
+The existing 100 MiB generic file limit remains unchanged.
+
 For a certificate-free local run, start the native build without `--tls` and
 open <http://localhost:8080>:
 

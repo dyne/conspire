@@ -110,6 +110,7 @@ private:
   v_int64 m_serverFileId;
   oatpp::String m_fileName;
   v_int64 m_fileSize;
+  oatpp::String m_mediaType;
 
   std::mutex m_subscribersLock;
   std::atomic<v_int64> m_subscriberIdCounter;
@@ -122,7 +123,8 @@ public:
        v_int64 clientFileId,
        v_int64 serverFileId,
        const oatpp::String& fileName,
-       v_int64 fileSize);
+       v_int64 fileSize,
+       const oatpp::String& mediaType);
 
   std::shared_ptr<Subscriber> subscribe();
 
@@ -139,6 +141,8 @@ public:
   oatpp::String getFileName();
 
   v_int64 getFileSize();
+
+  oatpp::String getMediaType();
 
   void clearSubscribers();
   void reissueOutstandingRequests();

@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 import { formatChatAnnouncement, humanFileSize, insertTextAtSelection } from './format.js';
-import { createFileChunkMessage, MessageCode, parseProtocolMessage } from './protocol.js';
+import { createFileChunkMessage, imageCandidateMediaType, MessageCode, parseProtocolMessage } from './protocol.js';
 import { createHandshakeInbox, createReliabilityState, randomId, reconcileReplay, retryPendingCommands } from './reliability.js';
 import { createChatState } from './state.js';
 import { ReconnectingTransport } from './transport.js';
@@ -486,11 +486,14 @@ export function handleFiles(files) {
 
         filesMap.set(fileId, file);
 
-        filesJson.push({
+        const descriptor = {
             name: file.name,
             clientFileId: fileId,
             size: file.size
-        });
+        };
+        const mediaType = imageCandidateMediaType(file.type);
+        if (mediaType) descriptor.mediaType = mediaType;
+        filesJson.push(descriptor);
 
     }
 
