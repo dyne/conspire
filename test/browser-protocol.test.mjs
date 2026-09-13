@@ -7,6 +7,8 @@ import {
   parseProtocolMessage,
   roomFileUrl,
 } from '../front/chat/protocol.js';
+import { createReliabilityState, reconcileReplay, retryPendingCommands } from '../front/chat/reliability.js';
+import { ReconnectingTransport } from '../front/chat/transport.js';
 import { createChatState } from '../front/chat/state.js';
 import { formatChatAnnouncement, humanFileSize as formatFileSize, insertTextAtSelection } from '../front/chat/format.js';
 import { readFile } from 'node:fs/promises';
@@ -73,8 +75,10 @@ test('chat state and formatting modules are isolated from the DOM', () => {
 
 test('the shipped chat receive path imports and validates the protocol module', async () => {
   const chat = await readFile(new URL('../front/chat/chat.js', import.meta.url), 'utf8');
-  assert.match(chat, /import\(urlRoom \+ "\/protocol\.js"\)/);
-  assert.match(chat, /protocol\.parseProtocolMessage\(event\.data\)/);
+  assert.match(chat, /from '\.\/protocol\.js'/);
+  assert.match(chat, /parseProtocolMessage\(payload\)/);
+  assert.match(chat, /SESSION_HELLO/);
+  assert.match(chat, /SESSION_READY/);
   assert.match(chat, /createFileChunkMessage\(chunkInfo, data, chunkSize\)/);
   assert.doesNotMatch(chat, /onMessage\(JSON\.parse\(event\.data\)\)/);
 });
@@ -89,10 +93,58 @@ test('room module imports have explicit matching server routes', async () => {
   assert.match(chat, /from '\.\/protocol\.js'/);
   assert.match(chat, /from '\.\/state\.js'/);
   assert.match(ui, /from '\.\/chat\.js'/);
-  for (const route of ['format.js', 'state.js', 'chat.js', 'ui.js', 'protocol.js']) {
+  for (const route of ['format.js', 'state.js', 'chat.js', 'ui.js', 'protocol.js', 'transport.js', 'reliability.js']) {
     assert.match(controller, new RegExp(`room/\\{roomId\\}/${route.replace('.', '\\.')}`));
   }
   assert.doesNotMatch(controller, /\{module:/);
+});
+
+test('reliability state keeps pending commands until their matching acknowledgement and suppresses replay duplicates', () => {
+  const state = createReliabilityState();
+  assert.equal(state.enqueue({ clientMessageId: 'one', message: 'hello' }), true);
+  assert.equal(state.pending().length, 1);
+  assert.equal(state.acceptSequence(2), true);
+  assert.equal(state.acceptSequence(2), false);
+  assert.equal(state.acceptSequence(1), true, 'out-of-order replay remains renderable once');
+  assert.equal(state.acknowledge('one').message, 'hello');
+  assert.equal(state.pending().length, 0);
+});
+
+test('retry helper replays only live unacknowledged commands after ready', () => {
+  const state = createReliabilityState(); const sent = [];
+  state.enqueue({ clientMessageId: 'retry-me', message: 'one' });
+  retryPendingCommands(state, (payload) => sent.push(JSON.parse(payload).clientMessageId));
+  assert.deepEqual(sent, ['retry-me']);
+  state.abandon(); retryPendingCommands(state, (payload) => sent.push(JSON.parse(payload).clientMessageId));
+  assert.deepEqual(sent, ['retry-me'], 'fresh identity never receives abandoned commands');
+  assert.equal(state.manualRetryOnly()[0].delivery, 'not sent; retry manually');
+});
+
+test('resync replaces rendered durable history and replay never duplicates a DOM event', () => {
+  const state = createReliabilityState(); const rendered = ['old']; let replacements = 0;
+  reconcileReplay(state, [{ serverSeq: 4 }, { serverSeq: 5 }, { serverSeq: 5 }], true,
+    () => { replacements += 1; rendered.length = 0; }, (event) => {
+      if (state.acceptSequence(event.serverSeq)) rendered.push(event.serverSeq);
+    });
+  assert.equal(replacements, 1);
+  assert.deepEqual(rendered, [4, 5]);
+});
+
+test('transport sends only after ready and schedules one deterministic full-jitter retry', () => {
+  const timers = []; const states = []; let socket;
+  const transport = new ReconnectingTransport({ url: 'ws://example.test', random: () => 0.5,
+    createSocket: () => (socket = { readyState: 1, send() {}, close() {} }), onState: (state, detail) => states.push([state, detail]),
+    setTimer: (callback, delay) => { timers.push({ callback, delay }); return timers.length; }, clearTimer() {} });
+  transport.start();
+  assert.equal(transport.send('before'), false);
+  socket.onopen();
+  assert.equal(transport.hello('hello'), true);
+  transport.ready();
+  assert.equal(transport.send('after'), true);
+  socket.onclose({ code: 1006 }); socket.onclose({ code: 1006 });
+  assert.equal(timers.length, 1);
+  assert.equal(timers[0].delay, 250);
+  assert.deepEqual(states.at(-1), ['backoff', 250]);
 });
 
 test('dashboard keeps hostile strings out of HTML sinks and does not proxy statistics', async () => {
@@ -135,6 +187,9 @@ test('chat keeps modern keyboard, DOM, and safe-download paths', async () => {
   assert.match(chat, /replaceChildren\(/);
   assert.match(chat, /link\.rel = 'noopener noreferrer'/);
   assert.match(chat, /e\.preventDefault\(\)/);
+  const deliverySelectors = chat.match(/\.message-delivery\[data-client-message-id=/g) ?? [];
+  assert.equal(deliverySelectors.length, 2,
+    'ACK and pending-delivery updates must target only the delivery span, never the message container');
 });
 
 test('chat leave protection uses its beforeunload event parameter consistently', async () => {

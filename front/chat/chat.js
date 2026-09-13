@@ -1,36 +1,70 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 import { formatChatAnnouncement, humanFileSize, insertTextAtSelection } from './format.js';
-import { createFileChunkMessage } from './protocol.js';
+import { createFileChunkMessage, MessageCode, parseProtocolMessage } from './protocol.js';
+import { createReliabilityState, randomId, reconcileReplay, retryPendingCommands } from './reliability.js';
 import { createChatState } from './state.js';
+import { ReconnectingTransport } from './transport.js';
 
 const { urlWebsocket, urlRoom } = globalThis.ConspireChatConfig;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-let CODE_INFO = 0;
-let CODE_PEER_JOINED = 1;
-let CODE_PEER_LEFT = 2;
-let CODE_PEER_MESSAGE = 3;
-let CODE_PEER_MESSAGE_FILE = 4;
-let CODE_PEER_IS_TYPING = 5;
-
-let CODE_FILE_SHARE = 6;
-let CODE_FILE_REQUEST_CHUNK = 7;
+const { INFO: CODE_INFO, PEER_JOINED: CODE_PEER_JOINED, PEER_LEFT: CODE_PEER_LEFT,
+    PEER_MESSAGE: CODE_PEER_MESSAGE, PEER_MESSAGE_FILE: CODE_PEER_MESSAGE_FILE,
+    PEER_IS_TYPING: CODE_PEER_IS_TYPING, FILE_SHARE: CODE_FILE_SHARE,
+    FILE_REQUEST_CHUNK: CODE_FILE_REQUEST_CHUNK, SESSION_READY: CODE_SESSION_READY,
+    SESSION_HELLO: CODE_SESSION_HELLO, MESSAGE_ACK: CODE_MESSAGE_ACK,
+    PEER_CONNECTION_STATE: CODE_PEER_CONNECTION_STATE, API_ERROR: CODE_API_ERROR } = MessageCode;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-let socket = new WebSocket(urlWebsocket);
-let protocolModule = import(urlRoom + "/protocol.js");
 let peerId = null;
 let peerName = null;
 let peersMap = new Map();
 const chatState = createChatState();
 let filesMap = chatState.files;
 let bulbColorsNumber = 18;
-let socketSendBuffer = [];
 let lastTimeTypingSent = 0;
 let hydratingHistory = false;
+const reliability = createReliabilityState();
+const storageKey = `conspire.session.v2:${location.origin}:${urlRoom}`;
+const fileCapabilityId = randomId();
+let transport;
 
 setupEmoji();
+
+function storedSession() {
+    try { return JSON.parse(sessionStorage.getItem(storageKey) || 'null'); } catch { return null; }
+}
+function saveSession(token) {
+    if (!token) return;
+    sessionStorage.setItem(storageKey, JSON.stringify({ resumeToken: token, lastServerSeq: reliability.highestServerSeq }));
+}
+function clearSession() { sessionStorage.removeItem(storageKey); }
+function renderConnection(state, detail) {
+    const status = document.getElementById('status_connection');
+    const retry = document.getElementById('connection_retry');
+    const labels = { connecting: 'connecting…', handshaking: 'resuming…', online: 'online', stopped: 'offline — retry' };
+    const label = state === 'backoff' ? `reconnecting in ${Math.max(1, Math.ceil(detail / 1000))} seconds…` : (labels[state] || 'offline — retry');
+    status.textContent = label;
+    status.className = state === 'online' ? 'status_online' : 'status_offline';
+    retry.hidden = state !== 'backoff' && state !== 'stopped';
+    retry.disabled = state === 'online';
+}
+function sendHello() {
+    const prior = storedSession();
+    transport.hello(JSON.stringify({ code: CODE_SESSION_HELLO, protocolVersion: 2,
+        resumeToken: prior?.resumeToken, lastServerSeq: prior?.lastServerSeq || reliability.highestServerSeq || 0,
+        fileCapabilityId }));
+}
+function retryPending() { retryPendingCommands(reliability, (payload) => transport.send(payload)); }
+function startTransport() {
+    transport = new ReconnectingTransport({ url: urlWebsocket, onState: renderConnection,
+        onMessage: (payload) => { const message = parseProtocolMessage(payload); if (message) onMessage(message); },
+        onInvalidSession: () => { clearSession(); reliability.abandon(); renderPendingDelivery(); } });
+    transport.onOpen = sendHello;
+    transport.start();
+    document.getElementById('connection_retry').addEventListener('click', () => transport.connect());
+}
 
 function nextFileId() {
     return chatState.nextFileId ++;
@@ -85,6 +119,8 @@ function postChatMessage(message) {
 
     let messageDiv = document.createElement('div');
     messageDiv.className = "message-div";
+    if (message.serverSeq) messageDiv.dataset.serverSeq = String(message.serverSeq);
+    if (message.clientMessageId) messageDiv.dataset.clientMessageId = message.clientMessageId;
 
     let bulb = document.createElement('div');
     bulb.className = "message-bulb";
@@ -95,6 +131,13 @@ function postChatMessage(message) {
 
     bulb.append(messageText);
     messageDiv.append(bulb);
+    if (message.clientMessageId && message.peerId === peerId) {
+        const delivery = document.createElement('span');
+        delivery.className = 'message-delivery';
+        delivery.dataset.clientMessageId = message.clientMessageId;
+        delivery.textContent = reliability.outbox.has(message.clientMessageId) ? 'sending' : 'sent';
+        messageDiv.append(delivery);
+    }
     messageElem.append(messageDiv);
 
     if(scrollPos <= messageField.getBoundingClientRect().height) {
@@ -102,6 +145,14 @@ function postChatMessage(message) {
     }
     announceActivity('message', message);
 
+}
+
+function renderPendingDelivery() {
+    for (const command of [...reliability.pending(), ...reliability.manualRetryOnly()]) {
+        document.querySelectorAll(`.message-delivery[data-client-message-id="${CSS.escape(command.clientMessageId)}"]`).forEach((node) => {
+            node.textContent = command.delivery || 'sending';
+        });
+    }
 }
 
 function postSharedFile(message) {
@@ -407,8 +458,12 @@ export function handleFiles(files) {
 
     }
 
-    let message = {code: CODE_FILE_SHARE, files: filesJson};
-    socketSendNextData(JSON.stringify(message));
+    const clientMessageId = randomId();
+    if (!clientMessageId || !reliability.enqueue({ code: CODE_FILE_SHARE, files: filesJson, clientMessageId, delivery: 'sending' })) {
+        announceActivity('connection', { message: 'Unable to queue files; retry after pending sends finish.' });
+        return;
+    }
+    retryPendingCommands({ pending: () => [reliability.outbox.get(clientMessageId)] }, (payload) => transport.send(payload));
 
     document.getElementById('file_share_button').value = "";
 
@@ -422,13 +477,13 @@ export function submitMessage() {
     let text = outgoingMessage.replace(/\s/g,''); // check if text not empty (remove all whitespaces)
 
     if(text !== "") {
-        let message = {
-            peerId: peerId,
-            peerName: peerName,
-            code: CODE_PEER_MESSAGE,
-            message: outgoingMessage
+        const clientMessageId = randomId();
+        const message = { code: CODE_PEER_MESSAGE, message: outgoingMessage, clientMessageId, delivery: 'sending' };
+        if (!clientMessageId || !reliability.enqueue(message)) {
+            announceActivity('connection', { message: 'Too many pending messages; wait for delivery.' });
+            return false;
         }
-        socketSendNextData(JSON.stringify(message));
+        retryPendingCommands({ pending: () => [message] }, (payload) => transport.send(payload));
         form.message.value = "";
     }
 
@@ -450,36 +505,56 @@ document.getElementById('chat_input').addEventListener("input", function () {
         let message = {
             code: CODE_PEER_IS_TYPING,
         }
-        socketSendNextData(JSON.stringify(message));
+        transport.send(JSON.stringify(message));
         lastTimeTypingSent = now;
     }
 
 });
 
-socket.onclose = function(event) {
-    let status = document.getElementById('status_connection');
-    const detail = `close code ${event.code}${event.reason ? ` (${event.reason.slice(0, 120)})` : ''}${event.wasClean ? ', clean' : ', interrupted'}`;
-    status.textContent = "offline — " + detail;
-    status.className = "status_offline";
-    console.info('Conspire WebSocket closed', { code: event.code, reason: event.reason, wasClean: event.wasClean });
-    announceActivity('connection', { message: 'Connection offline.' });
-    peersMap.clear();
-    updateParticipants();
-};
-
-// message received - show the message in div#messages
-socket.onmessage = function(event) {
-    protocolModule.then(function(protocol) {
-        let message = protocol.parseProtocolMessage(event.data);
-        if(message) {
-            onMessage(message);
-        }
-    });
+function acceptDurable(message) {
+    if (!message.serverSeq) return true;
+    const accepted = reliability.acceptSequence(message.serverSeq);
+    if (accepted) {
+        const prior = storedSession();
+        if (prior?.resumeToken) saveSession(prior.resumeToken);
+    }
+    return accepted;
 }
 
 function onMessage(message) {
 
     switch(message.code) {
+
+        case CODE_SESSION_READY: {
+            if (message.protocolVersion !== 2 || !message.peerId || !message.resumeToken) { transport.invalidSession(); return; }
+            peerId = message.peerId; peerName = message.peerName;
+            peersMap.clear();
+            for (const peer of message.peers || []) peersMap.set(peer.peerId, peer);
+            updateParticipants();
+            hydratingHistory = true;
+            reconcileReplay(reliability, message.history || message.replay || [], message.resyncRequired,
+                () => document.getElementById('chat_history').replaceChildren(), onMessage);
+            hydratingHistory = false;
+            saveSession(message.resumeToken);
+            transport.ready();
+            retryPending();
+            renderPendingDelivery();
+            break;
+        }
+
+        case CODE_MESSAGE_ACK: {
+            const command = reliability.acknowledge(message.clientMessageId);
+            if (command) document.querySelectorAll(`.message-delivery[data-client-message-id="${CSS.escape(message.clientMessageId)}"]`).forEach((node) => { node.textContent = 'sent'; });
+            break;
+        }
+
+        case CODE_API_ERROR:
+            if (transport.state === 'handshaking') transport.invalidSession();
+            break;
+
+        case CODE_PEER_CONNECTION_STATE:
+            if (message.peerId !== peerId) announceActivity('connection', { message: message.connected ? `${message.peerName || 'Participant'} reconnected.` : `${message.peerName || 'Participant'} is reconnecting.` });
+            break;
 
         case CODE_INFO:
 
@@ -509,6 +584,7 @@ function onMessage(message) {
             break;
 
         case CODE_PEER_JOINED:
+            if (!acceptDurable(message)) break;
             postSystemMessage(message);
             let peer = new Object();
             peer.peerId = message.peerId;
@@ -519,6 +595,7 @@ function onMessage(message) {
             break;
 
         case CODE_PEER_LEFT:
+            if (!acceptDurable(message)) break;
             postSystemMessage(message);
             peersMap.delete(message.peerId);
             updateParticipants();
@@ -526,6 +603,7 @@ function onMessage(message) {
             break;
 
         case CODE_PEER_MESSAGE:
+            if (!acceptDurable(message)) break;
             postChatMessage(message);
             break;
 
@@ -534,6 +612,7 @@ function onMessage(message) {
             break;
 
         case CODE_PEER_MESSAGE_FILE:
+            if (!acceptDurable(message)) break;
             postSharedFile(message);
             break;
 
@@ -544,9 +623,7 @@ function onMessage(message) {
     }
 }
 
-function socketSendNextData(data) {
-    socket.send(data);
-}
+function socketSendNextData(data) { transport.send(data); }
 
 window.addEventListener("beforeunload", function (e) {
     e.preventDefault();
@@ -554,3 +631,7 @@ window.addEventListener("beforeunload", function (e) {
         "Once you leave you'll lose chat history and all of your files shared will be canceled. " +
         "Are you sure you want to leave the chat?";
 });
+
+window.addEventListener('online', () => transport?.reconnectNow());
+window.addEventListener('offline', () => renderConnection('stopped'));
+startTransport();

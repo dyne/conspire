@@ -44,6 +44,25 @@ class PendingHello final : public oatpp::websocket::AsyncWebSocket::Listener {
 public:
   PendingHello(Lobby* lobby, const oatpp::String& roomName, const oatpp::String& nickname)
     : m_lobby(lobby), m_roomName(roomName), m_nickname(nickname) {}
+  CoroutineStarter reject(const std::shared_ptr<AsyncWebSocket>& socket) {
+    // Deliberately generic: it lets a browser discard an unusable local bearer
+    // without revealing whether a token was unknown, expired, or cross-room.
+    auto error = MessageDto::createShared();
+    error->code = MessageCodes::CODE_API_ERROR;
+    error->message = "Session unavailable.";
+    class RejectCoroutine final : public oatpp::async::Coroutine<RejectCoroutine> {
+      std::shared_ptr<AsyncWebSocket> m_socket;
+      oatpp::String m_message;
+    public:
+      RejectCoroutine(std::shared_ptr<AsyncWebSocket> socket, oatpp::String message)
+        : m_socket(std::move(socket)), m_message(std::move(message)) {}
+      Action act() override {
+        return std::move(m_socket->sendOneFrameTextAsync(m_message)
+          .next(m_socket->sendCloseAsync())).next(new oatpp::async::Error("Session unavailable"));
+      }
+    };
+    return RejectCoroutine::start(socket, m_objectMapper->writeToString(error));
+  }
   CoroutineStarter readMessage(const std::shared_ptr<AsyncWebSocket>& socket, v_uint8, p_char8 data,
                                oatpp::v_io_size size) override {
     if (m_consumed) { socket->getConnection().invalidate(); return nullptr; }
@@ -61,8 +80,8 @@ public:
     m_consumed = true;
     try {
       const auto hello = m_objectMapper->readFromString<oatpp::Object<MessageDto>>(m_buffer.toString());
-      if (!m_lobby->acceptSessionHello(socket, m_roomName, m_nickname, hello)) socket->getConnection().invalidate();
-    } catch (const std::runtime_error&) { socket->getConnection().invalidate(); }
+      if (!m_lobby->acceptSessionHello(socket, m_roomName, m_nickname, hello)) return reject(socket);
+    } catch (const std::runtime_error&) { return reject(socket); }
     return nullptr;
   }
   CoroutineStarter onPing(const std::shared_ptr<AsyncWebSocket>&, const oatpp::String&) override { return nullptr; }

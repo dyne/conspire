@@ -106,6 +106,7 @@ test('users chat through the browser UI and a newcomer receives history', async 
   const server = startConspire(port);
   const contexts = [];
   const pageErrors = [];
+  const websocketFrames = [];
   let scenarioError;
 
   try {
@@ -113,6 +114,10 @@ test('users chat through the browser UI and a newcomer receives history', async 
 
     const trackPage = (page) => {
       page.on('pageerror', (error) => pageErrors.push(error));
+      page.on('websocket', (socket) => {
+        socket.on('framesent', (event) => websocketFrames.push(`sent ${event.payload}`));
+        socket.on('framereceived', (event) => websocketFrames.push(`received ${event.payload}`));
+      });
       return page;
     };
 
@@ -213,6 +218,14 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await expect(third.locator('.message-text', { hasText: chatText })).toBeVisible();
     await expect(third.locator('#chat_activity')).toHaveText('');
 
+    // Browser network emulation closes the transport without changing the
+    // document, so the v2 token must resume this same participant identity.
+    await firstContext.setOffline(true);
+    await expect(first.getByRole('status').first()).toContainText(/offline|reconnecting/i);
+    await firstContext.setOffline(false);
+    await expect(first.getByRole('status').first()).toHaveText('online');
+    await expect(first.locator('#participants_toggle #participant_count')).toHaveText('3');
+
     const mobileContext = await newSurfaceContext(browser, surfaceMatrix.compact);
     contexts.push(mobileContext);
     const mobile = trackPage(await mobileContext.newPage());
@@ -258,6 +271,19 @@ test('users chat through the browser UI and a newcomer receives history', async 
     await expect.poll(() => forcedColorsDashboard.evaluate(() => matchMedia('(forced-colors: active)').matches)).toBe(true);
     await forcedColorsDashboard.getByRole('button', { name: 'Refresh Data' }).focus();
     await expect(forcedColorsDashboard.getByRole('button', { name: 'Refresh Data' })).toBeFocused();
+
+    const staleContext = await browser.newContext();
+    contexts.push(staleContext);
+    const stale = trackPage(await staleContext.newPage());
+    const staleToken = 'x'.repeat(43);
+    await stale.addInitScript(({ key, token }) => sessionStorage.setItem(key, JSON.stringify({ resumeToken: token, lastServerSeq: 0 })), {
+      key: `conspire.session.v2:${origin}:/room/reception`, token: staleToken,
+    });
+    await stale.goto(roomUrl);
+    await expect(stale.getByRole('status').first()).toHaveText('online');
+    await expect.poll(() => stale.evaluate((key) => JSON.parse(sessionStorage.getItem(key) || '{}').resumeToken,
+      `conspire.session.v2:${origin}:/room/reception`)).not.toBe(staleToken);
+    await expect(first.locator('#participants_toggle #participant_count')).toHaveText('5');
     expect(pageErrors, pageErrors.map((error) => error.message).join('\n')).toEqual([]);
   } catch (error) {
     scenarioError = error;
@@ -283,10 +309,39 @@ test('users chat through the browser UI and a newcomer receives history', async 
     const browserDiagnostics = pageErrors.length > 0
       ? `\nBrowser errors:\n${pageErrors.map((error) => error.stack ?? error.message).join('\n')}`
       : '';
+    const websocketDiagnostics = websocketFrames.length > 0
+      ? `\nWebSocket frames:\n${websocketFrames.slice(-80).join('\n')}`
+      : '';
     throw new Error(
-      `${scenarioError.message}${browserDiagnostics}\nConspire output:\n${diagnostics}`,
+      `${scenarioError.message}${browserDiagnostics}${websocketDiagnostics}\nConspire output:\n${diagnostics}`,
       { cause: scenarioError },
     );
   }
   expect(exit, `Conspire output:\n${diagnostics}`).toEqual({ code: 0, signal: null });
+});
+
+test('two fresh browser participants render one sequenced chat message', async ({ browser }) => {
+  test.setTimeout(30_000);
+  const port = await reservePort(); const origin = `http://localhost:${port}`; const roomUrl = `${origin}/room/reception`;
+  const server = startConspire(port); const contexts = []; let failure; let first; let second;
+  try {
+    await waitForServer(server, origin);
+    for (let index = 0; index < 2; index += 1) {
+      const context = await browser.newContext(); contexts.push(context);
+      const page = await context.newPage();
+      await page.goto(roomUrl);
+    }
+    [first, second] = contexts.map((context) => context.pages()[0]);
+    await expect(first.locator('#participants_toggle #participant_count')).toHaveText('2');
+    await expect(second.locator('#participants_toggle #participant_count')).toHaveText('2');
+    const text = `minimal-${Date.now()}`;
+    await first.getByPlaceholder('Type a message').fill(text);
+    await first.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(first.locator('.message-text', { hasText: text })).toBeVisible();
+    await expect(second.locator('.message-text', { hasText: text })).toBeVisible();
+    await expect(first.locator('.message-delivery')).toHaveText('sent');
+  } catch (error) { failure = error; }
+  for (const context of contexts.reverse()) await context.close().catch((error) => { failure ??= error; });
+  await stopConspire(server).catch((error) => { failure ??= error; });
+  if (failure) throw new Error(`${failure.message}\nConspire output:\n${server.getOutput()}`, { cause: failure });
 });
