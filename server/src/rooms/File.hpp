@@ -103,7 +103,9 @@ private:
 
 private:
 
-  std::shared_ptr<Peer> m_host;
+  // The room/session owns the host. A file must not keep an expired peer (and
+  // therefore its room/history) alive through Peer::m_files.
+  std::weak_ptr<Peer> m_host;
   v_int64 m_clientFileId;
   v_int64 m_serverFileId;
   oatpp::String m_fileName;

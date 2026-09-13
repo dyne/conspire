@@ -69,15 +69,13 @@ private:
 private:
   std::chrono::duration<v_int64, std::micro> m_maxPeriod;
   std::chrono::duration<v_int64, std::micro> m_pushInterval;
-  std::chrono::duration<v_int64, std::micro> m_updateInterval;
 public:
 
   Statistics(const std::chrono::duration<v_int64, std::micro>& maxPeriod = std::chrono::hours(7 * 24),
              const std::chrono::duration<v_int64, std::micro>& pushInterval = std::chrono::hours(1),
-             const std::chrono::duration<v_int64, std::micro>& updateInterval = std::chrono::seconds(1))
+             const std::chrono::duration<v_int64, std::micro>& = std::chrono::seconds(1))
     : m_maxPeriod(maxPeriod)
     , m_pushInterval(pushInterval)
-    , m_updateInterval(updateInterval)
   {}
 
   void takeSample();

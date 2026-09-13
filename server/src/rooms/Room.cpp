@@ -55,10 +55,9 @@ void Room::welcomePeer(const std::shared_ptr<Peer>& peer) {
   joinedMessage->peerName = peer->getNickname();
   joinedMessage->message = peer->getNickname() + " - joined room";
 
-  addHistoryMessage(joinedMessage);
   // The joining transport receives its single v2 snapshot through
   // SESSION_READY; existing peers receive the live durable announcement.
-  sendMessageAsync(joinedMessage, peer);
+  publishDurable(joinedMessage, peer);
 
 }
 
@@ -99,8 +98,7 @@ void Room::goodbyePeer(const std::shared_ptr<Peer>& peer) {
   message->peerId = peer->getPeerId();
   message->message = peer->getNickname() + " - left room";
 
-  addHistoryMessage(message);
-  sendMessageAsync(message);
+  publishDurable(message);
 
 }
 
@@ -126,8 +124,10 @@ void Room::removePeerById(v_int64 peerId) {
     peer = it->second;
     m_peerById.erase(it);
   }
-  const auto files = peer->getFilesSnapshot();
+  std::vector<std::shared_ptr<File>> files;
   {
+    std::lock_guard<std::mutex> mutation(m_fileMutationLock);
+    files = peer->takeFilesSnapshot();
     std::lock_guard<std::mutex> guard(m_fileByIdLock);
     for (const auto& file : files) m_fileById.erase(file->getServerFileId());
   }
@@ -152,6 +152,15 @@ void Room::addHistoryMessage(const oatpp::Object<MessageDto>& message) {
 
 }
 
+void Room::publishDurable(const oatpp::Object<MessageDto>& message,
+                          const std::shared_ptr<Peer>& excluded,
+                          const std::function<void(v_uint64)>& beforeBroadcast) {
+  std::lock_guard<std::mutex> order(m_durablePublishLock);
+  addHistoryMessage(message);
+  if (beforeBroadcast) beforeBroadcast(*message->serverSeq);
+  sendMessageAsync(message, excluded);
+}
+
 v_uint64 Room::latestServerSeq() {
   std::lock_guard<std::mutex> guard(m_historyLock);
   return m_sequencer.latest();
@@ -160,8 +169,9 @@ v_uint64 Room::latestServerSeq() {
 oatpp::List<oatpp::Object<MessageDto>> Room::getHistoryAfter(v_uint64 cursor, bool& resyncRequired) {
   auto result = oatpp::List<oatpp::Object<MessageDto>>::createShared();
   std::lock_guard<std::mutex> guard(m_historyLock);
-  const auto earliest = !m_history.empty() && m_history.front()->serverSeq ? *m_history.front()->serverSeq : 0U;
-  resyncRequired = earliest > 0U && cursor < earliest - 1U;
+  const auto earliest = !m_history.empty() && m_history.front()->serverSeq
+    ? std::optional<v_uint64>(*m_history.front()->serverSeq) : std::nullopt;
+  resyncRequired = conspire::session::requiresReplayResync(cursor, m_sequencer.latest(), earliest);
   for (const auto& message : m_history) {
     if (resyncRequired || (message->serverSeq && *message->serverSeq > cursor)) result->push_back(message);
   }
@@ -186,24 +196,33 @@ oatpp::List<oatpp::Object<MessageDto>> Room::getHistory() {
 
 }
 
-std::shared_ptr<File> Room::shareFile(v_int64 hostPeerId, v_int64 clientFileId, const oatpp::String& fileName, v_int64 fileSize) {
+std::vector<std::shared_ptr<File>> Room::shareFiles(v_int64 hostPeerId,
+                                                    const MessageDto::FilesList& descriptors) {
+  std::lock_guard<std::mutex> mutation(m_fileMutationLock);
   auto host = getPeerById(hostPeerId);
-  if(!host) throw std::runtime_error("File host not found.");
-  if(!conspire::boundaries::hasCapacity(host->getFilesSnapshot().size(), conspire::boundaries::Limits::filesPerPeer))
-    throw std::runtime_error("File limit reached.");
+  if(!host || !descriptors ||
+     !conspire::boundaries::hasCapacityFor(host->getFilesSnapshot().size(), descriptors->size(),
+                                            conspire::boundaries::Limits::filesPerPeer)) return {};
 
-  v_int64 serverFileId = m_fileIdCounter ++;
-
-  auto file = std::make_shared<File>(host, clientFileId, serverFileId, fileName, fileSize);
-  host->addFile(file);
+  std::vector<std::shared_ptr<File>> files;
+  files.reserve(descriptors->size());
+  for (const auto& descriptor : *descriptors) {
+    const v_int64 serverFileId = m_fileIdCounter ++;
+    files.push_back(std::make_shared<File>(host, descriptor->clientFileId, serverFileId,
+                                          descriptor->name, descriptor->size));
+  }
+  std::unordered_map<v_int64, std::shared_ptr<File>> prepared;
+  prepared.reserve(files.size());
+  for (const auto& file : files) prepared.emplace(file->getServerFileId(), file);
+  host->addFiles(files);
   {
     std::lock_guard<std::mutex> guard(m_fileByIdLock);
-    m_fileById[serverFileId] = file;
+    m_fileById.merge(prepared);
   }
-
-  ++ m_statistics->EVENT_PEER_SHARE_FILE;
-
-  return file;
+  if (!prepared.empty()) throw std::logic_error("generated duplicate server file id");
+  for (std::size_t index = 0; index < files.size(); ++index)
+    ++ m_statistics->EVENT_PEER_SHARE_FILE;
+  return files;
 
 }
 
@@ -213,9 +232,11 @@ std::shared_ptr<File> Room::getFileById(v_int64 fileId) {
 }
 
 void Room::withdrawPeerFiles(const std::shared_ptr<Peer>& peer) {
-  const auto files = peer->takeFilesSnapshot();
-  if (files.empty()) return;
+  std::vector<std::shared_ptr<File>> files;
   {
+    std::lock_guard<std::mutex> mutation(m_fileMutationLock);
+    files = peer->takeFilesSnapshot();
+    if (files.empty()) return;
     std::lock_guard<std::mutex> guard(m_fileByIdLock);
     for (const auto& file : files) m_fileById.erase(file->getServerFileId());
   }
@@ -234,8 +255,7 @@ void Room::withdrawPeerFiles(const std::shared_ptr<Peer>& peer) {
     descriptor->available = false;
     unavailable->files->push_back(descriptor);
   }
-  addHistoryMessage(unavailable);
-  sendMessageAsync(unavailable);
+  publishDurable(unavailable);
 }
 
 void Room::sendMessageAsync(const oatpp::Object<MessageDto>& message,

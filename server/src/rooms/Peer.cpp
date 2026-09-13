@@ -56,36 +56,80 @@ std::string boundedCloseDetail(const oatpp::String& detail) {
 } // namespace
 
 void Peer::sendMessageAsync(const oatpp::Object<MessageDto>& message) {
-
-  class SendMessageCoroutine : public oatpp::async::Coroutine<SendMessageCoroutine> {
-  private:
-    oatpp::async::Lock* m_lock;
-    std::shared_ptr<AsyncWebSocket> m_websocket;
-    oatpp::String m_message;
-  public:
-
-    SendMessageCoroutine(oatpp::async::Lock* lock,
-                         const std::shared_ptr<AsyncWebSocket>& websocket,
-                         const oatpp::String& message)
-      : m_lock(lock)
-      , m_websocket(websocket)
-      , m_message(message)
-    {}
-
-    Action act() override {
-      return oatpp::async::synchronize(m_lock, m_websocket->sendOneFrameTextAsync(m_message)).next(finish());
-    }
-
-  };
-
+  static constexpr std::size_t maxOutboundFrames = 256;
+  static constexpr std::size_t maxOutboundBytes = 2 * 1024 * 1024;
   std::shared_ptr<AsyncWebSocket> socket;
+  std::uint64_t generation = 0;
   {
     std::lock_guard<std::mutex> lock(m_stateLock);
     socket = m_socket;
+    generation = m_socketGeneration;
   }
-  if(socket) {
-    m_asyncExecutor->execute<SendMessageCoroutine>(&m_writeLock, socket, m_objectMapper->writeToString(message));
+  if (!socket) return;
+
+  const auto payload = m_objectMapper->writeToString(message);
+  bool startDrain = false;
+  bool overflow = false;
+  {
+    std::lock_guard<std::mutex> lock(m_outboundLock);
+    const auto payloadBytes = payload ? static_cast<std::size_t>(payload->size()) : 0U;
+    overflow = m_outboundFrames.size() >= maxOutboundFrames ||
+               payloadBytes > maxOutboundBytes - std::min(m_outboundBytes, maxOutboundBytes);
+    if (!overflow) {
+      m_outboundFrames.push_back({socket, generation, payload});
+      m_outboundBytes += payloadBytes;
+      if (!m_outboundDrainActive) {
+        m_outboundDrainActive = true;
+        startDrain = true;
+      }
+    }
   }
+  if (overflow) {
+    invalidateSocketIfCurrent(generation, CloseReason::WRITE_ERROR);
+    return;
+  }
+  if (startDrain) startOutboundDrain();
+}
+
+bool Peer::takeOutboundFrame(OutboundFrame& frame) {
+  std::lock_guard<std::mutex> lock(m_outboundLock);
+  if (m_outboundFrames.empty()) {
+    m_outboundDrainActive = false;
+    return false;
+  }
+  frame = std::move(m_outboundFrames.front());
+  m_outboundFrames.pop_front();
+  if (frame.payload) m_outboundBytes -= frame.payload->size();
+  return true;
+}
+
+bool Peer::isCurrentBinding(const OutboundFrame& frame) const {
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  return frame.socket == m_socket && frame.generation == m_socketGeneration;
+}
+
+void Peer::startOutboundDrain() {
+  class DrainCoroutine final : public oatpp::async::Coroutine<DrainCoroutine> {
+    std::shared_ptr<Peer> m_peer;
+    OutboundFrame m_frame;
+  public:
+    explicit DrainCoroutine(std::shared_ptr<Peer> peer) : m_peer(std::move(peer)) {}
+    Action act() override { return nextFrame(); }
+    Action nextFrame() {
+      while (m_peer->takeOutboundFrame(m_frame)) {
+        if (!m_peer->isCurrentBinding(m_frame)) continue;
+        return oatpp::async::synchronize(&m_peer->m_writeLock,
+            m_frame.socket->sendOneFrameTextAsync(m_frame.payload)).next(yieldTo(&DrainCoroutine::sent));
+      }
+      return finish();
+    }
+    Action sent() { return nextFrame(); }
+    Action handleError(oatpp::async::Error*) override {
+      m_peer->invalidateSocketIfCurrent(m_frame.generation, Peer::CloseReason::WRITE_ERROR);
+      return nextFrame();
+    }
+  };
+  m_asyncExecutor->execute<DrainCoroutine>(shared_from_this());
 
 }
 
@@ -113,7 +157,7 @@ Heartbeat::Tick Peer::sendPingAsync() {
     Action written() { m_peer->pingWriteCompleted(m_generation, true); return finish(); }
     Action handleError(oatpp::async::Error*) override {
       if (m_peer->pingWriteCompleted(m_generation, false))
-        m_peer->invalidateSocket(Peer::CloseReason::WRITE_ERROR);
+        m_peer->invalidateSocketIfCurrent(m_generation, Peer::CloseReason::WRITE_ERROR);
       return finish();
     }
 
@@ -142,7 +186,8 @@ bool Peer::pingWriteCompleted(std::uint64_t generation, bool success) {
   return m_heartbeat.writeCompleted(generation, success);
 }
 
-oatpp::async::CoroutineStarter Peer::onApiError(const oatpp::String& errorMessage) {
+oatpp::async::CoroutineStarter Peer::onApiError(const oatpp::String& errorMessage,
+                                                const oatpp::String& clientMessageId) {
   recordProtocolError();
 
   class SendErrorCoroutine : public oatpp::async::Coroutine<SendErrorCoroutine> {
@@ -178,6 +223,7 @@ oatpp::async::CoroutineStarter Peer::onApiError(const oatpp::String& errorMessag
   auto message = MessageDto::createShared();
   message->code = MessageCodes::CODE_API_ERROR;
   message->message = errorMessage;
+  message->clientMessageId = clientMessageId;
 
   return SendErrorCoroutine::start(&m_writeLock, m_socket, m_objectMapper->writeToString(message));
 
@@ -213,11 +259,11 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
     return onApiError("Invalid client message id.");
   auto files = message->files;
   if (!files || files->size() == 0 || files->size() > conspire::boundaries::Limits::filesPerMessage)
-    return onApiError("Invalid files list.");
+    return onApiError("Invalid files list.", message->clientMessageId);
   for (const auto& file : *files) {
     if (!file || !file->clientFileId || !file->name || !file->size ||
         !conspire::boundaries::validFileDescriptor(*file->name, *file->size))
-      return onApiError("Invalid file descriptor.");
+      return onApiError("Invalid file descriptor.", message->clientMessageId);
   }
 
   std::lock_guard<std::mutex> commandLock(m_commandLock);
@@ -225,7 +271,7 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
     sendMessageAck(message->clientMessageId, *prior);
     return nullptr;
   }
-  if (m_dedupe.full()) return onApiError("Retryable command capacity reached.");
+  if (m_dedupe.full()) return onApiError("Retryable command capacity reached.", message->clientMessageId);
   auto fileMessage = MessageDto::createShared();
   fileMessage->code = MessageCodes::CODE_PEER_MESSAGE_FILE;
   fileMessage->peerId = m_peerId;
@@ -233,9 +279,9 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
   fileMessage->timestamp = oatpp::Environment::getMicroTickCount();
   fileMessage->files = MessageDto::FilesList::createShared();
 
-  for(auto& currFile : *files) {
-
-    auto file = m_room->shareFile(m_peerId, currFile->clientFileId, currFile->name, currFile->size);
+  const auto sharedFiles = m_room->shareFiles(m_peerId, files);
+  if (sharedFiles.empty()) return onApiError("File limit reached.", message->clientMessageId);
+  for(const auto& file : sharedFiles) {
 
     auto sharedFile = FileDto::createShared();
     sharedFile->serverFileId = file->getServerFileId();
@@ -246,10 +292,10 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
 
   }
 
-  m_room->addHistoryMessage(fileMessage);
-  if (!fileMessage->serverSeq || !m_dedupe.remember(*message->clientMessageId, *fileMessage->serverSeq))
-    return onApiError("Retryable command capacity reached.");
-  m_room->sendMessageAsync(fileMessage);
+  m_room->publishDurable(fileMessage, nullptr, [&](v_uint64 sequence) {
+    if (!m_dedupe.remember(*message->clientMessageId, sequence))
+      throw std::logic_error("preflighted retryable command was not recordable");
+  });
   sendMessageAck(message->clientMessageId, *fileMessage->serverSeq);
 
   return nullptr;
@@ -281,7 +327,8 @@ oatpp::async::CoroutineStarter Peer::handleFileChunkMessage(const oatpp::Object<
 
   if(!file) return nullptr; // Ignore if file doesn't exist. File may be deleted already.
 
-  if(file->getHost()->getPeerId() != getPeerId())
+  const auto host = file->getHost();
+  if(!host || host->getPeerId() != getPeerId())
     return onApiError("Wrong file host.");
 
   auto data = oatpp::encoding::Base64::decode(fileDto->data);
@@ -311,7 +358,7 @@ oatpp::async::CoroutineStarter Peer::handleMessage(const oatpp::Object<MessageDt
 
     case MessageCodes::CODE_PEER_MESSAGE:
       if(!message->message || !conspire::boundaries::validMessageContent(*message->message))
-        return onApiError("Invalid message content.");
+        return onApiError("Invalid message content.", message->clientMessageId);
       if (!message->clientMessageId || !conspire::session::validClientMessageId(*message->clientMessageId))
         return onApiError("Invalid client message id.");
       {
@@ -320,12 +367,12 @@ oatpp::async::CoroutineStarter Peer::handleMessage(const oatpp::Object<MessageDt
           sendMessageAck(message->clientMessageId, *prior);
           return nullptr;
         }
-        if (m_dedupe.full()) return onApiError("Retryable command capacity reached.");
-        m_room->addHistoryMessage(message);
+        if (m_dedupe.full()) return onApiError("Retryable command capacity reached.", message->clientMessageId);
+        m_room->publishDurable(message, nullptr, [&](v_uint64 sequence) {
+          if (!m_dedupe.remember(*message->clientMessageId, sequence))
+            throw std::logic_error("preflighted retryable command was not recordable");
+        });
         const auto sequence = message->serverSeq;
-        if (!sequence || !m_dedupe.remember(*message->clientMessageId, *sequence))
-          return onApiError("Retryable command capacity reached.");
-        m_room->sendMessageAsync(message);
         sendMessageAck(message->clientMessageId, *sequence);
         ++ m_statistics->EVENT_PEER_SEND_MESSAGE;
       }
@@ -369,9 +416,10 @@ v_int64 Peer::getPeerId() {
   return m_peerId;
 }
 
-void Peer::addFile(const std::shared_ptr<File>& file) {
+void Peer::addFiles(const std::vector<std::shared_ptr<File>>& files) {
+  std::list<std::shared_ptr<File>> additions(files.begin(), files.end());
   std::lock_guard<std::mutex> lock(m_stateLock);
-  m_files.push_back(file);
+  m_files.splice(m_files.end(), additions);
 }
 
 std::vector<std::shared_ptr<File>> Peer::getFilesSnapshot() {
@@ -411,7 +459,7 @@ void Peer::invalidateSocket(CloseReason reason) {
     winningReason = m_closeReason;
     generation = m_socketGeneration;
     idleMilliseconds = m_heartbeat.idleMilliseconds(Heartbeat::Clock::now());
-    socket = std::move(m_socket);
+    socket = m_socket;
   }
   if(socket) {
     if (accountClose) ++ m_statistics->EVENT_PEER_TRANSPORT_CLOSED;
@@ -432,7 +480,7 @@ bool Peer::invalidateSocketIfCurrent(std::uint64_t generation, CloseReason reaso
     accountClose = selectCloseReasonLocked(reason);
     winningReason = m_closeReason;
     idleMilliseconds = m_heartbeat.idleMilliseconds(Heartbeat::Clock::now());
-    socket = std::move(m_socket);
+    socket = m_socket;
   }
   if (socket) {
     if (accountClose) ++m_statistics->EVENT_PEER_TRANSPORT_CLOSED;

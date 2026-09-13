@@ -49,6 +49,13 @@ public:
   }
 };
 
+inline bool requiresReplayResync(std::uint64_t cursor, std::uint64_t latest,
+                                 std::optional<std::uint64_t> earliestRetained) {
+  if (cursor > latest) return true;
+  if (!earliestRetained) return cursor < latest;
+  return *earliestRetained > 0 && cursor < *earliestRetained - 1U;
+}
+
 class DedupeWindow {
   std::unordered_map<std::string, std::uint64_t> m_sequences;
   std::deque<std::string> m_order;

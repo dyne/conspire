@@ -22,6 +22,7 @@ const messageCode = Object.freeze({
   peerFile: 4,
   fileShare: 6,
   fileRequestChunk: 7,
+  apiError: 9,
   sessionHello: 10,
   sessionReady: 11,
   messageAck: 12,
@@ -645,11 +646,61 @@ test('real server broadcasts chat messages and supplies room history', { timeout
       (message) => message.code === messageCode.peerMessage && message.message === chatText,
     ).length, 1, 'duplicate retry must not repeat the durable event');
 
+    const orderedPrefix = `ordered-${Date.now()}-`;
+    await Promise.all(Array.from({ length: 24 }, (_, index) => sendJson(index % 2 === 0 ? first : second, {
+      code: messageCode.peerMessage,
+      message: `${orderedPrefix}${index}`,
+      clientMessageId: clientMessageId(),
+    })));
+    await waitUntil('ordered concurrent broadcasts', () => second.messages.filter(
+      (message) => message.code === messageCode.peerMessage && message.message?.startsWith(orderedPrefix),
+    ).length === 24);
+    const orderedSequences = second.messages.filter(
+      (message) => message.code === messageCode.peerMessage && message.message?.startsWith(orderedPrefix),
+    ).map((message) => message.serverSeq);
+    assert(orderedSequences.every((sequence, index) => index === 0 || sequence > orderedSequences[index - 1]),
+      `durable broadcasts must be delivered in sequence order: ${orderedSequences.join(',')}`);
+
     const third = await connectClient(websocketUrl, origin);
     clients.push(third);
     assert.equal(third.ready.peers.length, 3);
     assert(third.ready.history.some(
       (message) => message.code === messageCode.peerMessage && message.message === chatText));
+
+    const shareBatch = async (start, count) => {
+      const commandId = clientMessageId();
+      await sendJson(first, {
+        code: messageCode.fileShare, clientMessageId: commandId,
+        files: Array.from({ length: count }, (_, index) => ({
+          clientFileId: start + index, name: `capacity-${start + index}.bin`, size: 1,
+        })),
+      });
+      return waitForMessage(first, 'file batch acknowledgement',
+        (message) => message.code === messageCode.messageAck && message.clientMessageId === commandId);
+    };
+    await shareBatch(100, 16);
+    await shareBatch(116, 15);
+    await waitUntil('31 announced files', () => second.messages.filter(
+      (message) => message.code === messageCode.peerFile &&
+        message.files?.some((file) => file.name?.startsWith('capacity-')),
+    ).reduce((count, message) => count + message.files.length, 0) === 31);
+    const rejectedId = clientMessageId();
+    await sendJson(first, {
+      code: messageCode.fileShare, clientMessageId: rejectedId,
+      files: [
+        { clientFileId: 131, name: 'capacity-131.bin', size: 1 },
+        { clientFileId: 132, name: 'capacity-132.bin', size: 1 },
+      ],
+    });
+    const rejection = await waitForMessage(first, 'atomic file-capacity rejection',
+      (message) => message.code === messageCode.apiError);
+    assert.equal(rejection.clientMessageId, rejectedId,
+      'retryable rejection identifies the terminal outbox command');
+    await delay(50);
+    assert.equal(second.messages.filter(
+      (message) => message.code === messageCode.peerFile &&
+        message.files?.some((file) => ['capacity-131.bin', 'capacity-132.bin'].includes(file.name)),
+    ).length, 0, 'rejected multi-file command has no partial durable effect');
   } catch (error) {
     scenarioError = error;
   }

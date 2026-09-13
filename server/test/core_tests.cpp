@@ -113,6 +113,9 @@ int main() {
   assert(conspire::boundaries::hasCapacity(31, 32));
   assert(!conspire::boundaries::hasCapacity(32, 32));
   assert(!conspire::boundaries::hasCapacity(0, 0));
+  assert(conspire::boundaries::hasCapacityFor(20, 12, 32));
+  assert(!conspire::boundaries::hasCapacityFor(20, 13, 32));
+  assert(!conspire::boundaries::hasCapacityFor(33, 0, 32));
   assert(conspire::boundaries::Limits::chunkBytes == 64 * 1024);
   conspire::boundaries::ChunkRequest chunkRequest;
   using ChunkResult = conspire::boundaries::ChunkRequest::Result;
@@ -128,8 +131,13 @@ int main() {
   assert(chunkRequest.accept(firstRequest + 1, 4, 3, 3) == ChunkResult::INVALID);
   const auto secondRequest = chunkRequest.begin(7, 1);
   assert(secondRequest != firstRequest);
+  assert(chunkRequest.accept(firstRequest, 4, 3, 3) == ChunkResult::DUPLICATE);
+  assert(chunkRequest.outstanding());
+  assert(chunkRequest.accept(secondRequest, 7, 1, 1) == ChunkResult::ACCEPTED);
+  const auto thirdRequest = chunkRequest.begin(8, 1);
+  assert(chunkRequest.accept(firstRequest, 4, 2, 2) == ChunkResult::INVALID);
   chunkRequest.cancel();
-  assert(chunkRequest.accept(secondRequest, 7, 1, 1) == ChunkResult::INVALID);
+  assert(chunkRequest.accept(thirdRequest, 8, 1, 1) == ChunkResult::INVALID);
   assert(conspire::boundaries::urlPathSegment("a b/\"") == "a%20b%2F%22");
   assert(conspire::boundaries::javascriptString("</script>\"\\\n") == "\"\\u003C/script\\u003E\\\"\\\\\\n\"");
   assert(conspire::boundaries::htmlText("1<&\"'") == "1&lt;&amp;&quot;&#39;");
@@ -156,6 +164,12 @@ int main() {
   assert(!sequencer.advanceTo(1));
   assert(sequencer.advanceTo(9));
   assert(sequencer.latest() == 9);
+  assert(!conspire::session::requiresReplayResync(0, 0, std::nullopt));
+  assert(conspire::session::requiresReplayResync(3, 5, std::nullopt));
+  assert(!conspire::session::requiresReplayResync(5, 5, std::nullopt));
+  assert(conspire::session::requiresReplayResync(6, 5, std::nullopt));
+  assert(conspire::session::requiresReplayResync(2, 7, 4));
+  assert(!conspire::session::requiresReplayResync(3, 7, 4));
   assert(sequencer.advanceTo(std::numeric_limits<std::uint64_t>::max()));
   assert(!sequencer.next());
   DedupeWindow dedupe(2);

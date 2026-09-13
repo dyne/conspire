@@ -37,6 +37,7 @@
 
 #include <unordered_map>
 #include <list>
+#include <functional>
 
 class Room {
 private:
@@ -48,6 +49,12 @@ private:
   std::unordered_map<v_int64, std::shared_ptr<Peer>> m_peerById;
   std::list<oatpp::Object<MessageDto>> m_history;
   conspire::session::RoomSequencer m_sequencer;
+  // Serializes sequence assignment, history insertion, and broadcast
+  // submission so every peer's write queue observes durable room order.
+  mutable std::mutex m_durablePublishLock;
+  // Serializes whole file batches against withdrawal/expiry cleanup while the
+  // peer index and room index are updated under their own short-held locks.
+  mutable std::mutex m_fileMutationLock;
   mutable std::mutex m_peerByIdLock;
   mutable std::mutex m_fileByIdLock;
   mutable std::mutex m_historyLock;
@@ -117,6 +124,9 @@ public:
    * @param message
    */
   void addHistoryMessage(const oatpp::Object<MessageDto>& message);
+  void publishDurable(const oatpp::Object<MessageDto>& message,
+                      const std::shared_ptr<Peer>& excluded = nullptr,
+                      const std::function<void(v_uint64)>& beforeBroadcast = {});
 
   /**
    * Get list of history messages.
@@ -135,7 +145,8 @@ public:
    * @param fileSize
    * @return
    */
-  std::shared_ptr<File> shareFile(v_int64 hostPeerId, v_int64 clientFileId, const oatpp::String& fileName, v_int64 fileSize);
+  std::vector<std::shared_ptr<File>> shareFiles(v_int64 hostPeerId,
+                                                const MessageDto::FilesList& files);
 
   /**
    * Get file by id.
