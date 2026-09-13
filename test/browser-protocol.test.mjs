@@ -16,6 +16,19 @@ import { ReconnectingTransport } from '../front/chat/transport.js';
 import { createChatState } from '../front/chat/state.js';
 import { formatChatAnnouncement, humanFileSize as formatFileSize, insertTextAtSelection } from '../front/chat/format.js';
 import { readFile } from 'node:fs/promises';
+import { createImagePreviewController, inspectImageBytes, PreviewMemory, reducePreview } from '../front/chat/image-preview.js';
+
+function png(width = 1, height = 1) { return Uint8Array.from([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,width,0,0,0,height,8,2,0,0,0]); }
+function jpeg(width = 1, height = 1) { return Uint8Array.from([255,216,255,192,0,8,8,0,height,0,width,1,17,0,255,217]); }
+function webp(tag = 'VP8 ', payload = [0,0,0,0x9d,0x01,0x2a,1,0,1,0]) { const length = 4 + 8 + payload.length; return Uint8Array.from([82,73,70,70,length,0,0,0,87,69,66,80,...tag.split('').map((x) => x.charCodeAt(0)),payload.length,0,0,0,...payload]); }
+function webpChunks(chunks) { const body = chunks.flatMap(([tag, payload]) => [...tag].map((x) => x.charCodeAt(0)).concat([payload.length,0,0,0], payload, payload.length & 1 ? [0] : [])); const size = body.length + 4; return Uint8Array.from([82,73,70,70,size,0,0,0,87,69,66,80,...body]); }
+class FakeElement {
+  constructor(tag) { this.tag = tag; this.children = []; this.listeners = new Map(); this.style = {}; }
+  append(...nodes) { this.children.push(...nodes); } insertBefore(node, before) { this.children.splice(this.children.indexOf(before), 0, node); }
+  replaceChildren(...nodes) { this.children = nodes; } addEventListener(type, listener) { this.listeners.set(type, listener); }
+  async click() { return this.listeners.get('click')?.(); }
+}
+function fakeDocument() { return { createElement(tag) { const node = new FakeElement(tag); if (tag === 'img') { node.decode = async () => {}; node.naturalWidth = 1; node.naturalHeight = 1; } return node; } }; }
 
 test('protocol parser accepts every supported message code', () => {
   for (const code of Object.values(MessageCode)) {
@@ -71,6 +84,65 @@ test('preview dimensions use checked safe integer arithmetic', () => {
   }
 });
 
+test('image inspection accepts only bounded matching containers without a browser decoder', () => {
+  for (const [bytes, type, width, height] of [[png(2, 3), 'image/png', 2, 3], [jpeg(2, 3), 'image/jpeg', 2, 3], [webp(), 'image/webp', 1, 1]]) {
+    assert.deepEqual(inspectImageBytes(bytes, bytes.length, type), { ok: true, format: type, width, height, pixels: width * height });
+  }
+  const animated = webpChunks([['VP8X', [2,0,0,0,0,0,0,0,0,0]], ['VP8 ', [0,0,0,0x9d,1,0x2a,1,0,1,0]]]);
+  const malformed = [new Uint8Array(), png(0, 1), jpeg(0, 1), webp('ANIM', [0,0]), Uint8Array.from([...webp(), 0])];
+  for (const bytes of malformed) assert.equal(inspectImageBytes(bytes, bytes.length, 'image/webp').ok, false);
+  assert.equal(inspectImageBytes(animated, animated.length, 'image/webp').reason, 'unsupported');
+  const primary = [0,0,0,0x9d,1,0x2a,1,0,1,0];
+  const extended = webpChunks([['VP8X', [0,0,0,0,0,0,0,0,0,0]], ['VP8 ', primary]]);
+  const oversizedFirst = webpChunks([['VP8X', [0,0,0,0,0,32,0,0,0,0]], ['VP8 ', primary]]);
+  const duplicateHeader = webpChunks([['VP8X', [0,0,0,0,0,0,0,0,0,0]], ['VP8X', [0,0,0,0,0,0,0,0,0,0]], ['VP8 ', primary]]);
+  const duplicatePrimary = webpChunks([['VP8 ', primary], ['VP8 ', primary]]);
+  const oversizedPrimary = webpChunks([['VP8 ', [0,0,0,0x9d,1,0x2a,1,32,1,0]]]);
+  const conflictingCanvas = webpChunks([['VP8X', [0,0,0,0,0,0,1,0,0,0]], ['VP8 ', primary]]);
+  assert.deepEqual(inspectImageBytes(extended, extended.length, 'image/webp'), { ok: true, format: 'image/webp', width: 1, height: 1, pixels: 1 });
+  assert.equal(inspectImageBytes(webp('VP8X', [0,0,0,0,0,0,0,0,0,0]), 30, 'image/webp').reason, 'invalid');
+  assert.equal(inspectImageBytes(oversizedFirst, oversizedFirst.length, 'image/webp').reason, 'too-large');
+  assert.equal(inspectImageBytes(duplicateHeader, duplicateHeader.length, 'image/webp').reason, 'invalid');
+  assert.equal(inspectImageBytes(duplicatePrimary, duplicatePrimary.length, 'image/webp').reason, 'invalid');
+  assert.equal(inspectImageBytes(oversizedPrimary, oversizedPrimary.length, 'image/webp').reason, 'too-large');
+  assert.equal(inspectImageBytes(conflictingCanvas, conflictingCanvas.length, 'image/webp').reason, 'invalid');
+  assert.equal(inspectImageBytes(png(), png().length - 1, 'image/png').reason, 'too-large');
+  assert.equal(inspectImageBytes(png(), png().length, 'image/jpeg').ok, false);
+  const markerAbuse = Uint8Array.from([255,216,255,224,255,255]);
+  assert.equal(inspectImageBytes(markerAbuse, markerAbuse.length, 'image/jpeg').reason, 'invalid');
+  for (let length = 0; length < 24; length += 1) assert.equal(inspectImageBytes(new Uint8Array(length), length, 'image/png').ok, false);
+});
+
+test('preview controllers fetch only after Load, fail closed without streaming, and revoke the globally evicted URL', async () => {
+  const document = fakeDocument(); const urls = { made: [], revoked: [], createObjectURL() { const value = `blob:${this.made.length}`; this.made.push(value); return value; }, revokeObjectURL(value) { this.revoked.push(value); } };
+  const previews = new Map(); const memory = new PreviewMemory(ImagePreviewLimits, (id) => previews.get(id)?.evict());
+  let requests = 0; let arrayBufferCalls = 0; const bytes = png();
+  const fetch = async () => { requests += 1; return { ok: true, headers: { get: () => String(bytes.length) }, body: { getReader() { let done = false; return { async read() { if (done) return { done: true }; done = true; return { done: false, value: bytes }; } }; } } }; };
+  for (let id = 1; id <= 4; id += 1) {
+    const preview = createImagePreviewController({ file: { serverFileId: id, name: `${id}.png`, size: bytes.length, mediaType: 'image/png' }, url: '/file', document, memory, fetch, URL: urls });
+    previews.set(String(id), preview); assert.equal(requests, id - 1, 'offered previews do not request bytes'); await preview.load.click();
+  }
+  assert.equal(requests, 4); assert.deepEqual(urls.revoked, ['blob:0']); assert.equal(previews.get('1').phase, 'evicted');
+  const noStream = createImagePreviewController({ file: { serverFileId: 9, name: 'x.png', size: bytes.length, mediaType: 'image/png' }, url: '/file', document, memory, URL: urls,
+    fetch: async () => ({ ok: true, headers: { get: () => String(bytes.length) }, body: {}, async arrayBuffer() { arrayBufferCalls += 1; return bytes.buffer; } }) });
+  await noStream.load.click(); assert.equal(arrayBufferCalls, 0); assert.equal(noStream.phase, 'decode-error');
+});
+
+test('preview reducer and memory budget remain deterministic across races and exact boundaries', () => {
+  let state = reducePreview(undefined, { type: 'load' });
+  for (const type of ['start', 'complete', 'valid', 'decoded']) state = reducePreview(state, { type });
+  assert.equal(state.phase, 'visible');
+  assert.equal(reducePreview(reducePreview(state, { type: 'evict' }), { type: 'decoded' }).phase, 'evicted');
+  assert.equal(reducePreview({ phase: 'inspecting' }, { type: 'invalid', reason: 'too-large' }).phase, 'too-large');
+  const memory = new PreviewMemory(); const evicted = [];
+  assert.equal(memory.admit('a', 8 * 1024 * 1024, 8 * 1024 * 1024, (id) => evicted.push(id)), true);
+  assert.equal(memory.admit('b', 8 * 1024 * 1024, 8 * 1024 * 1024, (id) => evicted.push(id)), true);
+  assert.equal(memory.admit('c', 8 * 1024 * 1024, 8 * 1024 * 1024, (id) => evicted.push(id)), true);
+  assert.equal(memory.bytes(), 24 * 1024 * 1024); assert.equal(memory.pixels(), 24 * 1024 * 1024);
+  memory.admit('d', 1, 1, (id) => evicted.push(id));
+  assert.deepEqual(evicted, ['a']); assert.equal(memory.entries.size, 3); assert.equal(memory.remove('d'), true); assert.equal(memory.remove('d'), false);
+});
+
 test('file chunk replies preserve the requested transfer coordinates', () => {
   const request = {
     serverFileId: 12,
@@ -123,10 +195,24 @@ test('room module imports have explicit matching server routes', async () => {
   assert.match(chat, /from '\.\/protocol\.js'/);
   assert.match(chat, /from '\.\/state\.js'/);
   assert.match(ui, /from '\.\/chat\.js'/);
-  for (const route of ['format.js', 'state.js', 'chat.js', 'ui.js', 'protocol.js', 'transport.js', 'reliability.js']) {
+  for (const route of ['format.js', 'state.js', 'chat.js', 'ui.js', 'protocol.js', 'transport.js', 'reliability.js', 'image-preview.js']) {
     assert.match(controller, new RegExp(`room/\\{roomId\\}/${route.replace('.', '\\.')}`));
   }
   assert.doesNotMatch(controller, /\{module:/);
+});
+
+test('preview receive path remains consent-only and uses only blob image sources', async () => {
+  const [chat, preview, controller] = await Promise.all([
+    readFile(new URL('../front/chat/chat.js', import.meta.url), 'utf8'),
+    readFile(new URL('../front/chat/image-preview.js', import.meta.url), 'utf8'),
+    readFile(new URL('../server/src/controller/StaticController.hpp', import.meta.url), 'utf8'),
+  ]);
+  assert.match(chat, /isPreviewCandidate\(file\)/);
+  assert.match(preview, /load\.addEventListener\('click', start\)/);
+  assert.match(preview, /urls\.createObjectURL/);
+  assert.match(preview, /urls\.revokeObjectURL/);
+  assert.doesNotMatch(preview, /data:|https?:\/\//);
+  assert.match(controller, /img-src 'self' blob:/);
 });
 
 test('reliability state keeps pending commands until their matching acknowledgement and suppresses replay duplicates', () => {

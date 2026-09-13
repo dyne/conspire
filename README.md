@@ -80,6 +80,11 @@ never inferred from an extension and never authorizes rendering. Inline preview
 admission is limited to 8 MiB encoded bytes, 16 megapixels, and 8192 pixels per
 axis; a tab may retain at most three previews, 24 MiB of blobs, and 24 megapixels.
 The existing 100 MiB generic file limit remains unchanged.
+Recipients must explicitly select **Load image** for each candidate; no candidate
+bytes are requested beforehand. Downloaded bytes undergo bounded container and
+dimension checks before a browser decoder sees them. Only verified, non-animated
+JPEG, PNG, or WebP data is assigned through a revocable `blob:` URL; any failure
+or eviction leaves the ordinary explicit file-download action available.
 
 For a certificate-free local run, start the native build without `--tls` and
 open <http://localhost:8080>:
