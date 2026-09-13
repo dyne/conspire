@@ -4,6 +4,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { deflateSync } from 'node:zlib';
 import {
   applyFontScale,
   computedToken,
@@ -16,6 +17,37 @@ import {
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const binary = resolve(root, process.env.CONSPIRE_E2E_BINARY ?? 'build/native-gcc/server/conspire-exe');
 const buildVersion = process.env.CONSPIRE_E2E_VERSION ?? 'e2e';
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type, payload) {
+  const tag = Buffer.from(type); const chunk = Buffer.alloc(12 + payload.length);
+  chunk.writeUInt32BE(payload.length, 0); tag.copy(chunk, 4); payload.copy(chunk, 8);
+  chunk.writeUInt32BE(crc32(Buffer.concat([tag, payload])), 8 + payload.length);
+  return chunk;
+}
+
+/** Small valid RGBA fixtures with actual intrinsic geometry, generated deterministically. */
+function pngFixture(width, height, [red, green, blue]) {
+  const pixels = Buffer.alloc(height * (width * 4 + 1));
+  for (let y = 0; y < height; y += 1) {
+    const row = y * (width * 4 + 1); pixels[row] = 0;
+    for (let x = 0; x < width; x += 1) {
+      const offset = row + 1 + x * 4;
+      pixels[offset] = (red + x) & 255; pixels[offset + 1] = (green + y) & 255;
+      pixels[offset + 2] = blue; pixels[offset + 3] = 255;
+    }
+  }
+  const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 6;
+  return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), pngChunk('IHDR', header), pngChunk('IDAT', deflateSync(pixels)), pngChunk('IEND', Buffer.alloc(0))]);
+}
 
 function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
@@ -340,6 +372,86 @@ test('two fresh browser participants render one sequenced chat message', async (
     await expect(first.locator('.message-text', { hasText: text })).toBeVisible();
     await expect(second.locator('.message-text', { hasText: text })).toBeVisible();
     await expect(first.locator('.message-delivery')).toHaveText('sent');
+  } catch (error) { failure = error; }
+  for (const context of contexts.reverse()) await context.close().catch((error) => { failure ??= error; });
+  await stopConspire(server).catch((error) => { failure ??= error; });
+  if (failure) throw new Error(`${failure.message}\nConspire output:\n${server.getOutput()}`, { cause: failure });
+});
+
+test('image previews remain consent-gated, keyboard-operable, and contained at chat widths', async ({ browser }) => {
+  test.setTimeout(35_000);
+  const port = await reservePort(); const origin = `http://localhost:${port}`; const roomUrl = `${origin}/room/reception`;
+  const server = startConspire(port); const contexts = []; let failure;
+  try {
+    await waitForServer(server, origin);
+    const senderContext = await browser.newContext({ viewport: { width: 1440, height: 900 } }); contexts.push(senderContext);
+    const recipientContext = await browser.newContext({ viewport: { width: 375, height: 667 }, reducedMotion: 'reduce' }); contexts.push(recipientContext);
+    const sender = await senderContext.newPage(); const recipient = await recipientContext.newPage();
+    await Promise.all([sender.goto(roomUrl), recipient.goto(roomUrl)]);
+    await expect(sender.locator('#participants_toggle #participant_count')).toHaveText('2');
+    const choose = sender.waitForEvent('filechooser');
+    await sender.getByRole('button', { name: 'Share Files' }).click();
+    const longName = `${'unbroken-image-name-'.repeat(9)}square.png`;
+    await (await choose).setFiles([
+      { name: 'portrait.png', mimeType: 'image/png', buffer: pngFixture(140, 280, [28, 103, 210]) },
+      { name: 'landscape.png', mimeType: 'image/png', buffer: pngFixture(280, 140, [220, 108, 40]) },
+      { name: longName, mimeType: 'image/png', buffer: pngFixture(96, 96, [39, 161, 106]) },
+      { name: 'malformed.png', mimeType: 'image/png', buffer: Buffer.from('not a PNG') },
+    ]);
+    const previews = recipient.locator('.image-preview');
+    await expect(previews).toHaveCount(4);
+    await expect(previews.nth(2).getByRole('status')).toContainText(longName);
+    const portrait = previews.nth(0);
+    await expect(portrait).toHaveAttribute('data-preview-state', 'offered');
+    await expect(portrait.getByRole('status')).toContainText('require confirmation');
+    await expect(portrait.getByRole('button', { name: /Load image/ })).toBeVisible();
+    await expect(portrait.getByRole('button', { name: /Cancel image load/ })).toHaveCount(0);
+    await expect(portrait.getByRole('link', { name: 'Download file' })).toBeVisible();
+    await portrait.getByRole('button', { name: /Load image/ }).focus();
+    await expect(portrait.getByRole('button', { name: /Load image/ })).toBeFocused();
+    await recipient.keyboard.press('Enter');
+    await expect(portrait.getByRole('status')).toContainText('Image loaded');
+    const image = portrait.getByRole('img', { name: 'Shared image: portrait.png' });
+    await expect(image).toBeVisible();
+    await expect(portrait.getByRole('button', { name: 'Unload image' })).toBeVisible();
+    await expect.poll(() => recipient.evaluate(() => {
+      const tile = document.querySelector('.image-preview'); const imageElement = tile?.querySelector('img');
+      return Boolean(tile && imageElement && tile.scrollWidth <= tile.clientWidth && imageElement.getBoundingClientRect().width <= tile.getBoundingClientRect().width);
+    })).toBe(true);
+    await saveStableSurfaceScreenshot(recipient, 'chat-image-preview-compact-375x667');
+    await recipient.setViewportSize({ width: 1440, height: 900 });
+    await expect.poll(() => recipient.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await saveStableSurfaceScreenshot(recipient, 'chat-image-preview-desktop-1440x900');
+    for (const [index, width, height] of [[1, 280, 140], [2, 96, 96]]) {
+      const current = previews.nth(index);
+      await current.getByRole('button', { name: /Load image/ }).click();
+      const dimensions = await current.getByRole('img').evaluate((element) => ({
+        naturalWidth: element.naturalWidth, naturalHeight: element.naturalHeight,
+        width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height,
+        tileWidth: element.closest('.image-preview')?.getBoundingClientRect().width,
+      }));
+      expect(dimensions.naturalWidth).toBe(width); expect(dimensions.naturalHeight).toBe(height);
+      expect(dimensions.width / dimensions.height).toBeCloseTo(width / height, 2);
+      expect(dimensions.width).toBeLessThanOrEqual(dimensions.tileWidth ?? 0);
+    }
+    const longNamePreview = previews.nth(2);
+    await expect(longNamePreview.getByRole('img', { name: `Shared image: ${longName}` })).toBeVisible();
+    await expect.poll(() => longNamePreview.evaluate((tile) => tile.scrollWidth <= tile.clientWidth)).toBe(true);
+    const malformed = previews.nth(3);
+    await malformed.getByRole('button', { name: /Load image/ }).click();
+    await expect(malformed.getByRole('status')).toContainText('could not be safely displayed');
+    await expect(malformed.getByRole('button', { name: 'Retry image preview' })).toBeVisible();
+    await expect.poll(() => malformed.evaluate((tile) => tile.scrollWidth <= tile.clientWidth)).toBe(true);
+    await recipient.setViewportSize({ width: 375, height: 667 });
+    await recipient.evaluate(() => document.documentElement.style.setProperty('font-size', '200%'));
+    await expect.poll(() => recipient.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await recipient.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+    await expect.poll(() => recipient.evaluate(() => matchMedia('(forced-colors: active)').matches)).toBe(true);
+    await portrait.getByRole('button', { name: 'Unload image' }).focus();
+    await expect(portrait.getByRole('button', { name: 'Unload image' })).toHaveCSS('border-style', 'solid');
+    await portrait.getByRole('button', { name: 'Unload image' }).click();
+    await expect(portrait).toHaveAttribute('data-preview-state', 'cancelled');
+    await expect(portrait.getByRole('button', { name: 'Retry image preview' })).toBeVisible();
   } catch (error) { failure = error; }
   for (const context of contexts.reverse()) await context.close().catch((error) => { failure ??= error; });
   await stopConspire(server).catch((error) => { failure ??= error; });
