@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 import { formatChatAnnouncement, humanFileSize, insertTextAtSelection } from './format.js';
 import { createFileChunkMessage, imageCandidateMediaType, isPreviewCandidate, MessageCode, parseProtocolMessage, roomFileUrl } from './protocol.js';
-import { createImagePreviewController, PreviewMemory } from './image-preview.js';
+import { createImagePreviewController, PreviewRegistry } from './image-preview.js';
 import { createHandshakeInbox, createReliabilityState, randomId, reconcileReplay, retryPendingCommands } from './reliability.js';
 import { createChatState } from './state.js';
 import { ReconnectingTransport } from './transport.js';
@@ -33,11 +33,15 @@ const fileCapabilityId = randomId();
 let transport;
 const MAX_FILES_PER_MESSAGE = 16;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
-const previews = new Map();
-const previewMemory = new PreviewMemory(undefined, (id) => previews.get(String(id))?.evict());
+const previews = new PreviewRegistry();
 
-function cleanupPreview(id) { const preview = previews.get(String(id)); if (preview) { preview.cleanup(); previews.delete(String(id)); } }
-function cleanupAllPreviews() { for (const id of [...previews.keys()]) cleanupPreview(id); }
+function disableFileDownloads(id, name) {
+    document.querySelectorAll(`a[href$="/file/${CSS.escape(String(id))}"]`).forEach((link) => {
+        link.removeAttribute('href'); link.removeAttribute('target'); link.setAttribute('aria-disabled', 'true');
+        link.textContent = `${name} (unavailable after source reload)`;
+    });
+}
+function cleanupAllPreviews() { previews.clear(); }
 
 setupEmoji();
 
@@ -172,13 +176,8 @@ function postSharedFile(message) {
 
     if (message.files?.every((file) => file.available === false)) {
         for (const file of message.files) {
-            const oldLink = document.querySelector(`a[href$="/file/${CSS.escape(String(file.serverFileId))}"]`);
-            if (oldLink) {
-                oldLink.removeAttribute('href');
-                oldLink.setAttribute('aria-disabled', 'true');
-                oldLink.textContent = `${file.name} (unavailable after source reload)`;
-            }
-            cleanupPreview(file.serverFileId);
+            disableFileDownloads(file.serverFileId, file.name);
+            previews.unavailable(file.serverFileId);
         }
         announceActivity('file', { peerName: message.peerName, count: message.files.length });
         return;
@@ -219,8 +218,9 @@ function postSharedFile(message) {
 
         if (message.peerId !== peerId && isPreviewCandidate(file) && file.available !== false) {
             link.textContent = 'Download file';
-            const preview = createImagePreviewController({ file, url: link.href, document, memory: previewMemory });
-            previews.set(String(file.serverFileId), preview);
+            link.download = file.name || 'download';
+            const preview = createImagePreviewController({ file, url: link.href, download: link, document, memory: previews.memory });
+            previews.register(file.serverFileId, preview);
             messageDivOneFile.append(preview.root);
         }
 
@@ -592,7 +592,7 @@ function onMessage(message) {
             updateParticipants();
             hydratingHistory = true;
             reconcileReplay(reliability, message.history || message.replay || [], message.resyncRequired || !message.resumed,
-                () => document.getElementById('chat_history').replaceChildren(), onMessage, message.latestServerSeq);
+                () => { cleanupAllPreviews(); document.getElementById('chat_history').replaceChildren(); }, onMessage, message.latestServerSeq);
             hydratingHistory = false;
             saveSession(message.resumeToken);
             transport.ready();
