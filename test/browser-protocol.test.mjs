@@ -47,6 +47,7 @@ test('file chunk replies preserve the requested transfer coordinates', () => {
   const request = {
     serverFileId: 12,
     subscriberId: 34,
+    chunkRequestId: 9,
     chunkPosition: 4096,
     chunkSize: 4096,
   };
@@ -55,6 +56,7 @@ test('file chunk replies preserve the requested transfer coordinates', () => {
     files: [{
       serverFileId: 12,
       subscriberId: 34,
+      chunkRequestId: 9,
       chunkPosition: 4096,
       chunkSize: 3,
       data: 'YWJj',

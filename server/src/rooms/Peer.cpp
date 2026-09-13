@@ -285,11 +285,13 @@ oatpp::async::CoroutineStarter Peer::handleFileChunkMessage(const oatpp::Object<
     return onApiError("Wrong file host.");
 
   auto data = oatpp::encoding::Base64::decode(fileDto->data);
-  if (!data || !fileDto->chunkPosition || !fileDto->chunkSize ||
+  if (!data || !fileDto->chunkPosition || !fileDto->chunkSize || !fileDto->chunkRequestId ||
       !conspire::boundaries::validChunk(*fileDto->chunkPosition, *fileDto->chunkSize,
                                         data->size(), file->getFileSize()))
     return onApiError("Invalid file chunk.");
-  if (!file->provideFileChunk(fileDto->subscriberId, *fileDto->chunkPosition, *fileDto->chunkSize, data))
+  const auto result = file->provideFileChunk(fileDto->subscriberId, *fileDto->chunkRequestId,
+                                             *fileDto->chunkPosition, *fileDto->chunkSize, data);
+  if (result == conspire::boundaries::ChunkRequest::Result::INVALID)
     return onApiError("Unexpected file chunk.");
 
   return nullptr;
@@ -375,6 +377,26 @@ void Peer::addFile(const std::shared_ptr<File>& file) {
 std::vector<std::shared_ptr<File>> Peer::getFilesSnapshot() {
   std::lock_guard<std::mutex> lock(m_stateLock);
   return {m_files.begin(), m_files.end()};
+}
+
+bool Peer::setFileCapability(const oatpp::String& capabilityId) {
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  const std::string next = capabilityId ? *capabilityId : std::string{};
+  const bool changed = !m_fileCapabilityId.empty() && m_fileCapabilityId != next;
+  m_fileCapabilityId = next;
+  return changed;
+}
+
+std::vector<std::shared_ptr<File>> Peer::takeFilesSnapshot() {
+  std::lock_guard<std::mutex> lock(m_stateLock);
+  std::vector<std::shared_ptr<File>> files{m_files.begin(), m_files.end()};
+  m_files.clear();
+  return files;
+}
+
+void Peer::reissueOutstandingFileRequests() {
+  const auto files = getFilesSnapshot();
+  for (const auto& file : files) file->reissueOutstandingRequests();
 }
 
 void Peer::invalidateSocket(CloseReason reason) {

@@ -50,21 +50,24 @@ File::Subscriber::~Subscriber() {
   m_file->unsubscribe(m_id);
 }
 
-bool File::Subscriber::provideFileChunk(v_int64 position, v_int64 size, const oatpp::String& data) {
+conspire::boundaries::ChunkRequest::Result File::Subscriber::provideFileChunk(
+    v_uint64 requestId, v_int64 position, v_int64 size, const oatpp::String& data) {
   std::lock_guard<std::mutex> lock(m_chunkLock);
-  if(m_chunk != nullptr || !m_request.accept(position, size, data ? data->size() : 0)) {
-    return false;
-  }
+  const auto result = m_request.accept(requestId, position, size, data ? data->size() : 0);
+  if (result != conspire::boundaries::ChunkRequest::Result::ACCEPTED) return result;
+  // A completed duplicate is accepted above without touching the buffered data.
+  // A second distinct accepted chunk while it is still unread is impossible.
+  if (m_chunk != nullptr) return conspire::boundaries::ChunkRequest::Result::INVALID;
   m_chunk = data;
   m_waitList.notifyAll();
-  return true;
+  return result;
 }
 
 void File::Subscriber::requestChunk(v_int64 size) {
 
   if(m_valid) {
 
-    m_request.begin(m_progress, size);
+    const auto requestId = m_request.begin(m_progress, size);
     auto message = MessageDto::createShared();
     message->code = MessageCodes::CODE_FILE_REQUEST_CHUNK;
 
@@ -77,6 +80,7 @@ void File::Subscriber::requestChunk(v_int64 size) {
 
     file->chunkPosition = m_progress;
     file->chunkSize = size;
+    file->chunkRequestId = requestId;
 
     message->files->push_back(file);
 
@@ -84,6 +88,12 @@ void File::Subscriber::requestChunk(v_int64 size) {
 
   }
 
+}
+
+void File::Subscriber::reissueOutstandingRequest() {
+  std::lock_guard<std::mutex> lock(m_chunkLock);
+  if (!m_valid || !m_request.outstanding()) return;
+  requestChunk(m_request.requestSize());
 }
 
 oatpp::async::CoroutineStarter File::Subscriber::waitForChunkAsync() {
@@ -180,6 +190,7 @@ void File::unsubscribe(v_int64 id) {
 
 std::shared_ptr<File::Subscriber> File::subscribe() {
   std::lock_guard<std::mutex> lock(m_subscribersLock);
+  if (!m_available) return nullptr;
   if (!conspire::boundaries::hasCapacity(m_subscribers.size(), conspire::boundaries::Limits::subscribersPerFile)) return nullptr;
   auto s = std::make_shared<Subscriber>(m_subscriberIdCounter ++, shared_from_this());
   s->bindWaitListListener(s);
@@ -187,20 +198,22 @@ std::shared_ptr<File::Subscriber> File::subscribe() {
   return s;
 }
 
-bool File::provideFileChunk(v_int64 subscriberId, v_int64 position, v_int64 size, const oatpp::String& data) {
+conspire::boundaries::ChunkRequest::Result File::provideFileChunk(v_int64 subscriberId, v_uint64 requestId,
+                                                                   v_int64 position, v_int64 size,
+                                                                   const oatpp::String& data) {
 
   std::shared_ptr<Subscriber> subscriber;
   {
     std::lock_guard<std::mutex> lock(m_subscribersLock);
     auto it = m_subscribers.find(subscriberId);
-    if (it == m_subscribers.end()) return false;
+    if (it == m_subscribers.end()) return conspire::boundaries::ChunkRequest::Result::INVALID;
     subscriber = it->second.lock();
     if (!subscriber) {
       m_subscribers.erase(it);
-      return false;
+      return conspire::boundaries::ChunkRequest::Result::INVALID;
     }
   }
-  return subscriber->provideFileChunk(position, size, data);
+  return subscriber->provideFileChunk(requestId, position, size, data);
 
 }
 
@@ -228,6 +241,10 @@ void File::clearSubscribers() {
   std::vector<std::shared_ptr<Subscriber>> subscribers;
   {
     std::lock_guard<std::mutex> lock(m_subscribersLock);
+    // This is the withdrawal/destruction boundary.  A request that already
+    // looked the file up cannot register after this point; one registered
+    // before it is included below and awakened by invalidate().
+    m_available = false;
     subscribers.reserve(m_subscribers.size());
     for (auto& entry : m_subscribers) {
       if (auto subscriber = entry.second.lock()) subscribers.push_back(std::move(subscriber));
@@ -235,4 +252,21 @@ void File::clearSubscribers() {
     m_subscribers.clear();
   }
   for (const auto& subscriber : subscribers) subscriber->invalidate();
+}
+
+void File::reissueOutstandingRequests() {
+  std::vector<std::shared_ptr<Subscriber>> subscribers;
+  {
+    std::lock_guard<std::mutex> lock(m_subscribersLock);
+    subscribers.reserve(m_subscribers.size());
+    for (auto it = m_subscribers.begin(); it != m_subscribers.end();) {
+      if (auto subscriber = it->second.lock()) {
+        subscribers.push_back(std::move(subscriber));
+        ++it;
+      } else {
+        it = m_subscribers.erase(it);
+      }
+    }
+  }
+  for (const auto& subscriber : subscribers) subscriber->reissueOutstandingRequest();
 }

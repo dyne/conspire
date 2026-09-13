@@ -157,6 +157,19 @@ function renderPendingDelivery() {
 
 function postSharedFile(message) {
 
+    if (message.files?.every((file) => file.available === false)) {
+        for (const file of message.files) {
+            const oldLink = document.querySelector(`a[href$="/file/${CSS.escape(String(file.serverFileId))}"]`);
+            if (oldLink) {
+                oldLink.removeAttribute('href');
+                oldLink.setAttribute('aria-disabled', 'true');
+                oldLink.textContent = `${file.name} (unavailable after source reload)`;
+            }
+        }
+        announceActivity('file', { peerName: message.peerName, count: message.files.length });
+        return;
+    }
+
     let messageField = document.getElementById('chat_history');
     let scrollPos = messageField.scrollHeight - messageField.scrollTop;
     const messageElem = messageGroup(message);
@@ -182,6 +195,11 @@ function postSharedFile(message) {
         let messageDivOneFile = document.createElement('div');
         messageDivOneFile.className = "message-div-file";
 
+        if (file.available === false) {
+            link.removeAttribute('href');
+            link.setAttribute('aria-disabled', 'true');
+            link.textContent = `${file.name} (unavailable after source reload)`;
+        }
         messageDivOneFile.append(link);
         messageDivOneFile.append(fileInfoSize);
 

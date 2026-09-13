@@ -24,25 +24,45 @@ struct Limits {
 };
 
 class ChunkRequest {
+public:
+  enum class Result { ACCEPTED, DUPLICATE, INVALID };
 private:
   std::int64_t m_position{0};
   std::int64_t m_size{0};
+  std::uint64_t m_requestId{0};
+  std::uint64_t m_completedId{0};
+  std::int64_t m_completedPosition{0};
+  std::int64_t m_completedSize{0};
   bool m_outstanding{false};
 
 public:
-  void begin(std::int64_t position, std::int64_t size) {
+  std::uint64_t begin(std::int64_t position, std::int64_t size) {
+    if (m_outstanding) return m_requestId;
     m_position = position;
     m_size = size;
+    ++m_requestId;
+    if (m_requestId == 0) ++m_requestId;
     m_outstanding = true;
+    return m_requestId;
   }
 
-  bool accept(std::int64_t position, std::int64_t size, std::size_t receivedSize) {
-    if (!m_outstanding || position != m_position || size != m_size ||
-        size < 0 || static_cast<std::uint64_t>(size) != receivedSize) {
-      return false;
+  std::uint64_t requestId() const { return m_requestId; }
+  std::int64_t requestSize() const { return m_size; }
+  bool outstanding() const { return m_outstanding; }
+
+  Result accept(std::uint64_t requestId, std::int64_t position, std::int64_t size,
+                std::size_t receivedSize) {
+    if (size < 0 || static_cast<std::uint64_t>(size) != receivedSize) return Result::INVALID;
+    if (!m_outstanding) {
+      return requestId == m_completedId && position == m_completedPosition && size == m_completedSize
+        ? Result::DUPLICATE : Result::INVALID;
     }
+    if (requestId != m_requestId || position != m_position || size != m_size) return Result::INVALID;
     m_outstanding = false;
-    return true;
+    m_completedId = requestId;
+    m_completedPosition = position;
+    m_completedSize = size;
+    return Result::ACCEPTED;
   }
 
   void cancel() { m_outstanding = false; }
