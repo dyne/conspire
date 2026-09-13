@@ -76,8 +76,9 @@ advisory affects a pinned input.
 - Invalid statistics state: Conspire starts with empty in-memory statistics and
   leaves the invalid file untouched. Move or repair it before restarting to
   re-enable persistence at that path.
-- Browser offline status includes the WebSocket close code, reason, and clean
-  flag. Correlate it with `/admin/stats.json` deltas (`ev_peer_zombie_dropped`
+- Browser status reports connecting, resuming, bounded reconnect delay, online,
+  or offline with a retry action. Correlate transport failures with
+  `/admin/stats.json` deltas (`ev_peer_zombie_dropped`
   means a 120-second heartbeat timeout; `ev_peer_transport_closed` is every
   classified transport close) and Tor logs. Never add room URLs, tokens,
   nicknames, messages, or file details to diagnostic logs.

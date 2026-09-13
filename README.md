@@ -253,9 +253,15 @@ frames, never persisted by the server, logged, or exposed to peers. Restarting
 the process invalidates every session. The dashboard distinguishes heartbeat
 timeouts, classified transport closures, resumptions, and final session expiry.
 
-The browser reconnecting client is delivered with the following frontend
-milestone. Until then, operational and Node real-process fixtures speak v2
-directly; a production browser client must not send legacy first frames.
+The browser speaks protocol v2 directly. It stores only the private resume
+token and latest server sequence in per-tab `sessionStorage`; command bodies,
+file capability, and its bounded unacknowledged outbox remain memory-only. On
+an interrupted transport it uses full-jitter exponential reconnect (500 ms to
+30 s), sends `SESSION_HELLO` before any room command, and retries a queued
+chat/file-share command only after the same session resumes. A `MESSAGE_ACK`
+is the delivery confirmation. An expired credential starts a new session and
+marks the old pending command for manual retry rather than replaying it under a
+different identity.
 
 ## 💼 License
 

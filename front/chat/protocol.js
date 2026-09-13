@@ -7,7 +7,12 @@ export const MessageCode = Object.freeze({
   PEER_IS_TYPING: 5,
   FILE_SHARE: 6,
   FILE_REQUEST_CHUNK: 7,
-  FILE_CHUNK_DATA: 8
+  FILE_CHUNK_DATA: 8,
+  API_ERROR: 9,
+  SESSION_HELLO: 10,
+  SESSION_READY: 11,
+  MESSAGE_ACK: 12,
+  PEER_CONNECTION_STATE: 13,
 });
 
 const knownCodes = new Set(Object.values(MessageCode));

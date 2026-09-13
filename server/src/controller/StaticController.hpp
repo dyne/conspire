@@ -288,6 +288,34 @@ public:
     }
   };
 
+  ENDPOINT_ASYNC("GET", "room/{roomId}/transport.js", TransportJS) {
+    ENDPOINT_ASYNC_INIT(TransportJS)
+    Action act() override {
+      const auto roomId = request->getPathVariable("roomId");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("chat/transport.js"));
+      response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
+  ENDPOINT_ASYNC("GET", "room/{roomId}/reliability.js", ReliabilityJS) {
+    ENDPOINT_ASYNC_INIT(ReliabilityJS)
+    Action act() override {
+      const auto roomId = request->getPathVariable("roomId");
+      OATPP_ASSERT_HTTP(roomId && conspire::boundaries::validRoomId(*roomId), Status::CODE_400, "Invalid room id");
+      auto response = controller->createResponse(Status::CODE_200,
+                                                 controller->loadAsset("chat/reliability.js"));
+      response->putHeader(Header::CONTENT_TYPE, "text/javascript");
+      response->putHeader("X-Content-Type-Options", "nosniff");
+      response->putHeader("Cache-Control", "no-store");
+      return _return(response);
+    }
+  };
+
   ENDPOINT_ASYNC("GET", "room/{roomId}/format.js", FormatJS) {
     ENDPOINT_ASYNC_INIT(FormatJS)
 
