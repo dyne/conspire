@@ -23,9 +23,10 @@ function jpeg(width = 1, height = 1) { return Uint8Array.from([255,216,255,192,0
 function webp(tag = 'VP8 ', payload = [0,0,0,0x9d,0x01,0x2a,1,0,1,0]) { const length = 4 + 8 + payload.length; return Uint8Array.from([82,73,70,70,length,0,0,0,87,69,66,80,...tag.split('').map((x) => x.charCodeAt(0)),payload.length,0,0,0,...payload]); }
 function webpChunks(chunks) { const body = chunks.flatMap(([tag, payload]) => [...tag].map((x) => x.charCodeAt(0)).concat([payload.length,0,0,0], payload, payload.length & 1 ? [0] : [])); const size = body.length + 4; return Uint8Array.from([82,73,70,70,size,0,0,0,87,69,66,80,...body]); }
 class FakeElement {
-  constructor(tag) { this.tag = tag; this.children = []; this.listeners = new Map(); this.style = {}; }
+  constructor(tag) { this.tag = tag; this.children = []; this.listeners = new Map(); this.style = {}; this.attributes = new Map(); this.dataset = {}; }
   append(...nodes) { this.children.push(...nodes); } insertBefore(node, before) { this.children.splice(this.children.indexOf(before), 0, node); }
   replaceChildren(...nodes) { this.children = nodes; } addEventListener(type, listener) { this.listeners.set(type, listener); }
+  setAttribute(name, value) { this.attributes.set(name, value); }
   async click() { return this.listeners.get('click')?.(); }
 }
 function fakeDocument() { return { createElement(tag) { const node = new FakeElement(tag); if (tag === 'img') { node.decode = async () => {}; node.naturalWidth = 1; node.naturalHeight = 1; } return node; } }; }
@@ -126,6 +127,40 @@ test('preview controllers fetch only after Load, fail closed without streaming, 
   const noStream = createImagePreviewController({ file: { serverFileId: 9, name: 'x.png', size: bytes.length, mediaType: 'image/png' }, url: '/file', document, memory, URL: urls,
     fetch: async () => ({ ok: true, headers: { get: () => String(bytes.length) }, body: {}, async arrayBuffer() { arrayBufferCalls += 1; return bytes.buffer; } }) });
   await noStream.load.click(); assert.equal(arrayBufferCalls, 0); assert.equal(noStream.phase, 'decode-error');
+});
+
+test('preview controller exposes consent, progress, recovery, and loaded-image semantics', async () => {
+  const document = fakeDocument(); const bytes = png();
+  const urls = { createObjectURL: () => 'blob:preview', revokeObjectURL() {} };
+  const preview = createImagePreviewController({ file: { serverFileId: 10, name: 'portrait.png', size: bytes.length, mediaType: 'image/png' }, url: '/file', document, memory: new PreviewMemory(), URL: urls,
+    fetch: async () => ({ ok: true, headers: { get: () => null }, body: { getReader() { let done = false; return { async read() { if (done) return { done: true }; done = true; return { done: false, value: bytes }; } }; } } }) });
+  assert.equal(preview.root.children[0].attributes.get('role'), 'status');
+  assert.equal(preview.root.children[0].attributes.get('aria-live'), 'polite');
+  assert.match(preview.root.children[0].textContent, /require confirmation/);
+  assert.equal(preview.root.children.some((node) => node.textContent === 'Cancel image load'), false);
+  await preview.load.click();
+  assert.equal(preview.phase, 'visible');
+  const image = preview.root.children[0];
+  assert.equal(image.tag, 'img'); assert.equal(image.alt, 'Shared image: portrait.png');
+  assert.equal(image.width, 1); assert.equal(image.height, 1);
+  assert.match(preview.root.children[1].textContent, /Image loaded: 1 by 1 pixels/);
+  assert.equal(preview.root.children[2].textContent, 'Unload image');
+});
+
+test('preview cancellation suppresses an in-flight delayed response and leaves a retry action', async () => {
+  const document = fakeDocument(); const bytes = png(); let resolveRead; let startFetch;
+  const started = new Promise((resolve) => { startFetch = resolve; });
+  const preview = createImagePreviewController({ file: { serverFileId: 11, name: 'slow.png', size: bytes.length, mediaType: 'image/png' }, url: '/file', document, memory: new PreviewMemory(), URL: { createObjectURL() {}, revokeObjectURL() {} },
+    fetch: async () => { startFetch(); return { ok: true, headers: { get: () => null }, body: { getReader() { let calls = 0; return { read: () => calls++ ? Promise.resolve({ done: true }) : new Promise((resolve) => { resolveRead = resolve; }) }; } } }; } });
+  const loading = preview.load.click();
+  await started;
+  assert.equal(preview.phase, 'downloading');
+  await preview.cancel.click();
+  assert.equal(preview.phase, 'cancelled');
+  assert.equal(preview.root.children[1].textContent, 'Retry image preview');
+  resolveRead({ done: false, value: bytes });
+  await loading;
+  assert.equal(preview.phase, 'cancelled', 'a late chunk cannot resurrect a cancelled preview');
 });
 
 test('preview reducer and memory budget remain deterministic across races and exact boundaries', () => {

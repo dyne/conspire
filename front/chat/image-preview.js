@@ -111,18 +111,36 @@ export class PreviewMemory {
 export function createImagePreviewController({ file, url, document, memory, fetch: request = globalThis.fetch, URL: urls = globalThis.URL }) {
   let phase = { phase: 'offered' }; let controller; let objectUrl; let disposed = false; let generation = 0; let bytes;
   const root = document.createElement('div'); root.className = 'image-preview';
-  const status = document.createElement('p'); status.className = 'file-info-size';
-  const load = document.createElement('button'); load.type = 'button'; load.textContent = `Load image (${file.size} bytes)`;
-  const download = document.createElement('a'); download.textContent = 'Download file'; download.href = url; download.rel = 'noopener noreferrer'; download.download = file.name || 'download';
-  root.append(status, load, download);
+  const status = document.createElement('p'); status.className = 'file-info-size image-preview-status';
+  status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.setAttribute('aria-atomic', 'true');
+  const load = document.createElement('button'); load.type = 'button'; load.className = 'image-preview-action';
+  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'image-preview-action'; cancel.textContent = 'Cancel image load';
+  const unload = document.createElement('button'); unload.type = 'button'; unload.className = 'image-preview-action'; unload.textContent = 'Unload image';
+  const download = document.createElement('a'); download.className = 'image-preview-download'; download.textContent = 'Download file'; download.href = url; download.rel = 'noopener noreferrer'; download.download = file.name || 'download';
+  const offerText = `Image offered: ${file.name || 'Shared image'} (${file.size} bytes). JPEG, PNG, or WebP previews require confirmation.`;
   const setStatus = (text) => { status.textContent = text; };
+  const render = (image = undefined) => {
+    root.dataset.previewState = phase.phase;
+    if (phase.phase === 'downloading' || phase.phase === 'inspecting' || phase.phase === 'decoding') {
+      root.replaceChildren(status, cancel, download);
+      return;
+    }
+    if (phase.phase === 'visible' && image) {
+      root.replaceChildren(image, status, unload, download);
+      return;
+    }
+    load.disabled = false;
+    load.textContent = phase.phase === 'offered' ? `Load image (${file.size} bytes)` : 'Retry image preview';
+    root.replaceChildren(status, load, download);
+  };
+  setStatus(offerText); render();
   const cleanup = () => {
     if (controller) controller.abort(); controller = undefined; bytes = undefined;
     memory.remove(String(file.serverFileId));
     if (objectUrl) { urls.revokeObjectURL(objectUrl); objectUrl = undefined; }
   };
-  const terminalState = (next, text) => { phase = { phase: next }; cleanup(); load.disabled = next !== 'evicted' && next !== 'cancelled'; setStatus(text); };
-  const evict = () => { generation += 1; terminalState('evicted', 'Preview unloaded to save memory'); load.disabled = false; root.replaceChildren(status, load, cancel, download); };
+  const terminalState = (next, text) => { phase = { phase: next }; cleanup(); setStatus(text); render(); };
+  const evict = () => { generation += 1; terminalState('evicted', 'Preview unloaded to save memory.'); };
   const read = async (response, signal) => {
     const reader = response.body?.getReader(); if (!reader) throw new Error('streaming-unavailable');
     const chunks = []; let received = 0;
@@ -132,13 +150,14 @@ export function createImagePreviewController({ file, url, document, memory, fetc
   };
   const start = async () => {
     if (disposed || load.disabled || !['offered', 'evicted', 'cancelled'].includes(phase.phase)) return;
-    phase = reducePreview(phase, { type: 'load' }); phase = reducePreview(phase, { type: 'start' }); load.disabled = true; setStatus('Loading image: 0 bytes');
+    phase = reducePreview(phase, { type: 'load' }); phase = reducePreview(phase, { type: 'start' }); setStatus(`Loading image: 0/${file.size} bytes`); render();
     const ownGeneration = ++generation; controller = new AbortController();
     try {
       const response = await request(url, { signal: controller.signal, credentials: 'same-origin' });
       if (!response.ok) throw new Error('unavailable');
-      const contentLength = Number(response.headers?.get?.('content-length'));
-      if (Number.isFinite(contentLength) && (!Number.isSafeInteger(contentLength) || contentLength !== file.size || contentLength > ImagePreviewLimits.encodedBytes)) throw new Error('too-large');
+      const declaredLength = response.headers?.get?.('content-length');
+      const contentLength = declaredLength === null || declaredLength === undefined || declaredLength === '' ? null : Number(declaredLength);
+      if (contentLength !== null && (!Number.isSafeInteger(contentLength) || contentLength !== file.size || contentLength > ImagePreviewLimits.encodedBytes)) throw new Error('too-large');
       bytes = await read(response, controller.signal);
       if (disposed || ownGeneration !== generation) return;
       phase = reducePreview(phase, { type: 'complete' }); const inspected = inspectImageBytes(bytes, file.size, file.mediaType);
@@ -148,11 +167,11 @@ export function createImagePreviewController({ file, url, document, memory, fetc
         terminalState('too-large', 'Image preview exceeds memory limits.'); return;
       }
       objectUrl = urls.createObjectURL(new Blob([bytes], { type: inspected.format })); bytes = undefined;
-      const image = document.createElement('img'); image.decoding = 'async'; image.alt = file.name || 'Shared image'; image.src = objectUrl;
+      const image = document.createElement('img'); image.className = 'image-preview-image'; image.decoding = 'async'; image.alt = file.name ? `Shared image: ${file.name}` : 'Shared image'; image.width = inspected.width; image.height = inspected.height; image.src = objectUrl;
       await image.decode();
       if (disposed || ownGeneration !== generation || phase.phase !== 'decoding') return;
       if (image.naturalWidth !== inspected.width || image.naturalHeight !== inspected.height) throw new Error('dimension-mismatch');
-      phase = reducePreview(phase, { type: 'decoded' }); root.replaceChildren(image, status, download); setStatus('Image loaded');
+      phase = reducePreview(phase, { type: 'decoded' }); setStatus(`Image loaded: ${inspected.width} by ${inspected.height} pixels.`); render(image);
       root.addEventListener('pointerdown', () => memory.touch(String(file.serverFileId)), { once: true });
     } catch (error) {
       if (disposed || ownGeneration !== generation) return;
@@ -160,7 +179,7 @@ export function createImagePreviewController({ file, url, document, memory, fetc
     }
   };
   load.addEventListener('click', start);
-  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel';
-  cancel.addEventListener('click', () => { generation += 1; terminalState('cancelled', 'Image loading cancelled.'); }); root.insertBefore(cancel, download);
+  cancel.addEventListener('click', () => { generation += 1; terminalState('cancelled', 'Image loading cancelled.'); });
+  unload.addEventListener('click', () => { generation += 1; terminalState('cancelled', 'Image preview unloaded.'); });
   return { root, load, cancel, cleanup: () => { if (disposed) return; disposed = true; generation += 1; memory.remove(String(file.serverFileId)); cleanup(); }, evict, get phase() { return phase.phase; } };
 }

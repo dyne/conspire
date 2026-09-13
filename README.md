@@ -86,6 +86,32 @@ dimension checks before a browser decoder sees them. Only verified, non-animated
 JPEG, PNG, or WebP data is assigned through a revocable `blob:` URL; any failure
 or eviction leaves the ordinary explicit file-download action available.
 
+SVG is excluded because it is an active-document format rather than a bounded
+raster container. GIF and animated WebP are excluded because animation adds
+unbounded frame, timing, and retained-decoder-lifetime behavior. AVIF is not
+enabled in this release. Before any of GIF, animated WebP, or AVIF can be added,
+the change needs a bounded format inspector, explicit animation/frame and memory
+ceilings where applicable, malformed-corpus coverage, and a cross-browser decoder
+security review. Browser-native image decoders remain a residual risk even after
+the pre-decode container checks, so invalid or failed decodes fail closed to the
+ordinary download action.
+
+### Image preview browser and fault matrix
+
+| Engine | Current workspace evidence | Release/manual expectation |
+| --- | --- | --- |
+| Chromium (Playwright) | Automated consent, malformed-image, cancellation, 375px/1440px containment, reduced-motion, forced-colors, and 200% zoom checks. | Run in CI on the bundled Chromium channel. |
+| Chrome current and previous stable | Not separately provisioned in this workspace. | Manual release smoke: Load, Cancel, Retry, Unload, and generic Download. |
+| Firefox current and previous stable | Not provisioned in this workspace. | Manual release smoke with the same cases. |
+| Safari current and previous stable | Not available on this Linux workspace. | Manual macOS release smoke with the same cases. |
+| Edge current and previous stable | Not provisioned in this workspace. | Manual release smoke with the same cases. |
+
+The deterministic fault coverage also verifies no request before consent,
+cancellation and late-response suppression, malformed/truncated rejection,
+reconnect-safe file transfer, and LRU cleanup. No engine-specific blocking
+discrepancy is currently known; a new discrepancy blocks promotion until it has
+an automated regression or an explicit documented browser limitation.
+
 For a certificate-free local run, start the native build without `--tls` and
 open <http://localhost:8080>:
 

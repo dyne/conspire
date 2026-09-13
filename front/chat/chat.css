@@ -414,10 +414,12 @@
         .message-div-file {
             display: inline-block;
             max-inline-size: 100%;
+            min-inline-size: min(100%, 14rem);
             padding: 0 0 6px;
             margin: 0 8px 8px 0;
             background-color: rgba(255, 255, 255, 0.05);
             border-radius: var(--ds-radius-control);
+            overflow: hidden;
         }
 
         .message-div-files a {
@@ -449,6 +451,77 @@
             color: rgba(255, 255, 255, 0.7);
             overflow-wrap: anywhere;
             font-variant-numeric: tabular-nums;
+        }
+
+        .image-preview {
+            display: grid;
+            gap: 6px;
+            max-inline-size: min(100%, 46rem);
+            padding: 6px 10px 4px;
+        }
+
+        .image-preview-status {
+            min-inline-size: 0;
+        }
+
+        .image-preview-action,
+        .image-preview-download {
+            inline-size: fit-content;
+            min-block-size: 44px;
+            max-inline-size: 100%;
+            padding: 8px 12px;
+            border: 0;
+            border-radius: var(--ds-radius-control);
+            background: var(--ds-color-action);
+            color: var(--ds-color-white);
+            font: inherit;
+            font-size: var(--ds-font-size-chat-label);
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+            cursor: pointer;
+        }
+
+        .image-preview-download {
+            display: inline-flex;
+            align-items: center;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        .image-preview-action:active,
+        .image-preview-download:active {
+            background: var(--ds-color-action-active);
+        }
+
+        .image-preview-image {
+            display: block;
+            inline-size: auto;
+            max-inline-size: 100%;
+            block-size: auto;
+            max-block-size: min(60dvh, 36rem);
+            object-fit: contain;
+            object-position: left top;
+            background: var(--ds-color-graphite-deep);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .image-preview,
+            .image-preview-image {
+                transition: none;
+            }
+        }
+
+        @media (forced-colors: active) {
+            .image-preview-action,
+            .image-preview-download {
+                border: 1px solid ButtonText;
+                background: ButtonFace;
+                color: ButtonText;
+            }
+
+            .image-preview-image {
+                border: 1px solid CanvasText;
+            }
         }
 
         #chat_container hr {
