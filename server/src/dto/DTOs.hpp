@@ -71,6 +71,7 @@ class FileDto : public oatpp::DTO {
   DTO_FIELD(Int64, serverFileId);
   DTO_FIELD(String, name);
   DTO_FIELD(Int64, size);
+  DTO_FIELD(String, mediaType);
 
   DTO_FIELD(Int64, chunkPosition);
   DTO_FIELD(Int64, chunkSize);

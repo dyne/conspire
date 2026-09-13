@@ -209,7 +209,7 @@ std::vector<std::shared_ptr<File>> Room::shareFiles(v_int64 hostPeerId,
   for (const auto& descriptor : *descriptors) {
     const v_int64 serverFileId = m_fileIdCounter ++;
     files.push_back(std::make_shared<File>(host, descriptor->clientFileId, serverFileId,
-                                          descriptor->name, descriptor->size));
+                                          descriptor->name, descriptor->size, descriptor->mediaType));
   }
   std::unordered_map<v_int64, std::shared_ptr<File>> prepared;
   prepared.reserve(files.size());

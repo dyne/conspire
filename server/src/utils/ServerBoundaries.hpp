@@ -16,6 +16,7 @@ struct Limits {
   static constexpr std::size_t filename = 255;
   static constexpr std::size_t filesPerMessage = 16;
   static constexpr std::size_t fileBytes = 100 * 1024 * 1024;
+  static constexpr std::size_t mediaType = 32;
   static constexpr std::size_t chunkBytes = 64 * 1024;
   static constexpr std::size_t rooms = 256;
   static constexpr std::size_t peersPerRoom = 64;
@@ -109,6 +110,15 @@ inline bool validFileDescriptor(std::string_view filename, std::int64_t size,
   return !filename.empty() && filename.size() <= Limits::filename &&
          !containsControl(filename) && size >= 0 &&
          static_cast<std::uint64_t>(size) <= maximumSize;
+}
+
+/** Sender-provided media types are advisory metadata, never rendering authority. */
+inline bool validImageMediaType(std::string_view value) {
+  if (value.size() > Limits::mediaType) return false;
+  for (const char rawCharacter : value) {
+    if (static_cast<unsigned char>(rawCharacter) > 0x7f) return false;
+  }
+  return value == "image/jpeg" || value == "image/png" || value == "image/webp";
 }
 
 inline bool validChunk(std::int64_t position, std::int64_t declaredSize,

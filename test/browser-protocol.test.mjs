@@ -2,9 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   MessageCode,
+  ImagePreviewLimits,
   createFileChunkMessage,
   humanFileSize,
+  imageCandidateMediaType,
+  isPreviewCandidate,
   parseProtocolMessage,
+  previewDimensions,
   roomFileUrl,
 } from '../front/chat/protocol.js';
 import { createHandshakeInbox, createReliabilityState, reconcileReplay, retryPendingCommands } from '../front/chat/reliability.js';
@@ -41,6 +45,30 @@ test('file URLs and file sizes are deterministic at boundaries', () => {
   assert.equal(humanFileSize(0), '0 B');
   assert.equal(humanFileSize(1024), '1.0 kB');
   assert.equal(humanFileSize(-1), '0 B');
+});
+
+test('image candidate metadata is an exact advisory allowlist', () => {
+  for (const mediaType of ImagePreviewLimits.mediaTypes) assert.equal(imageCandidateMediaType(mediaType), mediaType);
+  for (const mediaType of [undefined, 'image/gif', 'IMAGE/PNG', 'image/png; charset=utf-8', 'x'.repeat(33), 'image/\u00e9']) {
+    assert.equal(imageCandidateMediaType(mediaType), null);
+  }
+  const parsed = parseProtocolMessage(JSON.stringify({ code: MessageCode.PEER_MESSAGE_FILE, files: [
+    { name: 'photo.txt', size: 1, mediaType: 'image/png' }, { name: 'photo.png', size: 1, mediaType: 'image/gif' },
+  ] }));
+  assert.equal(parsed.files[0].mediaType, 'image/png');
+  assert.equal(parsed.files[1].mediaType, undefined);
+  assert.equal(isPreviewCandidate({ name: 'fake.png', size: ImagePreviewLimits.encodedBytes, mediaType: 'image/png' }), true);
+  assert.equal(isPreviewCandidate({ name: 'photo.png', size: ImagePreviewLimits.encodedBytes + 1, mediaType: 'image/png' }), false);
+  assert.equal(isPreviewCandidate({ name: 'photo.png', size: 1 }), false);
+  assert.equal(isPreviewCandidate({ name: 'misleading.png', size: 9 * 1024 * 1024 }), false,
+    'a filename extension is never preview authorization');
+});
+
+test('preview dimensions use checked safe integer arithmetic', () => {
+  assert.deepEqual(previewDimensions(8192, 2048), { width: 8192, height: 2048, pixels: 16 * 1024 * 1024 });
+  for (const [width, height] of [[8193, 1], [8192, 2049], [0, 1], [-1, 1], [1.5, 2], [Number.MAX_SAFE_INTEGER, 2], [4097, 4097]]) {
+    assert.equal(previewDimensions(width, height), null);
+  }
 });
 
 test('file chunk replies preserve the requested transfer coordinates', () => {

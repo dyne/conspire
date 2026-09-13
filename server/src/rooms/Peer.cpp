@@ -287,6 +287,7 @@ oatpp::async::CoroutineStarter Peer::handleFilesMessage(const oatpp::Object<Mess
     sharedFile->serverFileId = file->getServerFileId();
     sharedFile->name = file->getFileName();
     sharedFile->size = file->getFileSize();
+    sharedFile->mediaType = file->getMediaType();
 
     fileMessage->files->push_back(sharedFile);
 

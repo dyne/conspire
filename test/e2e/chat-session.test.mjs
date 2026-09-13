@@ -673,17 +673,43 @@ test('real server broadcasts chat messages and supplies room history', { timeout
         code: messageCode.fileShare, clientMessageId: commandId,
         files: Array.from({ length: count }, (_, index) => ({
           clientFileId: start + index, name: `capacity-${start + index}.bin`, size: 1,
+          ...(start === 100 && index === 0 ? { mediaType: 'image/jpeg' } : {}),
+          ...(start === 100 && index === 1 ? { mediaType: 'image/gif' } : {}),
+          ...(start === 100 && index === 2 ? { mediaType: 'x'.repeat(33) } : {}),
+          ...(start === 100 && index === 3 ? { mediaType: 'image/\u00e9' } : {}),
         })),
       });
-      return waitForMessage(first, 'file batch acknowledgement',
+      const acknowledgement = await waitForMessage(first, 'file batch acknowledgement',
         (message) => message.code === messageCode.messageAck && message.clientMessageId === commandId);
+      return { commandId, acknowledgement };
     };
-    await shareBatch(100, 16);
+    const firstBatch = await shareBatch(100, 16);
     await shareBatch(116, 15);
     await waitUntil('31 announced files', () => second.messages.filter(
       (message) => message.code === messageCode.peerFile &&
         message.files?.some((file) => file.name?.startsWith('capacity-')),
     ).reduce((count, message) => count + message.files.length, 0) === 31);
+    const metadataBatch = second.messages.find((message) => message.code === messageCode.peerFile &&
+      message.files?.some((file) => file.name === 'capacity-100.bin'));
+    assert.equal(metadataBatch.files.find((file) => file.name === 'capacity-100.bin').mediaType, 'image/jpeg');
+    for (const name of ['capacity-101.bin', 'capacity-102.bin', 'capacity-103.bin']) {
+      assert.equal(metadataBatch.files.find((file) => file.name === name).mediaType, undefined,
+        'unsupported metadata remains a generic file rather than rejecting the atomic share');
+    }
+    await sendJson(first, {
+      code: messageCode.fileShare, clientMessageId: firstBatch.commandId,
+      files: Array.from({ length: 16 }, (_, index) => ({
+        clientFileId: 100 + index, name: `capacity-${100 + index}.bin`, size: 1,
+        ...(index === 0 ? { mediaType: 'image/jpeg' } : {}),
+      })),
+    });
+    const replayAck = await waitForMessage(first, 'duplicate file metadata acknowledgement',
+      (message) => message.code === messageCode.messageAck && message.clientMessageId === firstBatch.commandId);
+    assert.equal(replayAck.serverSeq, firstBatch.acknowledgement.serverSeq);
+    await delay(50);
+    assert.equal(second.messages.filter((message) => message.code === messageCode.peerFile &&
+      message.files?.some((file) => file.name === 'capacity-100.bin')).length, 1,
+    'a replayed mixed file command retains metadata but never publishes a duplicate');
     const rejectedId = clientMessageId();
     await sendJson(first, {
       code: messageCode.fileShare, clientMessageId: rejectedId,
@@ -819,10 +845,11 @@ test('real server reissues an outstanding file chunk after same-page resume',
       downloader = await connectClient(websocketUrl, origin);
       await sendJson(offerer, {
         code: messageCode.fileShare, clientMessageId: clientMessageId(),
-        files: [{ clientFileId: 1, name: 'resume.bin', size: contents.length }],
+        files: [{ clientFileId: 1, name: 'resume.bin', size: contents.length, mediaType: 'image/webp' }],
       });
       const shared = await waitForMessage(downloader, 'shared resume file',
         (message) => message.code === messageCode.peerFile);
+      assert.equal(shared.files[0].mediaType, 'image/webp');
       const responsePromise = fetch(`${origin}/room/${room}/file/${shared.files[0].serverFileId}`);
       await waitUntil('initial chunk request', () => offerer.messages.find(
         (message) => message.code === messageCode.fileRequestChunk));
