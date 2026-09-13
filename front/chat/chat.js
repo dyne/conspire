@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 import { formatChatAnnouncement, humanFileSize, insertTextAtSelection } from './format.js';
 import { createFileChunkMessage, MessageCode, parseProtocolMessage } from './protocol.js';
-import { createReliabilityState, randomId, reconcileReplay, retryPendingCommands } from './reliability.js';
+import { createHandshakeInbox, createReliabilityState, randomId, reconcileReplay, retryPendingCommands } from './reliability.js';
 import { createChatState } from './state.js';
 import { ReconnectingTransport } from './transport.js';
 
@@ -26,9 +26,12 @@ let bulbColorsNumber = 18;
 let lastTimeTypingSent = 0;
 let hydratingHistory = false;
 const reliability = createReliabilityState();
+const handshakeInbox = createHandshakeInbox();
 const storageKey = `conspire.session.v2:${location.origin}:${urlRoom}`;
 const fileCapabilityId = randomId();
 let transport;
+const MAX_FILES_PER_MESSAGE = 16;
+const MAX_FILE_BYTES = 100 * 1024 * 1024;
 
 setupEmoji();
 
@@ -51,16 +54,20 @@ function renderConnection(state, detail) {
     retry.disabled = state === 'online';
 }
 function sendHello() {
+    handshakeInbox.clear();
     const prior = storedSession();
+    reliability.restoreCursor(prior?.lastServerSeq);
     transport.hello(JSON.stringify({ code: CODE_SESSION_HELLO, protocolVersion: 2,
-        resumeToken: prior?.resumeToken, lastServerSeq: prior?.lastServerSeq || reliability.highestServerSeq || 0,
+        resumeToken: prior?.resumeToken, lastServerSeq: prior?.lastServerSeq || 0,
         fileCapabilityId }));
 }
 function retryPending() { retryPendingCommands(reliability, (payload) => transport.send(payload)); }
 function startTransport() {
     transport = new ReconnectingTransport({ url: urlWebsocket, onState: renderConnection,
         onMessage: (payload) => { const message = parseProtocolMessage(payload); if (message) onMessage(message); },
-        onInvalidSession: () => { clearSession(); reliability.abandon(); renderPendingDelivery(); } });
+        onInvalidSession: () => {
+            handshakeInbox.clear(); clearSession(); reliability.abandon(); reliability.resetSequence(); renderPendingDelivery();
+        } });
     transport.onOpen = sendHello;
     transport.start();
     document.getElementById('connection_retry').addEventListener('click', () => transport.connect());
@@ -459,11 +466,22 @@ function sendFileChunks(message) {
 
 export function handleFiles(files) {
 
+    const selected = [...files];
+    const invalidSelection = selected.length === 0 || selected.length > MAX_FILES_PER_MESSAGE || selected.some((file) =>
+        !file || !file.name || new TextEncoder().encode(file.name).length > 255 ||
+        /[\u0000-\u001f\u007f]/.test(file.name) || !Number.isSafeInteger(file.size) ||
+        file.size < 0 || file.size > MAX_FILE_BYTES);
+    if (invalidSelection) {
+        announceActivity('connection', { message: 'Select up to 16 files, each no larger than 100 MB.' });
+        document.getElementById('file_share_button').value = "";
+        return;
+    }
+
     let filesJson = [];
 
-    for(let index = 0; index < files.length; index ++ ) {
+    for(let index = 0; index < selected.length; index ++ ) {
 
-        let file = files[index];
+        let file = selected[index];
         let fileId = nextFileId();
 
         filesMap.set(fileId, file);
@@ -541,6 +559,12 @@ function acceptDurable(message) {
 
 function onMessage(message) {
 
+    if (!hydratingHistory && transport.state === 'handshaking' &&
+        message.code !== CODE_SESSION_READY && message.code !== CODE_API_ERROR) {
+        if (!handshakeInbox.push(message)) transport.invalidSession();
+        return;
+    }
+
     switch(message.code) {
 
         case CODE_SESSION_READY: {
@@ -550,11 +574,12 @@ function onMessage(message) {
             for (const peer of message.peers || []) peersMap.set(peer.peerId, peer);
             updateParticipants();
             hydratingHistory = true;
-            reconcileReplay(reliability, message.history || message.replay || [], message.resyncRequired,
-                () => document.getElementById('chat_history').replaceChildren(), onMessage);
+            reconcileReplay(reliability, message.history || message.replay || [], message.resyncRequired || !message.resumed,
+                () => document.getElementById('chat_history').replaceChildren(), onMessage, message.latestServerSeq);
             hydratingHistory = false;
             saveSession(message.resumeToken);
             transport.ready();
+            handshakeInbox.drain(onMessage);
             retryPending();
             renderPendingDelivery();
             break;
@@ -568,6 +593,10 @@ function onMessage(message) {
 
         case CODE_API_ERROR:
             if (transport.state === 'handshaking') transport.invalidSession();
+            else if (message.clientMessageId && reliability.reject(message.clientMessageId)) {
+                renderPendingDelivery();
+                announceActivity('connection', { message: message.message || 'Message was not sent; retry manually.' });
+            }
             break;
 
         case CODE_PEER_CONNECTION_STATE:

@@ -40,6 +40,11 @@ endfunction()
 function(conspire_enable_warnings target)
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+      # oatpp 1.4's C++17 DTO macros intentionally use an empty variadic tail;
+      # Clang 19 newly diagnoses that compatibility idiom as a C++20 extension.
+      target_compile_options(${target} PRIVATE -Wno-c++20-extensions)
+    endif()
     if(CONSPIRE_WARNINGS_AS_ERRORS)
       target_compile_options(${target} PRIVATE -Werror)
     endif()

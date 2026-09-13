@@ -7,7 +7,7 @@ import {
   parseProtocolMessage,
   roomFileUrl,
 } from '../front/chat/protocol.js';
-import { createReliabilityState, reconcileReplay, retryPendingCommands } from '../front/chat/reliability.js';
+import { createHandshakeInbox, createReliabilityState, reconcileReplay, retryPendingCommands } from '../front/chat/reliability.js';
 import { ReconnectingTransport } from '../front/chat/transport.js';
 import { createChatState } from '../front/chat/state.js';
 import { formatChatAnnouncement, humanFileSize as formatFileSize, insertTextAtSelection } from '../front/chat/format.js';
@@ -103,13 +103,39 @@ test('room module imports have explicit matching server routes', async () => {
 
 test('reliability state keeps pending commands until their matching acknowledgement and suppresses replay duplicates', () => {
   const state = createReliabilityState();
+  state.restoreCursor(40);
+  assert.equal(state.highestServerSeq, 40, 'page reload resumes contiguity at the stored hello cursor');
+  state.resetSequence();
   assert.equal(state.enqueue({ clientMessageId: 'one', message: 'hello' }), true);
   assert.equal(state.pending().length, 1);
   assert.equal(state.acceptSequence(2), true);
+  assert.equal(state.highestServerSeq, 0, 'a gap cannot advance the persisted resume cursor');
   assert.equal(state.acceptSequence(2), false);
   assert.equal(state.acceptSequence(1), true, 'out-of-order replay remains renderable once');
+  assert.equal(state.highestServerSeq, 2, 'cursor advances after the gap is filled');
   assert.equal(state.acknowledge('one').message, 'hello');
   assert.equal(state.pending().length, 0);
+});
+
+test('terminal command rejection removes poison commands from automatic retry', () => {
+  const state = createReliabilityState(); const sent = [];
+  state.enqueue({ clientMessageId: 'rejected', message: 'too large' });
+  assert.equal(state.reject('rejected').delivery, 'not sent; retry manually');
+  retryPendingCommands(state, (payload) => sent.push(payload));
+  assert.deepEqual(sent, []);
+  assert.equal(state.pending().length, 0);
+  assert.equal(state.manualRetryOnly()[0].clientMessageId, 'rejected');
+});
+
+test('frames racing ahead of session ready replay in arrival order after reconciliation', () => {
+  const inbox = createHandshakeInbox(2);
+  assert.equal(inbox.push({ serverSeq: 8 }), true);
+  assert.equal(inbox.push({ serverSeq: 9 }), true);
+  assert.equal(inbox.push({ serverSeq: 10 }), false);
+  const replayed = [];
+  inbox.drain((message) => replayed.push(message.serverSeq));
+  assert.deepEqual(replayed, [8, 9]);
+  assert.equal(inbox.size(), 0);
 });
 
 test('retry helper replays only live unacknowledged commands after ready', () => {
@@ -130,6 +156,9 @@ test('resync replaces rendered durable history and replay never duplicates a DOM
     });
   assert.equal(replacements, 1);
   assert.deepEqual(rendered, [4, 5]);
+  assert.equal(state.highestServerSeq, 5);
+  state.replaceHistory([], 9);
+  assert.equal(state.highestServerSeq, 9, 'an empty retained snapshot advances to the server snapshot cursor');
 });
 
 test('transport sends only after ready and schedules one deterministic full-jitter retry', () => {

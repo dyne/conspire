@@ -259,7 +259,9 @@ file capability, and its bounded unacknowledged outbox remain memory-only. On
 an interrupted transport it uses full-jitter exponential reconnect (500 ms to
 30 s), sends `SESSION_HELLO` before any room command, and retries a queued
 chat/file-share command only after the same session resumes. A `MESSAGE_ACK`
-is the delivery confirmation. An expired credential starts a new session and
+is the delivery confirmation. A terminal command error echoes its
+`clientMessageId`, removes that command from automatic retry, and marks it for
+manual retry. An expired credential starts a new session and
 marks the old pending command for manual retry rather than replaying it under a
 different identity.
 

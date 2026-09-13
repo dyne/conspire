@@ -84,7 +84,12 @@ void File::Subscriber::requestChunk(v_int64 size) {
 
     message->files->push_back(file);
 
-    m_file->m_host->sendMessageAsync(message);
+    if (const auto host = m_file->m_host.lock()) host->sendMessageAsync(message);
+    else {
+      m_valid = false;
+      m_request.cancel();
+      m_waitList.notifyAll();
+    }
 
   }
 
@@ -132,11 +137,12 @@ oatpp::v_io_size File::Subscriber::readChunk(void *buffer, v_buff_size count, oa
   if(m_progress < m_file->getFileSize()) {
 
     if (m_chunk) {
-      v_int64 chunkSize = m_chunk->size();
+      const auto chunkBytes = m_chunk->size();
+      const auto chunkSize = static_cast<v_int64>(chunkBytes);
       if(chunkSize > count) {
         throw std::runtime_error("Invalid chunk size");
       }
-      std::memcpy(buffer, m_chunk->data(), chunkSize);
+      std::memcpy(buffer, m_chunk->data(), chunkBytes);
       m_progress += chunkSize;
       m_chunk = nullptr;
       return chunkSize;
@@ -218,7 +224,7 @@ conspire::boundaries::ChunkRequest::Result File::provideFileChunk(v_int64 subscr
 }
 
 std::shared_ptr<Peer> File::getHost() {
-  return m_host;
+  return m_host.lock();
 }
 
 v_int64 File::getClientFileId() {

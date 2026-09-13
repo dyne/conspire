@@ -46,10 +46,12 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <deque>
 
 class Room; // FWD
 
-class Peer : public oatpp::websocket::AsyncWebSocket::Listener {
+class Peer : public oatpp::websocket::AsyncWebSocket::Listener,
+             public std::enable_shared_from_this<Peer> {
 public:
   enum class CloseReason { NONE, HEARTBEAT_TIMEOUT, WRITE_ERROR, PROTOCOL_ERROR, SERVER_SHUTDOWN, REMOTE_CLOSE };
 private:
@@ -85,6 +87,15 @@ private:
   mutable std::mutex m_transportLock;
   std::mutex m_commandLock;
   mutable std::mutex m_stateLock;
+  struct OutboundFrame {
+    std::shared_ptr<AsyncWebSocket> socket;
+    std::uint64_t generation;
+    oatpp::String payload;
+  };
+  std::mutex m_outboundLock;
+  std::deque<OutboundFrame> m_outboundFrames;
+  std::size_t m_outboundBytes = 0;
+  bool m_outboundDrainActive = false;
 private:
 
   /* Inject application components */
@@ -96,8 +107,12 @@ private:
 
 private:
 
-  oatpp::async::CoroutineStarter onApiError(const oatpp::String& errorMessage);
+  oatpp::async::CoroutineStarter onApiError(const oatpp::String& errorMessage,
+                                            const oatpp::String& clientMessageId = nullptr);
   bool selectCloseReasonLocked(CloseReason reason);
+  void startOutboundDrain();
+  bool takeOutboundFrame(OutboundFrame& frame);
+  bool isCurrentBinding(const OutboundFrame& frame) const;
 
 private:
 
@@ -156,7 +171,7 @@ public:
   /**
    * Add file shared by user. (for indexing purposes)
    */
-  void addFile(const std::shared_ptr<File>& file);
+  void addFiles(const std::vector<std::shared_ptr<File>>& files);
 
   /**
    * List of shared by user files.

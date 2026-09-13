@@ -53,9 +53,13 @@ public:
   Result accept(std::uint64_t requestId, std::int64_t position, std::int64_t size,
                 std::size_t receivedSize) {
     if (size < 0 || static_cast<std::uint64_t>(size) != receivedSize) return Result::INVALID;
+    // A response duplicated by reconnect may arrive after the consumer has
+    // already issued its next request. It remains the completed response and
+    // must not invalidate the newer outstanding request.
+    if (requestId == m_completedId && position == m_completedPosition && size == m_completedSize)
+      return Result::DUPLICATE;
     if (!m_outstanding) {
-      return requestId == m_completedId && position == m_completedPosition && size == m_completedSize
-        ? Result::DUPLICATE : Result::INVALID;
+      return Result::INVALID;
     }
     if (requestId != m_requestId || position != m_position || size != m_size) return Result::INVALID;
     m_outstanding = false;
@@ -70,6 +74,10 @@ public:
 
 inline bool hasCapacity(std::size_t current, std::size_t maximum) {
   return maximum != 0 && current < maximum;
+}
+
+inline bool hasCapacityFor(std::size_t current, std::size_t additional, std::size_t maximum) {
+  return maximum != 0 && current <= maximum && additional <= maximum - current;
 }
 
 inline bool containsControl(std::string_view value) {
