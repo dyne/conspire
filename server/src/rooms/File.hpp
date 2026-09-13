@@ -84,7 +84,9 @@ public:
 
     ~Subscriber();
 
-    bool provideFileChunk(v_int64 position, v_int64 size, const oatpp::String& data);
+    conspire::boundaries::ChunkRequest::Result provideFileChunk(v_uint64 requestId, v_int64 position,
+                                                                  v_int64 size, const oatpp::String& data);
+    void reissueOutstandingRequest();
 
     oatpp::v_io_size readChunk(void *buffer, v_buff_size count, oatpp::async::Action& action);
 
@@ -109,6 +111,7 @@ private:
 
   std::mutex m_subscribersLock;
   std::atomic<v_int64> m_subscriberIdCounter;
+  bool m_available{true}; // protected by m_subscribersLock
   std::unordered_map<v_int64, std::weak_ptr<Subscriber>> m_subscribers;
 
 public:
@@ -121,7 +124,9 @@ public:
 
   std::shared_ptr<Subscriber> subscribe();
 
-  bool provideFileChunk(v_int64 subscriberId, v_int64 position, v_int64 size, const oatpp::String& data);
+  conspire::boundaries::ChunkRequest::Result provideFileChunk(v_int64 subscriberId, v_uint64 requestId,
+                                                               v_int64 position, v_int64 size,
+                                                               const oatpp::String& data);
 
   std::shared_ptr<Peer> getHost();
 
@@ -134,6 +139,7 @@ public:
   v_int64 getFileSize();
 
   void clearSubscribers();
+  void reissueOutstandingRequests();
 
 };
 

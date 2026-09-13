@@ -78,6 +78,7 @@ private:
   v_uint16 m_closeCode = 0;
   std::string m_closeDetail;
   std::list<std::shared_ptr<File>> m_files;
+  std::string m_fileCapabilityId;
   conspire::session::DedupeWindow m_dedupe;
   // Serializes a transport handoff against a completed frame.  It is always
   // acquired before m_stateLock so stale callbacks cannot mutate a replacement.
@@ -162,6 +163,10 @@ public:
    * @return
    */
   std::vector<std::shared_ptr<File>> getFilesSnapshot();
+  /** A changed page capability means its in-memory File objects are gone. */
+  bool setFileCapability(const oatpp::String& capabilityId);
+  std::vector<std::shared_ptr<File>> takeFilesSnapshot();
+  void reissueOutstandingFileRequests();
 
   /**
    * Remove circle `std::shared_ptr` dependencies

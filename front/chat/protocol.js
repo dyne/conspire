@@ -38,6 +38,7 @@ export function createFileChunkMessage(request, data, chunkSize) {
       subscriberId: request.subscriberId,
       chunkPosition: request.chunkPosition,
       chunkSize,
+      chunkRequestId: request.chunkRequestId,
       data,
     }],
   };

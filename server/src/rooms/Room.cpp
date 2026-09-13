@@ -212,6 +212,32 @@ std::shared_ptr<File> Room::getFileById(v_int64 fileId) {
   return conspire::boundaries::findById(m_fileById, fileId);
 }
 
+void Room::withdrawPeerFiles(const std::shared_ptr<Peer>& peer) {
+  const auto files = peer->takeFilesSnapshot();
+  if (files.empty()) return;
+  {
+    std::lock_guard<std::mutex> guard(m_fileByIdLock);
+    for (const auto& file : files) m_fileById.erase(file->getServerFileId());
+  }
+  for (const auto& file : files) file->clearSubscribers();
+
+  auto unavailable = MessageDto::createShared();
+  unavailable->code = MessageCodes::CODE_PEER_MESSAGE_FILE;
+  unavailable->peerId = peer->getPeerId();
+  unavailable->peerName = peer->getNickname();
+  unavailable->files = MessageDto::FilesList::createShared();
+  for (const auto& file : files) {
+    auto descriptor = FileDto::createShared();
+    descriptor->serverFileId = file->getServerFileId();
+    descriptor->name = file->getFileName();
+    descriptor->size = file->getFileSize();
+    descriptor->available = false;
+    unavailable->files->push_back(descriptor);
+  }
+  addHistoryMessage(unavailable);
+  sendMessageAsync(unavailable);
+}
+
 void Room::sendMessageAsync(const oatpp::Object<MessageDto>& message,
                             const std::shared_ptr<Peer>& excluded) {
   std::vector<std::shared_ptr<Peer>> peers;

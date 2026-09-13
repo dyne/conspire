@@ -88,6 +88,19 @@ advisory affects a pinned input.
   normal final leave/file cleanup once. A process restart invalidates all
   sessions. Resume tokens are bearer credentials: never place them in URLs,
   logs, cookies, or persistent storage.
+- File transfers serialize one subscriber request and attach a monotonically
+  increasing request ID and offset to both request and response. A same-page
+  reconnect reissues the outstanding request; an exact late duplicate is
+  ignored, while a mismatched ID/offset/size is a protocol error. Reloading a
+  tab preserves chat identity but loses browser `File` objects, so Conspire
+  withdraws that tab's hosted offers and wakes subscribers with a failure.
+  Operators should explain this limitation rather than promising resumable
+  uploads after reload.
+- Onion services have no exit relay, but relay/rendezvous failure can still
+  end an established stream. Correlate the browser close code/reason with the
+  30-second probe, 120-second inbound-activity deadline, statistics deltas,
+  and Tor logs; a reconnect within five minutes is expected recovery, not
+  evidence that Tor migrated the original circuit.
 - Before opening a PR: run every fresh-checkout command above, keep generated
   `dist/` and local certificates untracked, and update tests/documentation for
   observable behavior changes.

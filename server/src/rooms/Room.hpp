@@ -143,6 +143,8 @@ public:
    * @return
    */
   std::shared_ptr<File> getFileById(v_int64 fileId);
+  /** Remove files whose browser File source vanished after a page reload. */
+  void withdrawPeerFiles(const std::shared_ptr<Peer>& peer);
 
   /**
    * Send message to all peers in the room.

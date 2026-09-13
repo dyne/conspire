@@ -11,6 +11,7 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import WebSocket from 'ws';
 import { createFileChunkMessage } from '../../front/chat/protocol.js';
+import { createFaultProxy } from '../fault-proxy.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const binary = resolve(root, process.env.CONSPIRE_E2E_BINARY ?? 'build/native-gcc/server/conspire-exe');
@@ -165,7 +166,7 @@ async function connectClient(url, origin, headers = undefined, resume = undefine
     socket.once('error', onConnectionError);
     socket.once('unexpected-response', onUnexpectedResponse);
   });
-  const fileCapabilityId = randomBytes(16).toString('base64url');
+  const fileCapabilityId = resume?.fileCapabilityId || randomBytes(16).toString('base64url');
   await new Promise((resolveSend, rejectSend) => socket.send(JSON.stringify({
     code: messageCode.sessionHello,
     protocolVersion: 2,
@@ -177,7 +178,7 @@ async function connectClient(url, origin, headers = undefined, resume = undefine
     if (socketErrors.length > 0) throw socketErrors[0];
     return messages.find((message) => message.code === messageCode.sessionReady);
   });
-  return { socket, messages, socketErrors, ready };
+  return { socket, messages, socketErrors, ready, fileCapabilityId };
 }
 
 function clientMessageId() {
@@ -705,6 +706,150 @@ test('real server resumes a v2 session with the same peer identity', { timeout: 
   if (scenarioError) throw new Error(`${scenarioError.message}\nConspire output:\n${server.getOutput()}`, { cause: scenarioError });
 });
 
+test('real server resumes a proxy-dropped transport and records the resume metric', { timeout: 30_000 }, async () => {
+  const port = await reservePort();
+  const origin = `http://localhost:${port}`;
+  const room = 'e2e-proxy-drop-room';
+  const server = startConspire(port);
+  let proxy;
+  let first;
+  let resumed;
+  let scenarioError;
+  try {
+    await waitForServer(server, origin);
+    proxy = await createFaultProxy({ port, cap: 37 });
+    const proxiedUrl = `ws://127.0.0.1:${proxy.port}/api/ws/room/${room}/`;
+    const canonicalHost = { Host: `localhost:${port}` };
+    first = await connectClient(proxiedUrl, origin, canonicalHost);
+    proxy.pause();
+    proxy.resume();
+    proxy.terminate();
+    await waitUntil('proxy-injected socket close', () => first.socket.readyState === WebSocket.CLOSED);
+    resumed = await connectClient(proxiedUrl, origin, canonicalHost, {
+      resumeToken: first.ready.resumeToken,
+      lastServerSeq: first.ready.latestServerSeq,
+      fileCapabilityId: first.fileCapabilityId,
+    });
+    assert.equal(resumed.ready.resumed, true);
+    assert.equal(resumed.ready.peerId, first.ready.peerId);
+    await waitUntil('resumption statistics sample', async () => {
+      const points = await (await fetch(`${origin}/admin/stats.json`)).json();
+      return points.at(-1)?.ev_peer_resumed >= 1 && points.at(-1)?.ev_peer_disconnected >= 1;
+    }, 5_000);
+  } catch (error) {
+    scenarioError = error;
+  }
+  for (const client of [resumed]) {
+    if (!client) continue;
+    try { await closeClient(client); } catch (error) { scenarioError ??= error; }
+  }
+  if (proxy) {
+    try { await proxy.close(); } catch (error) { scenarioError ??= error; }
+  }
+  try { await stopConspire(server); } catch (error) { scenarioError ??= error; }
+  if (scenarioError) throw new Error(`${scenarioError.message}\nConspire output:\n${server.getOutput()}`, { cause: scenarioError });
+});
+
+test('real server reissues an outstanding file chunk after same-page resume',
+  { timeout: 30_000 }, async () => {
+    const port = await reservePort();
+    const origin = `http://localhost:${port}`;
+    const room = 'e2e-file-resume-room';
+    const websocketUrl = `ws://localhost:${port}/api/ws/room/${room}/`;
+    const server = startConspire(port);
+    const contents = Buffer.from('file bytes survive a replaceable transport');
+    let offerer;
+    let resumed;
+    let downloader;
+    let scenarioError;
+    try {
+      await waitForServer(server, origin);
+      offerer = await connectClient(websocketUrl, origin);
+      downloader = await connectClient(websocketUrl, origin);
+      await sendJson(offerer, {
+        code: messageCode.fileShare, clientMessageId: clientMessageId(),
+        files: [{ clientFileId: 1, name: 'resume.bin', size: contents.length }],
+      });
+      const shared = await waitForMessage(downloader, 'shared resume file',
+        (message) => message.code === messageCode.peerFile);
+      const responsePromise = fetch(`${origin}/room/${room}/file/${shared.files[0].serverFileId}`);
+      await waitUntil('initial chunk request', () => offerer.messages.find(
+        (message) => message.code === messageCode.fileRequestChunk));
+      await closeClient(offerer);
+      resumed = await connectClient(websocketUrl, origin, undefined, {
+        resumeToken: offerer.ready.resumeToken,
+        lastServerSeq: offerer.ready.latestServerSeq,
+        fileCapabilityId: offerer.fileCapabilityId,
+      });
+      const serveRequestedChunk = (message) => {
+        if (message.code !== messageCode.fileRequestChunk) return;
+        const request = message.files[0];
+        const chunk = contents.subarray(request.chunkPosition, request.chunkPosition + request.chunkSize);
+        resumed.socket.send(JSON.stringify(createFileChunkMessage(request, chunk.toString('base64'), chunk.length)));
+      };
+      resumed.socket.on('message', (payload) => serveRequestedChunk(JSON.parse(payload.toString())));
+      // SESSION_READY is delivered before connectClient returns; process a
+      // reissued request already observed by its common collector as well.
+      resumed.messages.forEach(serveRequestedChunk);
+      const response = await responsePromise;
+      assert.equal(response.status, 200);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), contents);
+      assert.equal(resumed.ready.resumed, true);
+    } catch (error) {
+      scenarioError = error;
+    }
+    for (const client of [resumed, downloader]) {
+      if (!client) continue;
+      try { await closeClient(client); } catch (error) { scenarioError ??= error; }
+    }
+    try { await stopConspire(server); } catch (error) { scenarioError ??= error; }
+    if (scenarioError) throw new Error(`${scenarioError.message}\nConspire output:\n${server.getOutput()}`, { cause: scenarioError });
+  });
+
+test('real server withdraws hosted files after a resumed page changes capability',
+  { timeout: 30_000 }, async () => {
+    const port = await reservePort();
+    const origin = `http://localhost:${port}`;
+    const room = 'e2e-file-reload-room';
+    const websocketUrl = `ws://localhost:${port}/api/ws/room/${room}/`;
+    const server = startConspire(port);
+    let offerer;
+    let resumed;
+    let observer;
+    let scenarioError;
+    try {
+      await waitForServer(server, origin);
+      offerer = await connectClient(websocketUrl, origin);
+      observer = await connectClient(websocketUrl, origin);
+      await sendJson(offerer, {
+        code: messageCode.fileShare, clientMessageId: clientMessageId(),
+        files: [{ clientFileId: 1, name: 'gone-after-reload.bin', size: 1 }],
+      });
+      const shared = await waitForMessage(observer, 'shared reload file',
+        (message) => message.code === messageCode.peerFile);
+      await closeClient(offerer);
+      resumed = await connectClient(websocketUrl, origin, undefined, {
+        resumeToken: offerer.ready.resumeToken,
+        lastServerSeq: offerer.ready.latestServerSeq,
+        // Deliberately omit the original in-memory page capability.
+      });
+      const unavailable = await waitForMessage(observer, 'file unavailable update',
+        (message) => message.code === messageCode.peerFile && message.files?.[0]?.available === false);
+      assert.equal(unavailable.files[0].serverFileId, shared.files[0].serverFileId);
+      const response = await fetch(`${origin}/room/${room}/file/${shared.files[0].serverFileId}`);
+      assert.equal(response.status, 404);
+      assert.equal(resumed.ready.resumed, true);
+    } catch (error) {
+      scenarioError = error;
+    }
+    for (const client of [resumed, observer]) {
+      if (!client) continue;
+      try { await closeClient(client); } catch (error) { scenarioError ??= error; }
+    }
+    try { await stopConspire(server); } catch (error) { scenarioError ??= error; }
+    if (scenarioError) throw new Error(`${scenarioError.message}\nConspire output:\n${server.getOutput()}`, { cause: scenarioError });
+  });
+
 test('real server transfers file contents without disconnecting either peer',
   { timeout: 30_000 }, async () => {
     const port = await reservePort();
@@ -753,11 +898,17 @@ test('real server transfers file contents without disconnecting either peer',
         `${origin}/room/${room}/file/${shared.files[0].serverFileId}`);
       assert.equal(response.status, 200);
       assert.deepEqual(Buffer.from(await response.arrayBuffer()), contents);
+      // Normal chunk delivery must not withdraw a still-hosted file: a new
+      // subscriber can start after the first one completed.
+      const repeatResponse = await fetch(
+        `${origin}/room/${room}/file/${shared.files[0].serverFileId}`);
+      assert.equal(repeatResponse.status, 200);
+      assert.deepEqual(Buffer.from(await repeatResponse.arrayBuffer()), contents);
       assert.ifError(responseError);
       assert.equal(offerer.socket.readyState, WebSocket.OPEN);
       assert.equal(downloader.socket.readyState, WebSocket.OPEN);
       assert.equal(offerer.messages.filter(
-        (message) => message.code === messageCode.fileRequestChunk).length, 16);
+        (message) => message.code === messageCode.fileRequestChunk).length, 32);
     } catch (error) {
       scenarioError = error;
     }

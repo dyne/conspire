@@ -263,6 +263,20 @@ is the delivery confirmation. An expired credential starts a new session and
 marks the old pending command for manual retry rather than replaying it under a
 different identity.
 
+File downloads use one serialized, subscriber-scoped chunk request at a time.
+After a same-page reconnect the request is repeated with its original request
+ID and offset, so a lost request or response cannot advance the download twice.
+A browser reload keeps chat identity but deliberately changes its in-memory file
+capability: hosted `File` objects are gone, so their offers are withdrawn and
+active downloads fail promptly instead of waiting indefinitely. This is not a
+file-resume service; neither files nor sessions survive a server restart.
+
+Tor onion services do not use an exit relay, but an existing client stream can
+still break when a relay or rendezvous path fails. Tor does not routinely move
+an established WebSocket to a new circuit. Conspire therefore treats the
+WebSocket as replaceable and relies on the bounded application-level resume
+described above; it does not promise uninterrupted transport.
+
 ## 💼 License
 
 Conspire is based on [can-chat](https://github.com/lganzzzo/canchat) by Leonid

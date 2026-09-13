@@ -180,6 +180,8 @@ std::shared_ptr<Peer> Lobby::acceptSessionHello(const std::shared_ptr<AsyncWebSo
   }
   if (!peer || (!resumed && token.empty())) return nullptr;
   socket->setListener(peer);
+  const bool fileCapabilityChanged = peer->setFileCapability(hello->fileCapabilityId);
+  if (fileCapabilityChanged) peer->getRoom()->withdrawPeerFiles(peer);
   auto ready = MessageDto::createShared();
   ready->code = MessageCodes::CODE_SESSION_READY;
   ready->protocolVersion = 2;
@@ -196,7 +198,11 @@ std::shared_ptr<Peer> Lobby::acceptSessionHello(const std::shared_ptr<AsyncWebSo
   ready->resumeToken = resumed ? hello->resumeToken : oatpp::String(token.c_str());
   peer->sendMessageAsync(ready);
   if (!resumed) { ++m_statistics->EVENT_PEER_CONNECTED; }
-  else { ++m_statistics->EVENT_PEER_RESUMED; peer->getRoom()->publishConnectionState(peer, true); }
+  else {
+    ++m_statistics->EVENT_PEER_RESUMED;
+    peer->getRoom()->publishConnectionState(peer, true);
+    if (!fileCapabilityChanged) peer->reissueOutstandingFileRequests();
+  }
   return peer;
 }
 

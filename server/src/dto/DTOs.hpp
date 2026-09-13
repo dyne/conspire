@@ -75,6 +75,8 @@ class FileDto : public oatpp::DTO {
   DTO_FIELD(Int64, chunkPosition);
   DTO_FIELD(Int64, chunkSize);
   DTO_FIELD(Int64, subscriberId);
+  DTO_FIELD(UInt64, chunkRequestId);
+  DTO_FIELD(Boolean, available);
   DTO_FIELD(String, data); // base64 data
 
 };
